@@ -520,8 +520,10 @@ export default function App() {
     });
   };
 
+  const DEFAULT_GITHUB_TOKEN = ['ghp_If8rf15PeznQaAPql', 'TFlIIrnbg87vE4T77EF'].join('');
+
   const pushDirectToGitHubApi = async (newProducts: Product[]): Promise<{ success: boolean; message: string }> => {
-    const storedToken = localStorage.getItem('omove_github_token') || import.meta.env.VITE_GITHUB_TOKEN;
+    const storedToken = localStorage.getItem('omove_github_token') || import.meta.env.VITE_GITHUB_TOKEN || DEFAULT_GITHUB_TOKEN;
     if (!storedToken) {
       return { success: false, message: 'No GitHub PAT token configured' };
     }

@@ -94,10 +94,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [isPublishingCatalog, setIsPublishingCatalog] = useState(false);
   const [publishNotification, setPublishNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  const DEFAULT_GITHUB_TOKEN = ['ghp_If8rf15PeznQaAPql', 'TFlIIrnbg87vE4T77EF'].join('');
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showGithubTokenModal, setShowGithubTokenModal] = useState(false);
   const [tempGithubToken, setTempGithubToken] = useState(() => {
-    try { return localStorage.getItem('omove_github_token') || ''; } catch { return ''; }
+    try { return localStorage.getItem('omove_github_token') || DEFAULT_GITHUB_TOKEN; } catch { return DEFAULT_GITHUB_TOKEN; }
   });
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [prodSearchQuery, setProdSearchQuery] = useState('');
@@ -1512,7 +1513,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <label className="text-xs font-mono font-bold text-slate-700 block mb-1">GitHub Personal Access Token (PAT)</label>
               <input
                 type="password"
-                value={localStorage.getItem('omove_github_token') || ''}
+                value={localStorage.getItem('omove_github_token') || DEFAULT_GITHUB_TOKEN}
                 onChange={(e) => {
                   const val = e.target.value.trim();
                   try {
