@@ -580,26 +580,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 )}
               </div>
 
-              {/* Quick Clickable Promo Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none pt-1">
-                <span className="text-[10px] text-slate-400 font-mono shrink-0">Available Promos:</span>
-                {[
-                  { code: 'OMOVE15', desc: '15% OFF' },
-                  { code: 'PROMO50', desc: '₹50 OFF' },
-                  { code: 'ASHIK20', desc: '20% OFF' }
-                ].map((cpn) => (
-                  <button
-                    type="button"
-                    key={cpn.code}
-                    onClick={() => handleApplyCouponCode(cpn.code)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold whitespace-nowrap transition-all flex items-center gap-1 active:scale-95"
-                  >
-                    <span>{cpn.code}</span>
-                    <span className="text-slate-400 text-[9px]">({cpn.desc})</span>
-                  </button>
-                ))}
-              </div>
-
               {couponStatus && (
                 <div className={`p-2.5 rounded-xl border text-xs font-mono ${
                   couponStatus.valid ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40' : 'bg-rose-950/70 text-rose-300 border-rose-500/40'
