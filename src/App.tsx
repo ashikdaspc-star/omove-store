@@ -42,13 +42,29 @@ export default function App() {
       const stored = localStorage.getItem('omove_products');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.error(e);
     }
-    return MOCK_PRODUCTS;
+    return [];
   });
+
+  useEffect(() => {
+    fetch('/api/products')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setProducts(data);
+          try {
+            localStorage.setItem('omove_products', JSON.stringify(data));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [services, setServices] = useState<RemoteService[]>(MOCK_SERVICES);
   const [blogs, setBlogs] = useState<BlogPost[]>(MOCK_BLOGS);
@@ -315,14 +331,23 @@ export default function App() {
     setBookings((prev) => [newBooking, ...prev]);
   };
 
+  const syncProducts = (updated: Product[]) => {
+    try {
+      localStorage.setItem('omove_products', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    fetch('/api/products/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products: updated })
+    }).catch(() => {});
+  };
+
   const handleAddProduct = (newProd: Product) => {
     setProducts((prev) => {
       const updated = [newProd, ...prev];
-      try {
-        localStorage.setItem('omove_products', JSON.stringify(updated));
-      } catch (e) {
-        console.error(e);
-      }
+      syncProducts(updated);
       return updated;
     });
   };
@@ -330,11 +355,7 @@ export default function App() {
   const handleUpdateProduct = (updatedProd: Product) => {
     setProducts((prev) => {
       const updated = prev.map((p) => (p.id === updatedProd.id ? updatedProd : p));
-      try {
-        localStorage.setItem('omove_products', JSON.stringify(updated));
-      } catch (e) {
-        console.error(e);
-      }
+      syncProducts(updated);
       return updated;
     });
   };
@@ -342,11 +363,7 @@ export default function App() {
   const handleDeleteProduct = (prodId: string) => {
     setProducts((prev) => {
       const updated = prev.filter((p) => p.id !== prodId);
-      try {
-        localStorage.setItem('omove_products', JSON.stringify(updated));
-      } catch (e) {
-        console.error(e);
-      }
+      syncProducts(updated);
       return updated;
     });
   };

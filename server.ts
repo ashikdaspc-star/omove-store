@@ -117,24 +117,26 @@ async function startServer() {
     res.json({ status: 'ok', service: 'OMOVE TECH Engine', time: new Date().toISOString() });
   });
 
+  let dynamicProductsStore: any[] = [];
+
   // Get products with search & category filters
   app.get('/api/products', (req: Request, res: Response) => {
     const category = req.query.category as string;
     const search = (req.query.q as string || '').toLowerCase();
     const sort = req.query.sort as string;
 
-    let filtered = [...MOCK_PRODUCTS];
+    let filtered = [...dynamicProductsStore];
 
     if (category && category !== 'All') {
-      filtered = filtered.filter(p => p.category.toLowerCase() === category.toLowerCase());
+      filtered = filtered.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
     }
 
     if (search) {
       filtered = filtered.filter(p =>
-        p.name.toLowerCase().includes(search) ||
-        p.shortDescription.toLowerCase().includes(search) ||
-        p.category.toLowerCase().includes(search) ||
-        p.tags.some(t => t.toLowerCase().includes(search))
+        (p.name || '').toLowerCase().includes(search) ||
+        (p.shortDescription || '').toLowerCase().includes(search) ||
+        (p.category || '').toLowerCase().includes(search) ||
+        (p.tags || []).some((t: string) => t.toLowerCase().includes(search))
       );
     }
 
@@ -145,14 +147,22 @@ async function startServer() {
     } else if (sort === 'rating') {
       filtered.sort((a, b) => b.rating - a.rating);
     } else if (sort === 'popular') {
-      filtered.sort((a, b) => b.salesCount - a.salesCount);
+      filtered.sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
     }
 
     res.json(filtered);
   });
 
+  app.post('/api/products/sync', (req: Request, res: Response) => {
+    const { products } = req.body;
+    if (Array.isArray(products)) {
+      dynamicProductsStore = products;
+    }
+    res.json({ success: true, count: dynamicProductsStore.length });
+  });
+
   app.get('/api/products/:id', (req: Request, res: Response) => {
-    const prod = MOCK_PRODUCTS.find(p => p.id === req.params.id || p.slug === req.params.id);
+    const prod = dynamicProductsStore.find(p => p.id === req.params.id || p.slug === req.params.id);
     if (!prod) return res.status(404).json({ error: 'Product not found' });
     res.json(prod);
   });
