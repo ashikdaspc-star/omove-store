@@ -327,12 +327,15 @@ export default function App() {
           <DashboardView
             orders={orders}
             bookings={bookings}
-            wishlist={wishlistProducts}
+            wishlistProducts={wishlistProducts}
             customerProfile={customerProfile}
-            setCustomerProfile={setCustomerProfile}
-            onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
-            onRemoveWishlist={handleToggleWishlist}
+            onUpdateCustomerProfile={setCustomerProfile}
+            onSelectProduct={setSelectedProductForDetail}
             onAddToCart={handleAddToCart}
+            onBuyNow={handleBuyNow}
+            onToggleWishlist={handleToggleWishlist}
+            onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
+            setCurrentView={setCurrentView}
           />
         )}
 
