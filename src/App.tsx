@@ -364,11 +364,17 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ products })
       });
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = { success: res.ok, message: rawText || 'Server response error' };
+      }
       if (data.success) {
         return { success: true, message: 'Catalog saved to server & published to GitHub!' };
       } else {
-        return { success: false, message: data.error || 'Server error saving catalog' };
+        return { success: false, message: data.error || data.message || 'Server error saving catalog' };
       }
     } catch (err: any) {
       return { success: false, message: err.message || 'Could not connect to server' };
