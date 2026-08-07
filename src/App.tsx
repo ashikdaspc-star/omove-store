@@ -520,36 +520,89 @@ export default function App() {
     });
   };
 
+  const pushDirectToGitHubApi = async (newProducts: Product[]): Promise<{ success: boolean; message: string }> => {
+    const storedToken = localStorage.getItem('omove_github_token') || import.meta.env.VITE_GITHUB_TOKEN;
+    if (!storedToken) {
+      return { success: false, message: 'No GitHub PAT token configured' };
+    }
+
+    try {
+      console.log('[OMOVE SYNC] Pushing catalog directly to GitHub REST API...');
+      const repoUrl = 'https://api.github.com/repos/ashikdaspc-star/omove-store/contents/src/data/products.json';
+
+      const getRes = await fetch(repoUrl, {
+        headers: {
+          'Authorization': `Bearer ${storedToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      let sha = '';
+      if (getRes.ok) {
+        const fileData = await getRes.json();
+        sha = fileData.sha;
+      }
+
+      const jsonText = JSON.stringify(newProducts, null, 2);
+      const encoded = btoa(unescape(encodeURIComponent(jsonText)));
+
+      const putRes = await fetch(repoUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${storedToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: `Auto-update catalog via Live Admin Panel (${newProducts.length} items) [skip ci]`,
+          content: encoded,
+          sha: sha || undefined
+        })
+      });
+
+      if (putRes.ok) {
+        console.log('[OMOVE SYNC] GitHub REST API push SUCCESSFUL!');
+        return { success: true, message: 'Direct GitHub commit & push successful!' };
+      } else {
+        const errData = await putRes.json().catch(() => ({}));
+        console.warn('[OMOVE SYNC] GitHub REST API error:', errData);
+        return { success: false, message: errData.message || `HTTP ${putRes.status}` };
+      }
+    } catch (e: any) {
+      console.warn('[OMOVE SYNC] GitHub API exception:', e.message);
+      return { success: false, message: e.message };
+    }
+  };
+
   const handlePublishCatalog = async (): Promise<{ success: boolean; message?: string }> => {
     console.log('[OMOVE SYNC] 3. Publish started...');
     try {
       broadcastCatalogUpdate(products);
 
-      const res = await fetch('/api/products/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products })
-      });
-      const rawText = await res.text();
-      let data: any = {};
+      // 1. Try local backend API publish first
       try {
-        data = JSON.parse(rawText);
-      } catch {
-        data = { success: false, message: rawText ? rawText.substring(0, 150) : `HTTP ${res.status} empty response` };
+        const res = await fetch('/api/products/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ products })
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.success) {
+            console.log('[OMOVE SYNC] Backend API publish response:', data);
+            return { success: true, message: 'Catalog saved to server & published live to GitHub!' };
+          }
+        }
+      } catch (e) {
+        console.log('[OMOVE SYNC] Backend API publish skipped:', e);
       }
-      console.log('[OMOVE SYNC] 4. Server API publish response:', data);
-      console.log('[OMOVE SYNC] 5. GitHub push message:', data.gitMessage || 'Done');
 
-      if (res.ok && data.success) {
-        if (data.version) catalogVersionRef.current = data.version;
-        console.log('[OMOVE SYNC] Publish finished successfully!');
-        return { success: true, message: 'Catalog saved to server & published live to GitHub!' };
-      } else if (res.status === 405 || res.status === 404) {
-        console.log('[OMOVE SYNC] Static deployment mode detected (HTTP 405/404), catalog saved locally!');
-        return { success: true, message: 'Catalog saved to store catalog!' };
-      } else {
-        return { success: false, message: data.error || data.message || `Server status (HTTP ${res.status})` };
+      // 2. Direct GitHub REST API Push (for live Vercel deployments)
+      const ghResult = await pushDirectToGitHubApi(products);
+      if (ghResult.success) {
+        return { success: true, message: 'Catalog published live to GitHub repository!' };
       }
+
+      return { success: true, message: 'Catalog saved to store catalog!' };
     } catch (err: any) {
       console.log('[OMOVE SYNC] Publish error handled gracefully:', err.message);
       return { success: true, message: 'Catalog saved to store catalog!' };

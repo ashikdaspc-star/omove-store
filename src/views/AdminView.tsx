@@ -1484,6 +1484,38 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <span>{isSaved ? 'SETTINGS SAVED & VERIFIED!' : 'SAVE RAZORPAY CREDENTIALS'}</span>
             </button>
           </form>
+
+          {/* GitHub PAT Token Configuration for Live Direct Publish */}
+          <div className="pt-6 border-t border-slate-200 space-y-4 max-w-xl">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-bold">
+                <Globe className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900 font-mono">Live GitHub Direct Publish Token</h4>
+                <p className="text-[11px] text-slate-500">Enables Admin Panel to publish products.json directly to GitHub from live web</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-mono font-bold text-slate-700 block mb-1">GitHub Personal Access Token (PAT)</label>
+              <input
+                type="password"
+                value={localStorage.getItem('omove_github_token') || ''}
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  try {
+                    localStorage.setItem('omove_github_token', val);
+                  } catch (err) {}
+                }}
+                placeholder="github_pat_... or ghp_..."
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-emerald-600"
+              />
+              <span className="text-[10px] text-slate-500 mt-1 block leading-relaxed">
+                Paste your GitHub Token with <code>repo</code> / <code>contents:write</code> scope to allow 1-click live catalog publishing directly to GitHub from any browser or device.
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
