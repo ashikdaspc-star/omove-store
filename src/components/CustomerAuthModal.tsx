@@ -90,16 +90,35 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       console.warn('Backend notice, evaluating local registry:', err);
     }
 
-    // Client-side registered accounts verification fallback
+    // Client-side registered accounts verification & seamless sign-in
     const registered = getRegisteredUsers();
     const existing = registered[normEmail];
 
     if (mode === 'register') {
+      const newUser = {
+        name: name || normEmail.split('@')[0] || 'Customer',
+        email: normEmail,
+        phone: phone || '',
+        password,
+        location: 'Kolkata, West Bengal, India'
+      };
+      saveRegisteredUser(newUser);
+      onLoginSuccess(newUser);
+      onClose();
+    } else {
+      // Sign In mode
       if (existing) {
-        setErrorNotice('An account with this email already exists! Please click "Sign In" instead.');
+        if (existing.password && existing.password !== password) {
+          setErrorNotice('Incorrect password! Please check your password and try again.');
+          setIsSubmitting(false);
+          return;
+        }
+        onLoginSuccess(existing);
+        onClose();
       } else {
+        // Seamless auto-create & sign-in for customer email
         const newUser = {
-          name: name || 'Customer',
+          name: normEmail.split('@')[0] || 'Customer',
           email: normEmail,
           phone: phone || '',
           password,
@@ -107,16 +126,6 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         };
         saveRegisteredUser(newUser);
         onLoginSuccess(newUser);
-        onClose();
-      }
-    } else {
-      // Sign In mode
-      if (!existing) {
-        setErrorNotice('Account not found! You must click "New Account" to register first.');
-      } else if (existing.password !== password) {
-        setErrorNotice('Incorrect password! Please check your password and try again.');
-      } else {
-        onLoginSuccess(existing);
         onClose();
       }
     }
