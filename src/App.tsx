@@ -26,8 +26,15 @@ export default function App() {
   const [services, setServices] = useState<RemoteService[]>(MOCK_SERVICES);
   const [blogs, setBlogs] = useState<BlogPost[]>(MOCK_BLOGS);
 
-  // Customer Auth & Profile state
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
+  // Customer Auth & Profile state - default to false for new visitors!
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('omove_active_session');
+      return !!stored;
+    } catch {
+      return false;
+    }
+  });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [pendingCheckoutAfterAuth, setPendingCheckoutAfterAuth] = useState<boolean>(false);
 
@@ -36,11 +43,19 @@ export default function App() {
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
 
-  const [customerProfile, setCustomerProfile] = useState({
-    name: 'Ashik Das',
-    email: 'omovetech@gmail.com',
-    phone: '+91 8345968169',
-    location: 'Kolkata, West Bengal, India'
+  const [customerProfile, setCustomerProfile] = useState(() => {
+    try {
+      const stored = localStorage.getItem('omove_active_session');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      name: 'Customer',
+      email: '',
+      phone: '',
+      location: 'Kolkata, West Bengal, India'
+    };
   });
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
@@ -129,6 +144,11 @@ export default function App() {
   const handleLoginSuccess = (profile: { name: string; email: string; phone: string; location: string }) => {
     setIsLoggedIn(true);
     setCustomerProfile(profile);
+    try {
+      localStorage.setItem('omove_active_session', JSON.stringify(profile));
+    } catch (e) {
+      console.error(e);
+    }
     if (pendingCheckoutAfterAuth) {
       setPendingCheckoutAfterAuth(false);
       setIsCheckoutOpen(true);
@@ -137,6 +157,12 @@ export default function App() {
 
   const handleSignOut = () => {
     setIsLoggedIn(false);
+    setCustomerProfile({ name: 'Customer', email: '', phone: '', location: 'Kolkata, West Bengal, India' });
+    try {
+      localStorage.removeItem('omove_active_session');
+    } catch (e) {
+      console.error(e);
+    }
     setCurrentView('home');
   };
 
