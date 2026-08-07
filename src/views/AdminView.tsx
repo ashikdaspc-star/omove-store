@@ -94,8 +94,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [isPublishingCatalog, setIsPublishingCatalog] = useState(false);
   const [publishNotification, setPublishNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Products Management State
   const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [showGithubTokenModal, setShowGithubTokenModal] = useState(false);
+  const [tempGithubToken, setTempGithubToken] = useState(() => {
+    try { return localStorage.getItem('omove_github_token') || ''; } catch { return ''; }
+  });
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [prodSearchQuery, setProdSearchQuery] = useState('');
   const [prodName, setProdName] = useState('');
@@ -594,7 +597,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           { id: 'analytics', label: '📊 Revenue & Analytics', icon: BarChart2 },
           { id: 'services', label: '⚡ Remote Services Catalog', icon: Wrench, count: services.length },
           { id: 'blogs', label: '📰 Blog & Knowledge Base', icon: BookOpen, count: blogs.length },
-          { id: 'gateway', label: '🛡️ Razorpay Gateway Config', icon: Lock }
+          { id: 'gateway', label: '🔑 API Keys & GitHub Sync Config', icon: Key }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -649,9 +652,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   title="Save product updates on server and publish live to GitHub"
                 >
                   <Upload className={`w-3.5 h-3.5 ${isPublishingCatalog ? 'animate-spin' : ''}`} />
-                  <span>{isPublishingCatalog ? 'Saving...' : '💾 Save to Live Server'}</span>
+                  <span>{isPublishingCatalog ? 'Saving...' : '💾 Save & Publish Catalog'}</span>
                 </button>
               )}
+              <button
+                onClick={() => setShowGithubTokenModal(true)}
+                className="px-3.5 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono text-xs font-bold shadow-xs shrink-0 flex items-center gap-1 transition-all"
+                title="Configure Live GitHub PAT Token for 1-click publishing from Vercel web"
+              >
+                <Key className="w-3.5 h-3.5 text-indigo-600" />
+                <span>🔑 Set GitHub Token</span>
+              </button>
               <button
                 onClick={() => setShowAddProductModal(true)}
                 className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0"
@@ -2142,6 +2153,65 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* GITHUB PAT TOKEN CONFIG MODAL POPUP */}
+      {showGithubTokenModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-6 space-y-4 text-slate-900 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 font-mono text-sm font-bold">
+                <Globe className="w-5 h-5 text-indigo-600" />
+                <span>LIVE GITHUB DIRECT PUBLISH TOKEN</span>
+              </div>
+              <button onClick={() => setShowGithubTokenModal(false)} className="text-slate-400 hover:text-slate-900">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs font-mono">
+              <p className="text-slate-600 leading-relaxed font-sans text-xs">
+                Enter your GitHub Personal Access Token (PAT) to enable 1-click live catalog publishing directly to GitHub from Vercel / any browser or phone:
+              </p>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">GitHub Personal Access Token (PAT)</label>
+                <input
+                  type="password"
+                  value={tempGithubToken}
+                  onChange={(e) => setTempGithubToken(e.target.value.trim())}
+                  placeholder="github_pat_... or ghp_..."
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-indigo-600"
+                />
+                <span className="text-[10px] text-slate-500 mt-1 block font-sans">
+                  Token needs <code>repo</code> or <code>contents:write</code> scope.
+                </span>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 font-mono text-xs">
+                <button
+                  type="button"
+                  onClick={() => setShowGithubTokenModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try { localStorage.setItem('omove_github_token', tempGithubToken); } catch (e) {}
+                    setShowGithubTokenModal(false);
+                    setPublishNotification({ type: 'success', message: 'GitHub PAT Token saved! Live direct publishing is active.' });
+                    setTimeout(() => setPublishNotification(null), 4000);
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm"
+                >
+                  Save Token
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
