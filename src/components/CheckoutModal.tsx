@@ -516,6 +516,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             </div>
 
+            {/* 100% Refund Guarantee */}
+            <div className="p-3.5 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-emerald-400 font-bold block text-xs">100% Refund Guarantee</strong>
+                <span className="text-[11px] text-slate-300 leading-snug block mt-0.5">
+                  If we're unable to resolve your issue, your payment will be automatically refunded within 2–3 business days.
+                </span>
+              </div>
+            </div>
+
             {/* Submit CTA */}
             <button
               type="submit"

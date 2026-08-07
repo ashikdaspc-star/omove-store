@@ -106,6 +106,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               </li>
             ))}
           </ul>
+
+          {/* 100% Refund Guarantee Badge */}
+          <div className="pt-2">
+            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-1 rounded-lg flex items-center gap-1.5 leading-tight">
+              <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+              <span>100% Refund Guarantee (2–3 Days)</span>
+            </span>
+          </div>
         </div>
       </div>
 

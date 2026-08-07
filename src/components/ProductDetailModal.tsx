@@ -229,6 +229,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     <span>BUY NOW</span>
                   </button>
                 </div>
+
+                <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-emerald-400 block text-xs">100% Refund Guarantee</span>
+                    <span className="text-[11px] text-slate-300 leading-snug block">If we're unable to resolve your issue, your payment will be automatically refunded within 2–3 business days.</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
