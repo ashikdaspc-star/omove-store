@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { RemoteService, RemoteBooking } from '../types';
+import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import {
   Headphones,
   CheckCircle2,
@@ -134,6 +135,18 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
               bookingObj.razorpayPaymentId = response.razorpay_payment_id || ('pay_' + Date.now());
               setConfirmedBooking(bookingObj);
               onBookingSuccess(bookingObj);
+              sendAdminOrderNotificationEmail({
+                type: 'REMOTE_BOOKING',
+                customerName: bookingObj.customerName,
+                email: bookingObj.email,
+                phone: bookingObj.phone,
+                title: bookingObj.serviceTitle,
+                amount: bookingObj.amount,
+                paymentId: bookingObj.razorpayPaymentId,
+                orderOrBookingId: bookingObj.bookingNumber,
+                remoteId: bookingObj.remoteId,
+                problemDescription: bookingObj.problemDescription
+              });
               confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
             }
           },
@@ -148,6 +161,18 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
       } else {
         setConfirmedBooking(bookingObj);
         onBookingSuccess(bookingObj);
+        sendAdminOrderNotificationEmail({
+          type: 'REMOTE_BOOKING',
+          customerName: bookingObj.customerName,
+          email: bookingObj.email,
+          phone: bookingObj.phone,
+          title: bookingObj.serviceTitle,
+          amount: bookingObj.amount,
+          paymentId: bookingObj.razorpayPaymentId || 'PAID_DIRECT',
+          orderOrBookingId: bookingObj.bookingNumber,
+          remoteId: bookingObj.remoteId,
+          problemDescription: bookingObj.problemDescription
+        });
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       }
     } catch (err) {
@@ -155,6 +180,18 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
       if (bookingObj) {
         setConfirmedBooking(bookingObj);
         onBookingSuccess(bookingObj);
+        sendAdminOrderNotificationEmail({
+          type: 'REMOTE_BOOKING',
+          customerName: bookingObj.customerName,
+          email: bookingObj.email,
+          phone: bookingObj.phone,
+          title: bookingObj.serviceTitle,
+          amount: bookingObj.amount,
+          paymentId: bookingObj.razorpayPaymentId || 'PAID_DIRECT',
+          orderOrBookingId: bookingObj.bookingNumber,
+          remoteId: bookingObj.remoteId,
+          problemDescription: bookingObj.problemDescription
+        });
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       }
     } finally {

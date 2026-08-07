@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { RemoteService, RemoteBooking } from '../types';
+import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import {
   Zap,
   Check,
@@ -136,6 +137,18 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
               bookingObj.razorpayPaymentId = response.razorpay_payment_id || ('pay_' + Date.now());
               setConfirmedBooking(bookingObj);
               if (onBookingSuccess) onBookingSuccess(bookingObj);
+              sendAdminOrderNotificationEmail({
+                type: 'REMOTE_BOOKING',
+                customerName: bookingObj.customerName,
+                email: bookingObj.email,
+                phone: bookingObj.phone,
+                title: bookingObj.serviceTitle,
+                amount: bookingObj.amount,
+                paymentId: bookingObj.razorpayPaymentId,
+                orderOrBookingId: bookingObj.bookingNumber,
+                remoteId: bookingObj.remoteId,
+                problemDescription: bookingObj.problemDescription
+              });
               confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
             }
           },
@@ -169,6 +182,18 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
       if (pendingBooking) {
         setConfirmedBooking(pendingBooking);
         if (onBookingSuccess) onBookingSuccess(pendingBooking);
+        sendAdminOrderNotificationEmail({
+          type: 'REMOTE_BOOKING',
+          customerName: pendingBooking.customerName,
+          email: pendingBooking.email,
+          phone: pendingBooking.phone,
+          title: pendingBooking.serviceTitle,
+          amount: pendingBooking.amount,
+          paymentId: pendingBooking.razorpayPaymentId || 'TEST_SIMULATED',
+          orderOrBookingId: pendingBooking.bookingNumber,
+          remoteId: pendingBooking.remoteId,
+          problemDescription: pendingBooking.problemDescription
+        });
         confetti({
           particleCount: 120,
           spread: 80,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { CartItem, Order } from '../types';
+import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import {
   X,
   ShieldCheck,
@@ -154,6 +155,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               setCreatedOrder(orderObj);
               onOrderSuccess(orderObj);
               onClearCart();
+              sendAdminOrderNotificationEmail({
+                type: 'PRODUCT_PURCHASE',
+                customerName: orderObj.customerName,
+                email: orderObj.customerEmail,
+                phone: orderObj.customerPhone,
+                title: orderObj.items.map((i) => i.productName).join(', '),
+                amount: orderObj.total,
+                paymentId: orderObj.razorpayPaymentId,
+                orderOrBookingId: orderObj.orderNumber
+              });
               confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
             }
           },
@@ -184,6 +195,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         setCreatedOrder(pendingOrder);
         onOrderSuccess(pendingOrder);
         onClearCart();
+        sendAdminOrderNotificationEmail({
+          type: 'PRODUCT_PURCHASE',
+          customerName: pendingOrder.customerName,
+          email: pendingOrder.customerEmail,
+          phone: pendingOrder.customerPhone,
+          title: pendingOrder.items.map((i) => i.productName).join(', '),
+          amount: pendingOrder.total,
+          paymentId: pendingOrder.razorpayPaymentId || 'TEST_SIMULATED',
+          orderOrBookingId: pendingOrder.orderNumber
+        });
         confetti({
           particleCount: 120,
           spread: 80,
