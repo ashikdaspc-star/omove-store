@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
+import { exec } from 'child_process';
 import dotenv from 'dotenv';
 import Razorpay from 'razorpay';
 import { createServer as createViteServer } from 'vite';
@@ -154,8 +155,23 @@ async function startServer() {
     res.json(filtered);
   });
 
-  app.post('/api/products/sync', (req: Request, res: Response) => {
-    const { products } = req.body;
+  const pushProductsToGitHub = (): Promise<{ success: boolean; message: string }> => {
+    return new Promise((resolve) => {
+      const cmd = 'git add src/data/products.json && git commit -m "Auto-sync updated products catalog" && git push origin main';
+      exec(cmd, { cwd: __dirname }, (error, stdout, stderr) => {
+        if (error) {
+          console.warn('Git push status:', stderr || error.message);
+          resolve({ success: false, message: stderr || error.message });
+        } else {
+          console.log('Successfully pushed updated products catalog to GitHub');
+          resolve({ success: true, message: stdout });
+        }
+      });
+    });
+  };
+
+  app.post('/api/products/sync', async (req: Request, res: Response) => {
+    const { products, autoPush = true } = req.body;
     if (Array.isArray(products)) {
       dynamicProductsStore = products;
       try {
@@ -164,8 +180,22 @@ async function startServer() {
       } catch (err) {
         console.error('Failed to write products.json:', err);
       }
+      if (autoPush) {
+        pushProductsToGitHub().catch(() => {});
+      }
     }
     res.json({ success: true, count: dynamicProductsStore.length });
+  });
+
+  app.post('/api/products/publish', async (_req: Request, res: Response) => {
+    try {
+      const filePath = path.join(__dirname, 'src', 'data', 'products.json');
+      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+      const gitRes = await pushProductsToGitHub();
+      res.json({ success: true, gitMessage: gitRes.message });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   app.get('/api/products/:id', (req: Request, res: Response) => {

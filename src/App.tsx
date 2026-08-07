@@ -40,7 +40,7 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
 
   useEffect(() => {
-    fetch('/api/products')
+    fetch('/api/products?t=' + Date.now())
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
@@ -329,7 +329,7 @@ export default function App() {
     fetch('/api/products/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products: updated })
+      body: JSON.stringify({ products: updated, autoPush: true })
     }).catch(() => {});
   };
 
