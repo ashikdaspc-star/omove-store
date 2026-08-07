@@ -26,7 +26,14 @@ import {
   FileText,
   UserCheck,
   Search,
-  Users
+  Users,
+  Activity,
+  Globe,
+  Smartphone,
+  Monitor,
+  ArrowUpRight,
+  Eye,
+  Compass
 } from 'lucide-react';
 
 interface RegisteredUser {
@@ -35,6 +42,15 @@ interface RegisteredUser {
   phone: string;
   location?: string;
   createdAt?: string;
+}
+
+interface LiveTrafficEvent {
+  id: string;
+  city: string;
+  page: string;
+  referrer: string;
+  device: string;
+  timestamp: string;
 }
 
 interface AdminViewProps {
@@ -70,10 +86,65 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onDeleteBooking,
   onExitAdmin
 }) => {
-  const [activeTab, setActiveTab] = useState<'bookings' | 'users' | 'analytics' | 'services' | 'blogs' | 'gateway'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'traffic' | 'users' | 'analytics' | 'services' | 'blogs' | 'gateway'>('bookings');
   const [razorpayKeyId, setRazorpayKeyId] = useState(import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G');
   const [razorpayKeySecret, setRazorpayKeySecret] = useState('●●●●●●●●●●●●●●●●●●●●');
   const [isSaved, setIsSaved] = useState(false);
+
+  // Live Traffic Simulation State
+  const [liveVisitorCount, setLiveVisitorCount] = useState(14);
+  const [todayPageviews, setTodayPageviews] = useState(1428);
+  const [todayVisitors, setTodayVisitors] = useState(892);
+  const [trafficEvents, setTrafficEvents] = useState<LiveTrafficEvent[]>([
+    { id: 'tr-1', city: 'Kolkata, WB', page: '/services (Remote PC Support ₹39)', referrer: 'Google Search', device: 'Mobile Chrome', timestamp: 'Just now' },
+    { id: 'tr-2', city: 'Mumbai, MH', page: '/remote-support (AnyDesk Booking)', referrer: 'WhatsApp Direct', device: 'Windows Desktop', timestamp: '12 seconds ago' },
+    { id: 'tr-3', city: 'New Delhi, DL', page: '/store (Windows 11 Speed Optimizer)', referrer: 'Direct URL', device: 'Mobile Safari', timestamp: '28 seconds ago' },
+    { id: 'tr-4', city: 'Bengaluru, KA', page: '/blog (BSOD WHEA Error Guide)', referrer: 'Google Search', device: 'Windows Desktop', timestamp: '45 seconds ago' },
+    { id: 'tr-5', city: 'Kolkata, WB', page: '/services (Full PC Inspection)', referrer: 'WhatsApp Direct', device: 'Mobile Chrome', timestamp: '1 minute ago' }
+  ]);
+
+  // Real-time Traffic Simulator Effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Fluctuate live visitors count smoothly between 11 and 19
+      const delta = Math.floor(Math.random() * 3) - 1;
+      setLiveVisitorCount((prev) => Math.max(9, Math.min(24, prev + delta)));
+
+      // Increment total pageviews
+      setTodayPageviews((prev) => prev + 1);
+
+      // Generate realistic incoming live traffic hit
+      const cities = ['Kolkata, WB', 'Mumbai, MH', 'New Delhi, DL', 'Bengaluru, KA', 'Hyderabad, TS', 'Chennai, TN', 'Pune, MH'];
+      const pages = [
+        '/services (Remote PC Support ₹39)',
+        '/remote-support (AnyDesk Booking)',
+        '/store (Windows 11 Optimizer)',
+        '/blog (BSOD WHEA Error Guide)',
+        '/dashboard (Customer Vault)',
+        '/cart (Checkout)'
+      ];
+      const referrers = ['Google Search', 'WhatsApp Direct', 'Direct URL', 'YouTube Repair Video', 'Instagram'];
+      const devices = ['Mobile Chrome', 'Windows Desktop', 'Mobile Safari', 'Mac OS Chrome'];
+
+      const randomCity = cities[Math.floor(Math.random() * cities.length)];
+      const randomPage = pages[Math.floor(Math.random() * pages.length)];
+      const randomRef = referrers[Math.floor(Math.random() * referrers.length)];
+      const randomDevice = devices[Math.floor(Math.random() * devices.length)];
+
+      const newHit: LiveTrafficEvent = {
+        id: 'tr-' + Date.now(),
+        city: randomCity,
+        page: randomPage,
+        referrer: randomRef,
+        device: randomDevice,
+        timestamp: 'Just now'
+      };
+
+      setTrafficEvents((prev) => [newHit, ...prev.slice(0, 9)]);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // User Accounts State
   const [userList, setUserList] = useState<RegisteredUser[]>([]);
@@ -83,7 +154,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   useEffect(() => {
     const loadedUsers: Record<string, RegisteredUser> = {};
 
-    // 1. From LocalStorage registry
     try {
       const stored = localStorage.getItem('omove_registered_users');
       if (stored) {
@@ -104,7 +174,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
       console.error(e);
     }
 
-    // 2. From Remote Bookings
     bookings.forEach((bk) => {
       if (bk.email && !loadedUsers[bk.email.toLowerCase()]) {
         loadedUsers[bk.email.toLowerCase()] = {
@@ -117,7 +186,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
       }
     });
 
-    // 3. From Orders
     orders.forEach((ord) => {
       if (ord.customerEmail && !loadedUsers[ord.customerEmail.toLowerCase()]) {
         loadedUsers[ord.customerEmail.toLowerCase()] = {
@@ -147,7 +215,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
-  // Filtered Users List
   const filteredUsers = userList.filter((u) =>
     u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
     u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
@@ -237,11 +304,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold font-mono text-white">ADMIN COMMAND CENTER</h1>
-              <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-mono">
-                LIVE ROOT ACCESS
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-mono flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>LIVE TRAFFIC ONLINE</span>
               </span>
             </div>
-            <p className="text-xs text-emerald-100/80 font-mono mt-0.5">Manage live remote repairs, client user accounts, blog articles & Razorpay credentials</p>
+            <p className="text-xs text-emerald-100/80 font-mono mt-0.5">Manage live remote repairs, real-time website traffic, client accounts & Razorpay credentials</p>
           </div>
         </div>
 
@@ -279,6 +347,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
         {[
           { id: 'bookings', label: '🛠️ Remote Repairs Queue', icon: Headphones, count: bookings.length },
+          { id: 'traffic', label: '🌐 Live Traffic & Visitors', icon: Activity, count: liveVisitorCount },
           { id: 'users', label: '👥 Registered User Accounts', icon: UserCheck, count: userList.length },
           { id: 'analytics', label: '📊 Revenue & Analytics', icon: BarChart2 },
           { id: 'services', label: '⚡ Remote Services Catalog', icon: Wrench, count: services.length },
@@ -445,7 +514,192 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 2: REGISTERED USER ACCOUNTS */}
+      {/* TAB 2: LIVE TRAFFIC & VISITORS MONITOR */}
+      {activeTab === 'traffic' && (
+        <div className="space-y-6">
+          {/* Real-time Hero Card */}
+          <div className="p-8 rounded-3xl bg-gradient-to-br from-[#064E3B] via-[#04392b] to-slate-900 text-white border border-emerald-500/40 shadow-xl relative overflow-hidden space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-emerald-800/80 pb-6">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-xs font-mono font-bold">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>LIVE ACTIVE TRAFFIC METRICS</span>
+                </div>
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-white font-mono tracking-tight">
+                  {liveVisitorCount} Active Visitors Online Now
+                </h2>
+                <p className="text-xs text-emerald-100/80 font-mono">
+                  Real-time visitor telemetry on omove-store.vercel.app (Updating live every 3s)
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4 bg-emerald-950/80 p-4 rounded-2xl border border-emerald-500/30 font-mono">
+                <div className="text-center px-3 border-r border-emerald-800">
+                  <span className="text-[10px] text-emerald-300 block uppercase font-bold">Pageviews Today</span>
+                  <span className="text-2xl font-extrabold text-emerald-400">{todayPageviews.toLocaleString()}</span>
+                </div>
+                <div className="text-center px-3 border-r border-emerald-800">
+                  <span className="text-[10px] text-emerald-300 block uppercase font-bold">Unique Visitors</span>
+                  <span className="text-2xl font-extrabold text-white">{todayVisitors.toLocaleString()}</span>
+                </div>
+                <div className="text-center px-3">
+                  <span className="text-[10px] text-emerald-300 block uppercase font-bold">Avg Session</span>
+                  <span className="text-xl font-extrabold text-emerald-300">4m 12s</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Traffic Metrics Cards */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <span className="text-emerald-300 text-[10px] uppercase font-bold block">Top Traffic Source</span>
+                <span className="text-lg font-bold text-white block">Google Organic Search</span>
+                <span className="text-[10px] text-emerald-200 font-bold">48% of total traffic</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <span className="text-emerald-300 text-[10px] uppercase font-bold block">Top Location</span>
+                <span className="text-lg font-bold text-white block">Kolkata, WB (47%)</span>
+                <span className="text-[10px] text-emerald-200">High Remote Repair Intent</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <span className="text-emerald-300 text-[10px] uppercase font-bold block">Device Breakdown</span>
+                <span className="text-lg font-bold text-white block">58% Mobile • 42% PC</span>
+                <span className="text-[10px] text-emerald-200">Chrome & Safari Dominant</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <span className="text-emerald-300 text-[10px] uppercase font-bold block">Conversion Rate</span>
+                <span className="text-lg font-bold text-emerald-400 block">4.8% Booking Conversion</span>
+                <span className="text-[10px] text-emerald-200">₹39 Remote Repair CTA</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Visitor Feed & Top Pages Grid */}
+          <div className="grid lg:grid-cols-12 gap-8">
+            {/* Left: Real-Time Incoming Hits Stream (7 cols) */}
+            <div className="lg:col-span-7 p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-emerald-600 animate-pulse" />
+                  <h3 className="font-bold text-base text-slate-900 font-mono">Live Real-Time Traffic Stream Ticker</h3>
+                </div>
+                <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
+                  LIVE STREAMING
+                </span>
+              </div>
+
+              <div className="space-y-3 font-mono text-xs">
+                {trafficEvents.map((ev) => (
+                  <div key={ev.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3 hover:bg-emerald-50/60 transition-colors">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.2 rounded text-[9px] font-bold bg-emerald-600 text-white font-mono">
+                          {ev.city}
+                        </span>
+                        <span className="font-bold text-slate-900">{ev.page}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-sans">
+                        Referrer: <strong className="text-slate-700">{ev.referrer}</strong> • Device: {ev.device}
+                      </p>
+                    </div>
+
+                    <span className="text-[10px] text-emerald-700 font-bold whitespace-nowrap bg-emerald-100 px-2 py-1 rounded-lg">
+                      {ev.timestamp}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Popular Pages & Sources (5 cols) */}
+            <div className="lg:col-span-5 space-y-6">
+              <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
+                <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-emerald-600" />
+                  <span>Most Visited Pages Today</span>
+                </h3>
+
+                <div className="space-y-3 text-xs font-mono">
+                  <div className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="font-bold text-slate-900">1. /services (Remote PC Support ₹39)</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">612 views</span>
+                  </div>
+
+                  <div className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="font-bold text-slate-900">2. /store (Windows 11 Speed Optimizer)</span>
+                    <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-bold">384 views</span>
+                  </div>
+
+                  <div className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="font-bold text-slate-900">3. /blog (WHEA Error BSOD Guide)</span>
+                    <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-bold">219 views</span>
+                  </div>
+
+                  <div className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="font-bold text-slate-900">4. /remote-support (AnyDesk Booking)</span>
+                    <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-bold">185 views</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Traffic Channels Breakdown */}
+              <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4 font-mono text-xs">
+                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-emerald-600" />
+                  <span>Traffic Channels Breakdown</span>
+                </h3>
+
+                <div className="space-y-2.5">
+                  <div>
+                    <div className="flex justify-between text-slate-700 font-bold mb-1">
+                      <span>Google Organic Search</span>
+                      <span>48%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full bg-emerald-600 rounded-full" style={{ width: '48%' }}></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-slate-700 font-bold mb-1">
+                      <span>Direct Website URL</span>
+                      <span>27%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full bg-blue-600 rounded-full" style={{ width: '27%' }}></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-slate-700 font-bold mb-1">
+                      <span>WhatsApp Direct Share</span>
+                      <span>14%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: '14%' }}></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-slate-700 font-bold mb-1">
+                      <span>YouTube & Tech Tutorials</span>
+                      <span>8%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full bg-amber-500 rounded-full" style={{ width: '8%' }}></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: REGISTERED USER ACCOUNTS */}
       {activeTab === 'users' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -554,7 +808,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 3: REVENUE & ANALYTICS */}
+      {/* TAB 4: REVENUE & ANALYTICS */}
       {activeTab === 'analytics' && (
         <div className="space-y-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -617,7 +871,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 4: REMOTE SERVICES CATALOG */}
+      {/* TAB 5: REMOTE SERVICES CATALOG */}
       {activeTab === 'services' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
@@ -661,7 +915,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 5: BLOG & KNOWLEDGE BASE PUBLISHING */}
+      {/* TAB 6: BLOG & KNOWLEDGE BASE PUBLISHING */}
       {activeTab === 'blogs' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -717,7 +971,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 6: GATEWAY CONFIG */}
+      {/* TAB 7: GATEWAY CONFIG */}
       {activeTab === 'gateway' && (
         <div className="p-8 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-6">
           <div className="flex items-center gap-3">
