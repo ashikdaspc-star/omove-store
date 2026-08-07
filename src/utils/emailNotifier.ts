@@ -47,3 +47,39 @@ export const sendAdminOrderNotificationEmail = async (data: OrderNotificationPay
     console.warn('[Email Notifier] FormSubmit dispatch notice:', err);
   }
 };
+
+export interface ContactInquiryPayload {
+  customerName: string;
+  email: string;
+  message: string;
+}
+
+export const sendContactInquiryEmail = async (data: ContactInquiryPayload) => {
+  const adminEmail = 'contact.ashikdas@gmail.com';
+
+  console.log(`[Email Notifier] Dispatching contact message inquiry to ${adminEmail}...`, data);
+
+  try {
+    const subject = `📩 NEW DIRECT MESSAGE from ${data.customerName} (${data.email})`;
+
+    await fetch(`https://formsubmit.co/ajax/${adminEmail}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        _subject: subject,
+        _template: 'table',
+        _captcha: 'false',
+        'Sender Name': data.customerName,
+        'Sender Email': data.email,
+        'Inquiry / Message Details': data.message,
+        'Sent Date & Time': new Date().toLocaleString()
+      })
+    });
+    console.log('[Email Notifier] Contact inquiry email successfully delivered to contact.ashikdas@gmail.com');
+  } catch (err) {
+    console.warn('[Email Notifier] Contact message dispatch notice:', err);
+  }
+};

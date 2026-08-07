@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Mail, MessageSquare, MapPin, Send, CheckCircle2, Lock, Zap } from 'lucide-react';
+import { sendContactInquiryEmail } from '../utils/emailNotifier';
 
 export const AboutContactView: React.FC = () => {
   const [contactName, setContactName] = useState('');
@@ -10,6 +11,11 @@ export const AboutContactView: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (contactName && contactEmail && contactMsg) {
+      sendContactInquiryEmail({
+        customerName: contactName,
+        email: contactEmail,
+        message: contactMsg
+      });
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 5000);
       setContactName('');

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { RemoteService, RemoteBooking } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
+import { validateAndApplyCoupon } from '../utils/couponManager';
 import {
   Zap,
   Check,
@@ -15,7 +16,8 @@ import {
   Lock,
   X,
   CheckCircle2,
-  DownloadCloud
+  DownloadCloud,
+  Tag
 } from 'lucide-react';
 
 interface ServicesViewProps {
@@ -36,10 +38,31 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
   const [pendingBooking, setPendingBooking] = useState<RemoteBooking | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<RemoteBooking | null>(null);
 
+  // Coupon state for Services catalog booking
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState(0);
+  const [couponMessage, setCouponMessage] = useState('');
+
+  const handleApplyBookingCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeService) return;
+    const res = validateAndApplyCoupon(couponInput, activeService.price);
+    if (res.valid) {
+      setAppliedDiscount(res.discountAmount);
+      setCouponMessage(res.message);
+    } else {
+      setAppliedDiscount(0);
+      setCouponMessage(res.message);
+    }
+  };
+
   const handleStartBooking = (srv: RemoteService) => {
     setActiveService(srv);
     setConfirmedBooking(null);
     setShowTestGateway(false);
+    setCouponInput('');
+    setAppliedDiscount(0);
+    setCouponMessage('');
   };
 
   const handleProceedToPayment = async (e: React.FormEvent) => {
@@ -47,12 +70,14 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
     if (!activeService) return;
     setIsSubmitting(true);
 
+    const finalPrice = Math.max(0, activeService.price - appliedDiscount);
+
     const payload = {
       customerName,
       email,
       phone,
       serviceId: activeService.id,
-      amount: activeService.price,
+      amount: finalPrice,
       issueCategory: activeService.category,
       problemDescription,
       preferredDate: new Date().toISOString().split('T')[0],
@@ -104,8 +129,6 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
         createdAt: new Date().toISOString()
       };
     }
-
-    const finalPrice = Math.max(0, activeService.price);
 
     if (finalPrice <= 0) {
       if (bookingObj) {
@@ -510,6 +533,40 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
                       <ExternalLink className="w-3 h-3 opacity-80" />
                     </a>
                   </div>
+
+                  {/* Promo Coupon Code Box */}
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                    <label className="text-slate-700 font-bold flex items-center justify-between text-xs font-mono">
+                      <span className="flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Have a Discount Coupon?</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal">Try: OMOVE15</span>
+                    </label>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="ENTER COUPON CODE"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 uppercase focus:outline-none focus:border-emerald-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyBookingCoupon}
+                        className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-mono text-xs font-bold transition-all"
+                      >
+                        APPLY
+                      </button>
+                    </div>
+
+                    {couponMessage && (
+                      <p className={`text-[11px] font-mono font-bold ${appliedDiscount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {couponMessage}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="pt-2">
@@ -526,7 +583,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
                     ) : (
                       <>
                         <Lock className="w-4 h-4" />
-                        <span>PAY ₹{activeService.price} & GET INSTANT REPAIR</span>
+                        <span>PAY ₹{Math.max(0, activeService.price - appliedDiscount)} & GET INSTANT REPAIR</span>
                       </>
                     )}
                   </button>

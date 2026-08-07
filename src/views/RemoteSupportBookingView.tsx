@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { RemoteService, RemoteBooking } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
+import { validateAndApplyCoupon } from '../utils/couponManager';
 import {
   Headphones,
   CheckCircle2,
@@ -13,7 +14,8 @@ import {
   DownloadCloud,
   ExternalLink,
   MessageSquare,
-  Wrench
+  Wrench,
+  Tag
 } from 'lucide-react';
 
 interface RemoteSupportBookingViewProps {
@@ -40,16 +42,37 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<RemoteBooking | null>(null);
 
+  // Coupon state
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState(0);
+  const [couponMessage, setCouponMessage] = useState('');
+
+  const handleApplyBookingCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const basePrice = selectedService?.price || 39;
+    const res = validateAndApplyCoupon(couponInput, basePrice);
+    if (res.valid) {
+      setAppliedDiscount(res.discountAmount);
+      setCouponMessage(res.message);
+    } else {
+      setAppliedDiscount(0);
+      setCouponMessage(res.message);
+    }
+  };
+
   const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    const basePrice = selectedService?.price || 39;
+    const finalPrice = Math.max(0, basePrice - appliedDiscount);
 
     const payload = {
       customerName,
       email,
       phone,
       serviceId: selectedService?.id || 'srv-001',
-      amount: selectedService?.price || 39,
+      amount: finalPrice,
       issueCategory: selectedService?.category || 'Windows Fix',
       problemDescription,
       preferredDate: preferredDate || new Date().toISOString().split('T')[0],
@@ -94,12 +117,35 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
         remoteTool: 'AnyDesk',
         remoteId: remoteId || '982 110 449',
         remotePassword: '',
-        amount: selectedService?.price || 39,
+        amount: finalPrice,
         paymentStatus: 'Paid',
         status: 'Technician Assigned',
         technicianName: 'David Chen (Cert #8821)',
         createdAt: new Date().toISOString()
       };
+    }
+
+    if (finalPrice <= 0) {
+      if (bookingObj) {
+        bookingObj.razorpayPaymentId = 'FREE_COUPON_' + Date.now();
+        setConfirmedBooking(bookingObj);
+        onBookingSuccess(bookingObj);
+        sendAdminOrderNotificationEmail({
+          type: 'REMOTE_BOOKING',
+          customerName: bookingObj.customerName,
+          email: bookingObj.email,
+          phone: bookingObj.phone,
+          title: bookingObj.serviceTitle,
+          amount: 0,
+          paymentId: 'FREE (100% Coupon Discount)',
+          orderOrBookingId: bookingObj.bookingNumber,
+          remoteId: bookingObj.remoteId,
+          problemDescription: bookingObj.problemDescription
+        });
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      }
+      setIsSubmitting(false);
+      return;
     }
 
     try {
@@ -481,9 +527,45 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
 
             {/* Price Summary & Submit */}
             <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 text-white space-y-4 shadow-xl">
+              {/* Promo Coupon Box */}
+              <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 space-y-2">
+                <label className="text-slate-300 font-bold flex items-center justify-between text-xs font-mono">
+                  <span className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Have a Discount Coupon?</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">Try: OMOVE15</span>
+                </label>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="ENTER COUPON CODE"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono font-bold text-white uppercase focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyBookingCoupon}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono text-xs font-bold transition-all"
+                  >
+                    APPLY
+                  </button>
+                </div>
+
+                {couponMessage && (
+                  <p className={`text-[11px] font-mono font-bold ${appliedDiscount > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {couponMessage}
+                  </p>
+                )}
+              </div>
+
               <div className="flex justify-between items-baseline border-b border-slate-800 pb-3">
                 <span className="text-xs text-slate-400">Total Payable Service Fee</span>
-                <span className="text-3xl font-extrabold font-mono text-emerald-400">₹{selectedService?.price || 39}</span>
+                <span className="text-3xl font-extrabold font-mono text-emerald-400">
+                  ₹{Math.max(0, (selectedService?.price || 39) - appliedDiscount)}
+                </span>
               </div>
 
               <button
@@ -499,7 +581,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 ) : (
                   <>
                     <Lock className="w-4 h-4" />
-                    <span>PAY ₹{selectedService?.price || 39} & GET INSTANT REPAIR</span>
+                    <span>PAY ₹{Math.max(0, (selectedService?.price || 39) - appliedDiscount)} & GET INSTANT REPAIR</span>
                   </>
                 )}
               </button>
