@@ -12,6 +12,7 @@ import { LiveChatWidget } from './components/LiveChatWidget';
 import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 
+import { ShieldCheck, Lock } from 'lucide-react';
 import { HomeView } from './views/HomeView';
 import { StoreView } from './views/StoreView';
 import { ServicesView } from './views/ServicesView';
@@ -36,7 +37,19 @@ export default function App() {
     return () => clearInterval(interval);
   }, [location.pathname]);
 
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const stored = localStorage.getItem('omove_products');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return MOCK_PRODUCTS;
+  });
+
   const [services, setServices] = useState<RemoteService[]>(MOCK_SERVICES);
   const [blogs, setBlogs] = useState<BlogPost[]>(MOCK_BLOGS);
 
@@ -52,10 +65,22 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [pendingCheckoutAfterAuth, setPendingCheckoutAfterAuth] = useState<boolean>(false);
 
-  // Admin Auth state
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  // Admin Auth state - persist session in sessionStorage
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('omove_admin_session') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
-  const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('omove_admin_session') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   const [customerProfile, setCustomerProfile] = useState(() => {
     try {
@@ -214,7 +239,13 @@ export default function App() {
         setIsAdminAuthModalOpen(true);
       }
     } else {
+      setIsAdminAuthenticated(false);
       setIsAdminMode(false);
+      try {
+        sessionStorage.removeItem('omove_admin_session');
+      } catch (e) {
+        console.error(e);
+      }
       navigate('/');
     }
   };
@@ -223,6 +254,11 @@ export default function App() {
     setIsAdminAuthenticated(true);
     setIsAdminMode(true);
     setIsAdminAuthModalOpen(false);
+    try {
+      sessionStorage.setItem('omove_admin_session', 'true');
+    } catch (e) {
+      console.error(e);
+    }
     navigate('/admin');
   };
 
@@ -280,12 +316,42 @@ export default function App() {
   };
 
   const handleAddProduct = (newProd: Product) => {
-    setProducts((prev) => [newProd, ...prev]);
+    setProducts((prev) => {
+      const updated = [newProd, ...prev];
+      try {
+        localStorage.setItem('omove_products', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+  };
+
+  const handleUpdateProduct = (updatedProd: Product) => {
+    setProducts((prev) => {
+      const updated = prev.map((p) => (p.id === updatedProd.id ? updatedProd : p));
+      try {
+        localStorage.setItem('omove_products', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
   };
 
   const handleDeleteProduct = (prodId: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== prodId));
+    setProducts((prev) => {
+      const updated = prev.filter((p) => p.id !== prodId);
+      try {
+        localStorage.setItem('omove_products', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
   };
+
+
 
   const handleAddService = (newSrv: RemoteService) => {
     setServices((prev) => [newSrv, ...prev]);
@@ -328,6 +394,8 @@ export default function App() {
         setSelectedCategory={setSelectedCategory}
         isAdminMode={isAdminMode}
         setIsAdminMode={() => handleToggleAdminMode()}
+        isAdminAuthenticated={isAdminAuthenticated}
+        onOpenAdminAuthModal={() => setIsAdminAuthModalOpen(true)}
         isLoggedIn={isLoggedIn}
         customerName={customerProfile.name}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
@@ -423,22 +491,48 @@ export default function App() {
           <Route
             path="/admin"
             element={
-              <AdminView
-                products={products}
-                services={services}
-                blogs={blogs}
-                orders={orders}
-                bookings={bookings}
-                onAddProduct={handleAddProduct}
-                onDeleteProduct={handleDeleteProduct}
-                onAddService={handleAddService}
-                onDeleteService={handleDeleteService}
-                onAddBlog={handleAddBlog}
-                onDeleteBlog={handleDeleteBlog}
-                onUpdateBooking={handleUpdateBooking}
-                onDeleteBooking={handleDeleteBooking}
-                onExitAdmin={() => handleToggleAdminMode(false)}
-              />
+              isAdminAuthenticated ? (
+                <AdminView
+                  products={products}
+                  services={services}
+                  blogs={blogs}
+                  orders={orders}
+                  bookings={bookings}
+                  onAddProduct={handleAddProduct}
+                  onUpdateProduct={handleUpdateProduct}
+                  onDeleteProduct={handleDeleteProduct}
+                  onAddService={handleAddService}
+                  onDeleteService={handleDeleteService}
+                  onAddBlog={handleAddBlog}
+                  onDeleteBlog={handleDeleteBlog}
+                  onUpdateBooking={handleUpdateBooking}
+                  onDeleteBooking={handleDeleteBooking}
+                  onExitAdmin={() => handleToggleAdminMode(false)}
+                />
+              ) : (
+                <div className="max-w-3xl mx-auto px-4 py-24 text-center space-y-6 animate-fadeIn">
+                  <div className="w-20 h-20 mx-auto rounded-3xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shadow-lg">
+                    <ShieldCheck className="w-10 h-10" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-mono">
+                      ADMIN SECURITY ACCESS RESTRICTED
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mt-2 font-mono">
+                      This area requires Administrator ID & Password authentication. Access is strictly locked.
+                    </p>
+                  </div>
+                  <div className="pt-2 flex justify-center">
+                    <button
+                      onClick={() => setIsAdminAuthModalOpen(true)}
+                      className="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold font-mono text-xs shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all hover:scale-105"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>UNLOCK ADMIN COMMAND CENTER</span>
+                    </button>
+                  </div>
+                </div>
+              )
             }
           />
 

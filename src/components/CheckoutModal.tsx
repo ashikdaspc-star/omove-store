@@ -16,7 +16,8 @@ import {
   Check,
   FileText,
   Zap,
-  Printer
+  Printer,
+  Phone
 } from 'lucide-react';
 
 interface CheckoutModalProps {
@@ -56,8 +57,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [paymentFailedNotice, setPaymentFailedNotice] = useState('');
 
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
-  const taxAmount = Number(((subtotal - discountAmount) * 0.18).toFixed(2));
-  const finalTotal = Number((subtotal - discountAmount + taxAmount).toFixed(2));
+  const taxAmount = 0;
+  const finalTotal = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
 
   const handleProcessPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -423,25 +424,41 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <h4 className="font-bold text-xs uppercase tracking-wider text-slate-400 font-mono">
                 Customer Information
               </h4>
-              <div className="grid sm:grid-cols-2 gap-3">
+              <div className="grid sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[11px] text-slate-400 block mb-1">Full Name</label>
+                  <label className="text-[11px] text-slate-400 block mb-1">Full Name *</label>
                   <input
                     type="text"
                     required
+                    placeholder="Enter Full Name"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-slate-400 block mb-1">Email (For Key Delivery)</label>
+                  <label className="text-[11px] text-slate-400 block mb-1">Email Address *</label>
                   <input
                     type="email"
                     required
+                    placeholder="name@example.com"
                     value={customerEmail}
                     onChange={(e) => setCustomerEmail(e.target.value)}
                     className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1 flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-emerald-400" />
+                    <span>WhatsApp Number *</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+91 9876543210"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
               </div>
@@ -478,21 +495,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   );
                 })}
               </div>
-
-              {/* Method Specific Fields */}
-              {paymentMethod === 'Razorpay UPI' && (
-                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-                  <label className="text-[11px] text-slate-400 block">Enter UPI VPA ID (Google Pay / PhonePe / BHIM)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="username@upi"
-                    value={upiVpa}
-                    onChange={(e) => setUpiVpa(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              )}
             </div>
 
             {/* Order Total Breakdown */}
@@ -507,10 +509,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <span className="font-mono">-₹{discountAmount.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-400">
-                <span>Estimated Tax (18% GST)</span>
-                <span className="font-mono text-white">₹{taxAmount.toFixed(2)}</span>
-              </div>
+
               <div className="flex justify-between text-sm font-bold text-white pt-2 border-t border-slate-800">
                 <span>Total Payable</span>
                 <span className="font-mono text-cyan-400 text-base">₹{finalTotal.toFixed(2)}</span>

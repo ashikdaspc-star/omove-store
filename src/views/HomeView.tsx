@@ -522,43 +522,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 3. FEATURED SOFTWARE PRODUCTS & LICENSES */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Featured Software Keys & Licenses
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">Instant digital delivery to your dashboard & email</p>
-          </div>
-
-          <button
-            onClick={() => {
-              setCurrentView('store');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className="text-xs sm:text-sm font-mono font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5"
-          >
-            <span>View All Products ({products.length})</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredProducts.map((prod) => (
-            <ProductCard
-              key={prod.id}
-              product={prod}
-              onSelect={onSelectProduct}
-              onAddToCart={onAddToCart}
-              onBuyNow={onBuyNow}
-              isWishlisted={wishlist.includes(prod.id)}
-              onToggleWishlist={onToggleWishlist}
-            />
-          ))}
-        </div>
-      </section>
-
       {/* 4. RECENT KNOWLEDGE BASE GUIDES */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="flex items-center justify-between">

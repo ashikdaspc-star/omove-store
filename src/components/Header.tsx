@@ -28,6 +28,8 @@ interface HeaderProps {
   setSelectedCategory: (cat: string) => void;
   isAdminMode: boolean;
   setIsAdminMode: (admin: boolean) => void;
+  isAdminAuthenticated?: boolean;
+  onOpenAdminAuthModal?: () => void;
   isLoggedIn?: boolean;
   customerName?: string;
   onOpenAuthModal?: () => void;
@@ -44,6 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
   setSelectedCategory,
   isAdminMode,
   setIsAdminMode,
+  isAdminAuthenticated = false,
+  onOpenAdminAuthModal,
   isLoggedIn = true,
   customerName = 'Ashik Das',
   onOpenAuthModal,
@@ -79,12 +83,16 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleAdminToggle = () => {
-    const nextAdminState = !isAdminMode;
-    setIsAdminMode(nextAdminState);
-    if (nextAdminState) {
-      navigate('/admin');
-    }
     setMobileMenuOpen(false);
+    if (isAdminAuthenticated) {
+      navigate('/admin');
+    } else {
+      if (onOpenAdminAuthModal) {
+        onOpenAdminAuthModal();
+      } else {
+        navigate('/admin');
+      }
+    }
   };
 
   return (

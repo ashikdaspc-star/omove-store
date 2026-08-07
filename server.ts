@@ -212,8 +212,8 @@ async function startServer() {
     });
 
     const disc = discountAmount || 0;
-    const tax = Number(((subtotal - disc) * 0.18).toFixed(2));
-    const total = Number((subtotal - disc + tax).toFixed(2));
+    const tax = 0;
+    const total = Math.max(0, Number((subtotal - disc).toFixed(2)));
 
     const orderId = 'ord-' + Date.now();
     const orderNumber = 'OMV-ORD-2026-' + Math.floor(1000 + Math.random() * 9000);

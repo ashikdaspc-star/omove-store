@@ -24,7 +24,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
 
     // Strict Admin Credentials Check
     const trimmedUser = username.trim();
-    if ((trimmedUser === 'Ashik8611' && password === 'Ashik@1234') || (trimmedUser === 'admin' && password === 'admin123')) {
+    if (trimmedUser === 'Ashik8611' && password === 'Ashik@1234') {
       onSuccess();
       onClose();
       setUsername('');

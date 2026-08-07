@@ -126,10 +126,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ order, onC
                   <span>-₹{order.discount.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-400 print:text-slate-600">
-                <span>GST / Tax (18%):</span>
-                <span>₹{order.tax.toFixed(2)}</span>
-              </div>
+              {order.tax > 0 && (
+                <div className="flex justify-between text-slate-400 print:text-slate-600">
+                  <span>GST / Tax:</span>
+                  <span>₹{order.tax.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm font-bold text-white print:text-slate-900 pt-2 border-t border-slate-800 print:border-slate-300">
                 <span>Total Amount:</span>
                 <span className="text-cyan-400 print:text-indigo-600">₹{order.total.toFixed(2)}</span>

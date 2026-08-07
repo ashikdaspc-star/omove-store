@@ -21,6 +21,8 @@ import {
   Clock,
   CheckCircle2,
   Trash2,
+  Edit3,
+  Upload,
   Wrench,
   Lock,
   BookOpen,
@@ -55,6 +57,7 @@ interface AdminViewProps {
   orders: Order[];
   bookings: RemoteBooking[];
   onAddProduct: (prod: Product) => void;
+  onUpdateProduct?: (prod: Product) => void;
   onDeleteProduct?: (prodId: string) => void;
   onAddService?: (srv: RemoteService) => void;
   onDeleteService?: (srvId: string) => void;
@@ -72,6 +75,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   orders,
   bookings,
   onAddProduct,
+  onUpdateProduct,
   onDeleteProduct,
   onAddService,
   onDeleteService,
@@ -81,10 +85,162 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onDeleteBooking,
   onExitAdmin
 }) => {
-  const [activeTab, setActiveTab] = useState<'bookings' | 'traffic' | 'users' | 'coupons' | 'analytics' | 'services' | 'blogs' | 'gateway'>('bookings');
+  const [activeTab, setActiveTab] = useState<'products' | 'bookings' | 'traffic' | 'users' | 'coupons' | 'analytics' | 'services' | 'blogs' | 'gateway'>('products');
   const [razorpayKeyId, setRazorpayKeyId] = useState(import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G');
   const [razorpayKeySecret, setRazorpayKeySecret] = useState('●●●●●●●●●●●●●●●●●●●●');
   const [isSaved, setIsSaved] = useState(false);
+
+  // Products Management State
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [prodSearchQuery, setProdSearchQuery] = useState('');
+  const [prodName, setProdName] = useState('');
+  const [prodCategory, setProdCategory] = useState<'Windows Tools' | 'Software'>('Windows Tools');
+  const [prodShortDesc, setProdShortDesc] = useState('');
+  const [prodFullDesc, setProdFullDesc] = useState('');
+  const [prodPrice, setProdPrice] = useState<number>(0);
+  const [prodOriginalPrice, setProdOriginalPrice] = useState<number>(499);
+  const [prodDownloadSize, setProdDownloadSize] = useState('15.4 MB');
+  const [prodVersion, setProdVersion] = useState('v1.0.0');
+  const [prodLicenseType, setProdLicenseType] = useState<'Lifetime License' | '1 Year License' | 'Perpetual'>('Lifetime License');
+  const [prodImage, setProdImage] = useState('https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80');
+  const [prodFileUrl, setProdFileUrl] = useState('https://github.com');
+  const [prodFeatures, setProdFeatures] = useState('One-Click Installation, High Performance, Open Source');
+
+  const handleImageUrlChange = (val: string) => {
+    // Automatically strip surrounding quotes if user pastes "https://..." or 'https://...'
+    const cleaned = val.trim().replace(/^["']|["']$/g, '');
+    setProdImage(cleaned);
+  };
+
+  const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setProdImage(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+
+  const handleOpenAddProduct = () => {
+    setEditingProduct(null);
+    setProdName('');
+    setProdCategory('Windows Tools');
+    setProdShortDesc('');
+    setProdFullDesc('');
+    setProdPrice(0);
+    setProdOriginalPrice(499);
+    setProdDownloadSize('15.4 MB');
+    setProdVersion('v1.0.0');
+    setProdLicenseType('Lifetime License');
+    setProdImage('https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80');
+    setProdFileUrl('https://github.com');
+    setProdFeatures('One-Click Installation, High Performance, Open Source');
+    setShowAddProductModal(true);
+  };
+
+  const handleOpenEditProduct = (prod: Product) => {
+    setEditingProduct(prod);
+    setProdName(prod.name);
+    setProdCategory(prod.category as any || 'Windows Tools');
+    setProdShortDesc(prod.shortDescription || '');
+    setProdFullDesc(prod.fullDescription || '');
+    setProdPrice(prod.price || 0);
+    setProdOriginalPrice(prod.originalPrice || 499);
+    setProdDownloadSize(prod.downloadSize || '15.4 MB');
+    setProdVersion(prod.version || 'v1.0.0');
+    setProdLicenseType(prod.licenseType || 'Lifetime License');
+    setProdImage(prod.image || '');
+    setProdFileUrl(prod.fileUrl || '');
+    setProdFeatures((prod.features || []).join(', '));
+  };
+
+  const handleCreateProductSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prodName.trim()) return;
+
+    const discountPct = prodOriginalPrice > prodPrice
+      ? Math.round(((prodOriginalPrice - prodPrice) / prodOriginalPrice) * 100)
+      : 0;
+
+    const newProd: Product = {
+      id: 'prod-' + Date.now(),
+      name: prodName.trim(),
+      slug: prodName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      category: prodCategory,
+      shortDescription: prodShortDesc || 'Digital software product and utility package.',
+      fullDescription: prodFullDesc || prodShortDesc || 'Complete digital product license with instant download access.',
+      price: Number(prodPrice) || 0,
+      originalPrice: Number(prodOriginalPrice) || 499,
+      discountPercent: discountPct,
+      downloadSize: prodDownloadSize || '10 MB',
+      version: prodVersion || 'v1.0.0',
+      licenseType: prodLicenseType,
+      rating: 5.0,
+      reviewCount: 1,
+      image: prodImage || 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80',
+      screenshots: [prodImage || 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80'],
+      features: prodFeatures.split(',').map((f) => f.trim()).filter(Boolean),
+      requirements: ['Windows 10 / 11 (64-bit)'],
+      versionHistory: [
+        {
+          version: prodVersion || 'v1.0.0',
+          date: new Date().toISOString().split('T')[0],
+          changes: ['Initial Store Release']
+        }
+      ],
+      fileUrl: prodFileUrl || 'https://github.com',
+      instantKeyAvailable: true,
+      isBestSeller: true,
+      isFeatured: true,
+      isNew: true,
+      tags: [prodCategory, 'Store Card', 'Software'],
+      salesCount: 1
+    };
+
+    onAddProduct(newProd);
+    setProdName('');
+    setProdShortDesc('');
+    setProdFullDesc('');
+    setShowAddProductModal(false);
+  };
+
+  const handleUpdateProductSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct || !prodName.trim()) return;
+
+    const discountPct = prodOriginalPrice > prodPrice
+      ? Math.round(((prodOriginalPrice - prodPrice) / prodOriginalPrice) * 100)
+      : 0;
+
+    const updatedProd: Product = {
+      ...editingProduct,
+      name: prodName.trim(),
+      slug: prodName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      category: prodCategory,
+      shortDescription: prodShortDesc || 'Digital software product and utility package.',
+      fullDescription: prodFullDesc || prodShortDesc || 'Complete digital product license with instant download access.',
+      price: Number(prodPrice) || 0,
+      originalPrice: Number(prodOriginalPrice) || 499,
+      discountPercent: discountPct,
+      downloadSize: prodDownloadSize || '10 MB',
+      version: prodVersion || 'v1.0.0',
+      licenseType: prodLicenseType,
+      image: prodImage || 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80',
+      fileUrl: prodFileUrl || 'https://github.com',
+      features: prodFeatures.split(',').map((f) => f.trim()).filter(Boolean)
+    };
+
+    if (onUpdateProduct) onUpdateProduct(updatedProd);
+    setEditingProduct(null);
+  };
+
+
 
   // Coupons Management State
   const [couponList, setCouponList] = useState<Coupon[]>(() => {
@@ -331,7 +487,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+          <button
+            onClick={() => setShowAddProductModal(true)}
+            className="px-4 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all hover:scale-105"
+          >
+            <ShoppingBag className="w-4 h-4 text-slate-950" />
+            <span>+ ADD STORE CARD</span>
+          </button>
+
           <button
             onClick={() => setShowAddBlogModal(true)}
             className="px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold font-mono text-xs shadow-md border border-slate-700 flex items-center gap-1.5 transition-all hover:scale-105"
@@ -342,7 +506,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
           <button
             onClick={() => setShowAddServiceModal(true)}
-            className="px-5 py-3 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-400/20 flex items-center gap-2 transition-all hover:scale-105"
+            className="px-4 py-3 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-400/20 flex items-center gap-2 transition-all hover:scale-105"
           >
             <Plus className="w-4.5 h-4.5 stroke-[3]" />
             <span>+ ADD SERVICE (₹39)</span>
@@ -364,6 +528,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
         {[
+          { id: 'products', label: '📦 Store Product Cards', icon: ShoppingBag, count: products.length },
           { id: 'bookings', label: '🛠️ Remote Repairs Queue', icon: Headphones, count: bookings.length },
           { id: 'traffic', label: '🌐 Live Traffic & Visitors', icon: Activity, count: liveVisitorCount },
           { id: 'users', label: '👥 Registered User Accounts', icon: UserCheck, count: userList.length },
@@ -398,6 +563,122 @@ export const AdminView: React.FC<AdminViewProps> = ({
           );
         })}
       </div>
+
+      {/* TAB 0: DIGITAL STORE PRODUCT CARDS MANAGER */}
+      {activeTab === 'products' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-xl text-slate-900 font-mono flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-emerald-600" />
+                <span>Digital Store Product Cards Catalog ({products.length})</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-mono">Create, publish, inspect, and remove software product cards from the online store</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                placeholder="Search products by title or category..."
+                value={prodSearchQuery}
+                onChange={(e) => setProdSearchQuery(e.target.value)}
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-sans text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600"
+              />
+              <button
+                onClick={() => setShowAddProductModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0"
+              >
+                + Add Store Card
+              </button>
+            </div>
+          </div>
+
+          {products.length === 0 ? (
+            <div className="p-16 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
+              <ShoppingBag className="w-12 h-12 text-slate-400 mx-auto" />
+              <h4 className="font-bold text-slate-900 text-base">No store product cards available</h4>
+              <p className="text-xs text-slate-500 max-w-md mx-auto font-mono">
+                Click "+ Add Store Card" above to publish your first software or Windows utility card.
+              </p>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {products
+                .filter((p) =>
+                  !prodSearchQuery ||
+                  p.name.toLowerCase().includes(prodSearchQuery.toLowerCase()) ||
+                  p.category.toLowerCase().includes(prodSearchQuery.toLowerCase())
+                )
+                .map((prod) => (
+                  <div key={prod.id} className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between space-y-4">
+                    <div className="space-y-3">
+                      <div className="relative h-44 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100">
+                        <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                        <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/90 text-white backdrop-blur-md">
+                          {prod.category}
+                        </span>
+                        <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-sm">
+                          {prod.price === 0 ? 'FREE / OPEN SOURCE' : `₹${prod.price}`}
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                          <span>{prod.version}</span>
+                          <span>{prod.downloadSize}</span>
+                        </div>
+                        <h4 className="font-bold text-slate-900 text-base mt-1 line-clamp-1">{prod.name}</h4>
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-1">{prod.shortDescription}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          {prod.licenseType}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                          {prod.salesCount || 0} Downloads
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <a
+                        href={prod.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-mono font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Source Link</span>
+                      </a>
+
+                      <div className="flex items-center gap-2">
+                        {onUpdateProduct && (
+                          <button
+                            onClick={() => handleOpenEditProduct(prod)}
+                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-slate-600" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+
+                        {onDeleteProduct && (
+                          <button
+                            onClick={() => onDeleteProduct(prod.id)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* TAB 1: LIVE REMOTE REPAIRS QUEUE */}
       {activeTab === 'bookings' && (
@@ -1413,6 +1694,357 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* CREATE NEW STORE PRODUCT CARD MODAL */}
+      {showAddProductModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-8 text-slate-900">
+            <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
+              <div className="flex items-center gap-2 font-mono text-sm font-bold">
+                <ShoppingBag className="w-5 h-5 text-emerald-400" />
+                <span>CREATE NEW STORE PRODUCT CARD</span>
+              </div>
+              <button onClick={() => setShowAddProductModal(false)} className="p-1.5 rounded-xl text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateProductSubmit} className="p-6 space-y-4 font-mono text-xs max-h-[80vh] overflow-y-auto">
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Product / Tool Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Chris Titus Tech WinUtil or Rufus USB Creator"
+                  value={prodName}
+                  onChange={(e) => setProdName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold placeholder-slate-400 focus:outline-none focus:border-emerald-600 font-sans"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Category *</label>
+                  <select
+                    value={prodCategory}
+                    onChange={(e) => setProdCategory(e.target.value as any)}
+                    className="w-full px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600 font-sans"
+                  >
+                    <option value="Windows Tools">Windows Tools</option>
+                    <option value="Software">Software</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">License Type *</label>
+                  <select
+                    value={prodLicenseType}
+                    onChange={(e) => setProdLicenseType(e.target.value as any)}
+                    className="w-full px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600 font-sans"
+                  >
+                    <option value="Lifetime License">Lifetime License</option>
+                    <option value="1 Year License">1 Year License</option>
+                    <option value="Perpetual">Perpetual</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Price (₹, 0 for Free)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={prodPrice}
+                    onChange={(e) => setProdPrice(Number(e.target.value))}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Original MRP Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={prodOriginalPrice}
+                    onChange={(e) => setProdOriginalPrice(Number(e.target.value))}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Version</label>
+                  <input
+                    type="text"
+                    value={prodVersion}
+                    onChange={(e) => setProdVersion(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Download Size</label>
+                  <input
+                    type="text"
+                    value={prodDownloadSize}
+                    onChange={(e) => setProdDownloadSize(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-700 font-bold block">Image Thumbnail</label>
+                  <label htmlFor="add-prod-img-upload" className="cursor-pointer px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition-colors">
+                    <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Upload Image File</span>
+                  </label>
+                  <input
+                    id="add-prod-img-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageFileUpload}
+                    className="hidden"
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Paste Image URL (https://...) or upload file above"
+                  value={prodImage}
+                  onChange={(e) => handleImageUrlChange(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-emerald-600"
+                />
+                {prodImage && (
+                  <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-200">
+                    <img src={prodImage} alt="Thumbnail preview" className="w-16 h-12 object-cover rounded-lg border border-slate-200 shrink-0" />
+                    <div className="text-[11px] text-slate-500 overflow-hidden font-mono">
+                      <p className="font-bold text-slate-700">Image Preview Active</p>
+                      <p className="truncate text-slate-400">{prodImage.startsWith('data:') ? 'Local Image File (Uploaded)' : prodImage}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Download / Release URL</label>
+                <input
+                  type="text"
+                  value={prodFileUrl}
+                  onChange={(e) => setProdFileUrl(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Short Description</label>
+                <input
+                  type="text"
+                  placeholder="Brief 1-sentence overview of the software"
+                  value={prodShortDesc}
+                  onChange={(e) => setProdShortDesc(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-sans focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Features (comma-separated)</label>
+                <input
+                  type="text"
+                  placeholder="One-click setup, Open source, Telemetry cleanup"
+                  value={prodFeatures}
+                  onChange={(e) => setProdFeatures(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-sans focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20"
+                >
+                  SAVE & PUBLISH PRODUCT CARD
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT STORE PRODUCT CARD MODAL */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-8 text-slate-900">
+            <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
+              <div className="flex items-center gap-2 font-mono text-sm font-bold">
+                <Edit3 className="w-5 h-5 text-emerald-400" />
+                <span>EDIT STORE PRODUCT CARD ({editingProduct.name})</span>
+              </div>
+              <button onClick={() => setEditingProduct(null)} className="p-1.5 rounded-xl text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateProductSubmit} className="p-6 space-y-4 font-mono text-xs max-h-[80vh] overflow-y-auto">
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Product / Tool Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Chris Titus Tech WinUtil or Rufus USB Creator"
+                  value={prodName}
+                  onChange={(e) => setProdName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold placeholder-slate-400 focus:outline-none focus:border-emerald-600 font-sans"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Category *</label>
+                  <select
+                    value={prodCategory}
+                    onChange={(e) => setProdCategory(e.target.value as any)}
+                    className="w-full px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600 font-sans"
+                  >
+                    <option value="Windows Tools">Windows Tools</option>
+                    <option value="Software">Software</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">License Type *</label>
+                  <select
+                    value={prodLicenseType}
+                    onChange={(e) => setProdLicenseType(e.target.value as any)}
+                    className="w-full px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600 font-sans"
+                  >
+                    <option value="Lifetime License">Lifetime License</option>
+                    <option value="1 Year License">1 Year License</option>
+                    <option value="Perpetual">Perpetual</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Price (₹, 0 for Free)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={prodPrice}
+                    onChange={(e) => setProdPrice(Number(e.target.value))}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Original MRP Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={prodOriginalPrice}
+                    onChange={(e) => setProdOriginalPrice(Number(e.target.value))}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Version</label>
+                  <input
+                    type="text"
+                    value={prodVersion}
+                    onChange={(e) => setProdVersion(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Download Size</label>
+                  <input
+                    type="text"
+                    value={prodDownloadSize}
+                    onChange={(e) => setProdDownloadSize(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-700 font-bold block">Image Thumbnail</label>
+                  <label htmlFor="edit-prod-img-upload" className="cursor-pointer px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition-colors">
+                    <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Upload Image File</span>
+                  </label>
+                  <input
+                    id="edit-prod-img-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageFileUpload}
+                    className="hidden"
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Paste Image URL (https://...) or upload file above"
+                  value={prodImage}
+                  onChange={(e) => handleImageUrlChange(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-emerald-600"
+                />
+                {prodImage && (
+                  <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-200">
+                    <img src={prodImage} alt="Thumbnail preview" className="w-16 h-12 object-cover rounded-lg border border-slate-200 shrink-0" />
+                    <div className="text-[11px] text-slate-500 overflow-hidden font-mono">
+                      <p className="font-bold text-slate-700">Image Preview Active</p>
+                      <p className="truncate text-slate-400">{prodImage.startsWith('data:') ? 'Local Image File (Uploaded)' : prodImage}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Download / Release URL</label>
+                <input
+                  type="text"
+                  value={prodFileUrl}
+                  onChange={(e) => setProdFileUrl(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Short Description</label>
+                <input
+                  type="text"
+                  placeholder="Brief 1-sentence overview of the software"
+                  value={prodShortDesc}
+                  onChange={(e) => setProdShortDesc(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-sans focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Features (comma-separated)</label>
+                <input
+                  type="text"
+                  placeholder="One-click setup, Open source, Telemetry cleanup"
+                  value={prodFeatures}
+                  onChange={(e) => setProdFeatures(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-sans focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20"
+                >
+                  UPDATE & SAVE PRODUCT CARD
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

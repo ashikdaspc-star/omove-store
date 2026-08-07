@@ -51,8 +51,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   };
 
   const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
-  const taxAmount = Number(((subtotal - discountAmount) * 0.18).toFixed(2));
-  const total = Number((subtotal - discountAmount + taxAmount).toFixed(2));
+  const taxAmount = 0;
+  const total = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/80 backdrop-blur-md">
@@ -182,10 +182,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <span className="font-mono">-₹{discountAmount.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-400">
-                <span>Estimated GST / Tax (18%)</span>
-                <span className="font-mono">₹{taxAmount.toFixed(2)}</span>
-              </div>
+
               <div className="flex justify-between text-base font-bold text-white pt-2 border-t border-slate-800">
                 <span>Total Amount</span>
                 <span className="font-mono text-cyan-400">₹{total.toFixed(2)}</span>
