@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Zap, ShieldCheck, Mail, Phone, Lock, Heart, ArrowRight, MessageSquare, CheckCircle2 } from 'lucide-react';
 
 interface FooterProps {
-  setCurrentView: (view: string) => void;
   setSelectedCategory: (cat: string) => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCategory }) => {
+export const Footer: React.FC<FooterProps> = ({ setSelectedCategory }) => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +22,11 @@ export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCateg
 
   const navigateToCategory = (cat: string) => {
     setSelectedCategory(cat);
-    setCurrentView('store');
+    navigate('/store');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -80,7 +85,7 @@ export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCateg
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
           {/* Brand Info */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center gap-3">
+            <Link to="/" onClick={scrollToTop} className="flex items-center gap-3 inline-flex">
               <img
                 src="/logo.png"
                 alt="Omove Store Logo"
@@ -89,7 +94,7 @@ export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCateg
               <span className="text-2xl font-extrabold tracking-tight text-white">
                 Omove<span className="text-emerald-300">Store</span>
               </span>
-            </div>
+            </Link>
             <p className="text-emerald-100/90 text-sm leading-relaxed max-w-sm">
               Omove Store is your premier digital products, software solutions, and remote computer support platform. Buy genuine software licenses, tools, and connect with certified experts live via AnyDesk.
             </p>
@@ -115,8 +120,8 @@ export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCateg
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateToCategory('Drivers')} className="hover:text-emerald-300 transition-colors">
-                  Offline Driver ISO Packs
+                <button onClick={() => navigateToCategory('Software')} className="hover:text-emerald-300 transition-colors">
+                  PC Software & Utilities
                 </button>
               </li>
               <li>
@@ -134,11 +139,6 @@ export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCateg
                   Anti-Ransomware Suites
                 </button>
               </li>
-              <li>
-                <button onClick={() => navigateToCategory('AI Tools')} className="hover:text-emerald-300 transition-colors">
-                  Local Offline AI Models
-                </button>
-              </li>
             </ul>
           </div>
 
@@ -147,29 +147,29 @@ export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCateg
             <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">Remote Support</h4>
             <ul className="space-y-2.5 text-sm">
               <li>
-                <button onClick={() => { setCurrentView('remote-support'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-emerald-300 transition-colors">
+                <Link to="/remote-support" onClick={scrollToTop} className="hover:text-emerald-300 transition-colors">
                   Remote PC Support (₹39)
-                </button>
+                </Link>
               </li>
               <li>
-                <button onClick={() => { setCurrentView('remote-support'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-emerald-300 transition-colors">
+                <Link to="/remote-support" onClick={scrollToTop} className="hover:text-emerald-300 transition-colors">
                   Blue Screen (BSOD) Fix
-                </button>
+                </Link>
               </li>
               <li>
-                <button onClick={() => { setCurrentView('remote-support'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-emerald-300 transition-colors">
+                <Link to="/remote-support" onClick={scrollToTop} className="hover:text-emerald-300 transition-colors">
                   Deep Malware Elimination
-                </button>
+                </Link>
               </li>
               <li>
-                <button onClick={() => { setCurrentView('remote-support'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-emerald-300 transition-colors">
+                <Link to="/remote-support" onClick={scrollToTop} className="hover:text-emerald-300 transition-colors">
                   Driver & Peripheral Setup
-                </button>
+                </Link>
               </li>
               <li>
-                <button onClick={() => { setCurrentView('remote-support'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-emerald-300 transition-colors">
+                <Link to="/remote-support" onClick={scrollToTop} className="hover:text-emerald-300 transition-colors">
                   AnyDesk Remote Session
-                </button>
+                </Link>
               </li>
             </ul>
           </div>
@@ -179,24 +179,24 @@ export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCateg
             <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">Company & Help</h4>
             <ul className="space-y-2.5 text-sm">
               <li>
-                <button onClick={() => { setCurrentView('about-contact'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-emerald-300 transition-colors">
+                <Link to="/contact" onClick={scrollToTop} className="hover:text-emerald-300 transition-colors">
                   About Omove Store
-                </button>
+                </Link>
               </li>
               <li>
-                <button onClick={() => { setCurrentView('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-emerald-300 transition-colors">
+                <Link to="/dashboard" onClick={scrollToTop} className="hover:text-emerald-300 transition-colors">
                   Track Orders & Invoices
-                </button>
+                </Link>
               </li>
               <li>
-                <button onClick={() => { setCurrentView('blog'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-emerald-300 transition-colors">
+                <Link to="/blog" onClick={scrollToTop} className="hover:text-emerald-300 transition-colors">
                   Tech Blog & Tutorials
-                </button>
+                </Link>
               </li>
               <li>
-                <button onClick={() => { setCurrentView('about-contact'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-emerald-300 transition-colors">
+                <Link to="/contact" onClick={scrollToTop} className="hover:text-emerald-300 transition-colors">
                   Contact Support Team
-                </button>
+                </Link>
               </li>
             </ul>
           </div>
@@ -215,3 +215,4 @@ export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCateg
     </footer>
   );
 };
+

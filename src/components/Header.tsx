@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Monitor,
   ShoppingBag,
@@ -18,8 +19,6 @@ import {
 import { CartItem } from '../types';
 
 interface HeaderProps {
-  currentView: string;
-  setCurrentView: (view: string) => void;
   cart: CartItem[];
   setIsCartOpen: (open: boolean) => void;
   wishlistCount: number;
@@ -36,8 +35,6 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  currentView,
-  setCurrentView,
   cart,
   setIsCartOpen,
   wishlistCount,
@@ -54,20 +51,21 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   const navItems = [
-    { id: 'home', label: 'Home', icon: Monitor },
-    { id: 'store', label: 'Store', icon: ShoppingBag },
-    { id: 'services', label: 'Services', icon: Zap },
-    { id: 'remote-support', label: 'Remote Support', icon: Headphones, badge: 'Live' },
-    { id: 'blog', label: 'Blog', icon: BookOpen },
-    { id: 'about-contact', label: 'Contact', icon: Info }
+    { path: '/', label: 'Home', icon: Monitor },
+    { path: '/store', label: 'Store', icon: ShoppingBag },
+    { path: '/services', label: 'Services', icon: Zap },
+    { path: '/remote-support', label: 'Remote Support', icon: Headphones, badge: 'Live' },
+    { path: '/blog', label: 'Blog', icon: BookOpen },
+    { path: '/contact', label: 'Contact', icon: Info }
   ];
 
-  const handleNavClick = (viewId: string) => {
-    setCurrentView(viewId);
+  const handleNavClick = () => {
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -75,17 +73,27 @@ export const Header: React.FC<HeaderProps> = ({
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      setCurrentView('store');
+      navigate('/store');
       setShowSearchModal(false);
     }
+  };
+
+  const handleAdminToggle = () => {
+    const nextAdminState = !isAdminMode;
+    setIsAdminMode(nextAdminState);
+    if (nextAdminState) {
+      navigate('/admin');
+    }
+    setMobileMenuOpen(false);
   };
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
         {/* Left: Brand Logo & Title */}
-        <div
-          onClick={() => handleNavClick('home')}
+        <Link
+          to="/"
+          onClick={handleNavClick}
           className="flex items-center gap-3 cursor-pointer group select-none shrink-0"
         >
           <img
@@ -100,31 +108,37 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold font-mono">Digital • Software • PC Support</p>
           </div>
-        </div>
+        </Link>
 
         {/* Center: Main Navigation Links */}
         <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = currentView === item.id;
             return (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`relative px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                  isActive
-                    ? 'text-emerald-700 bg-emerald-50 border border-emerald-200/80 shadow-xs'
-                    : 'text-slate-700 hover:text-emerald-700 hover:bg-slate-50'
-                }`}
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={handleNavClick}
+                className={({ isActive }) =>
+                  `relative px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    isActive
+                      ? 'text-emerald-700 bg-emerald-50 border border-emerald-200/80 shadow-xs'
+                      : 'text-slate-700 hover:text-emerald-700 hover:bg-slate-50'
+                  }`
+                }
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
-                <span>{item.label}</span>
-                {item.badge && (
-                  <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    {item.badge}
-                  </span>
+                {({ isActive }) => (
+                  <>
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+                    <span>{item.label}</span>
+                    {item.badge && (
+                      <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        {item.badge}
+                      </span>
+                    )}
+                  </>
                 )}
-              </button>
+              </NavLink>
             );
           })}
         </nav>
@@ -169,10 +183,11 @@ export const Header: React.FC<HeaderProps> = ({
           {/* User Account / Sign In Pill */}
           {isLoggedIn ? (
             <div className="flex items-center rounded-xl bg-slate-100 border border-slate-200/90 p-1">
-              <button
-                onClick={() => handleNavClick('dashboard')}
+              <Link
+                to="/dashboard"
+                onClick={handleNavClick}
                 className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 ${
-                  currentView === 'dashboard'
+                  location.pathname === '/dashboard'
                     ? 'bg-white text-emerald-700 shadow-xs'
                     : 'text-slate-700 hover:text-slate-900'
                 }`}
@@ -180,7 +195,7 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <User className="w-3.5 h-3.5 text-emerald-600" />
                 <span className="hidden md:inline">{customerName.split(' ')[0]}</span>
-              </button>
+              </Link>
 
               {onSignOut && (
                 <button
@@ -204,9 +219,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Admin Panel Access Button */}
           <button
-            onClick={() => setIsAdminMode(!isAdminMode)}
+            onClick={handleAdminToggle}
             className={`px-3 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm ${
-              isAdminMode && currentView === 'admin'
+              isAdminMode && location.pathname === '/admin'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-amber-500/20'
                 : 'bg-[#064E3B] hover:bg-[#04392b] text-white border border-emerald-700'
             }`}
@@ -257,7 +272,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={() => {
                   setSearchQuery('');
-                  setCurrentView('store');
+                  navigate('/store');
                   setShowSearchModal(false);
                 }}
                 className="text-emerald-700 hover:underline font-bold"
@@ -276,28 +291,26 @@ export const Header: React.FC<HeaderProps> = ({
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
-                <button
-                  key={item.id}
-                  onClick={() => handleNavClick(item.id)}
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={handleNavClick}
                   className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium ${
-                    currentView === item.id
+                    location.pathname === item.path
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'bg-slate-50 text-slate-700 border border-slate-200'
                   }`}
                 >
                   <Icon className="w-4 h-4 text-emerald-600" />
                   <span>{item.label}</span>
-                </button>
+                </Link>
               );
             })}
           </div>
 
           <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
             <button
-              onClick={() => {
-                setIsAdminMode(!isAdminMode);
-                setMobileMenuOpen(false);
-              }}
+              onClick={handleAdminToggle}
               className="text-xs font-mono font-bold text-white bg-[#064E3B] px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-sm"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-300" />
@@ -310,3 +323,4 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+

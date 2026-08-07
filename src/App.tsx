@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Product, CartItem, Order, RemoteBooking, RemoteService, BlogPost } from './types';
 import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS } from './data/mockData';
 import { Header } from './components/Header';
@@ -22,16 +23,19 @@ import { AboutContactView } from './views/AboutContactView';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<string>('home');
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // Real-time Traffic Tracking
   useEffect(() => {
-    recordPageViewHit(currentView);
+    const pageName = location.pathname.substring(1) || 'home';
+    recordPageViewHit(pageName);
     const interval = setInterval(() => {
       sendVisitorHeartbeat();
     }, 10000);
     return () => clearInterval(interval);
-  }, [currentView]);
+  }, [location.pathname]);
+
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const [services, setServices] = useState<RemoteService[]>(MOCK_SERVICES);
   const [blogs, setBlogs] = useState<BlogPost[]>(MOCK_BLOGS);
@@ -137,6 +141,91 @@ export default function App() {
     }
   ]);
 
+  const handleNavigateView = (view: string) => {
+    switch (view) {
+      case 'home':
+        navigate('/');
+        break;
+      case 'store':
+        navigate('/store');
+        break;
+      case 'services':
+        navigate('/services');
+        break;
+      case 'remote-support':
+        navigate('/remote-support');
+        break;
+      case 'blog':
+        navigate('/blog');
+        break;
+      case 'about-contact':
+      case 'contact':
+        navigate('/contact');
+        break;
+      case 'dashboard':
+        navigate('/dashboard');
+        break;
+      case 'admin':
+        navigate('/admin');
+        break;
+      default:
+        if (view.startsWith('/')) {
+          navigate(view);
+        } else {
+          navigate(`/${view}`);
+        }
+        break;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLoginSuccess = (user: { name: string; email: string; phone: string; location: string }) => {
+    setIsLoggedIn(true);
+    setCustomerProfile(user);
+    try {
+      localStorage.setItem('omove_active_session', JSON.stringify(user));
+    } catch (e) {
+      console.error(e);
+    }
+    setIsAuthModalOpen(false);
+
+    if (pendingCheckoutAfterAuth) {
+      setPendingCheckoutAfterAuth(false);
+      setIsCheckoutOpen(true);
+    }
+  };
+
+  const handleSignOut = () => {
+    setIsLoggedIn(false);
+    try {
+      localStorage.removeItem('omove_active_session');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleAdminMode = (flag?: boolean) => {
+    const nextAdminState = flag !== undefined ? flag : !isAdminMode;
+    if (nextAdminState) {
+      if (isAdminAuthenticated) {
+        setIsAdminMode(true);
+        navigate('/admin');
+      } else {
+        setIsAdminAuthModalOpen(true);
+      }
+    } else {
+      setIsAdminMode(false);
+      navigate('/');
+    }
+  };
+
+  const handleAdminAuthSuccess = () => {
+    setIsAdminAuthenticated(true);
+    setIsAdminMode(true);
+    setIsAdminAuthModalOpen(false);
+    navigate('/admin');
+  };
+
   // Cart Handlers
   const handleAddToCart = (product: Product) => {
     setCart((prev) => {
@@ -151,49 +240,9 @@ export default function App() {
     setIsCartOpen(true);
   };
 
-  const handleLoginSuccess = (profile: { name: string; email: string; phone: string; location: string }) => {
-    setIsLoggedIn(true);
-    setCustomerProfile(profile);
-    try {
-      localStorage.setItem('omove_active_session', JSON.stringify(profile));
-    } catch (e) {
-      console.error(e);
-    }
-    if (pendingCheckoutAfterAuth) {
-      setPendingCheckoutAfterAuth(false);
-      setIsCheckoutOpen(true);
-    }
-  };
-
-  const handleSignOut = () => {
-    setIsLoggedIn(false);
-    setCustomerProfile({ name: 'Customer', email: '', phone: '', location: 'Kolkata, West Bengal, India' });
-    try {
-      localStorage.removeItem('omove_active_session');
-    } catch (e) {
-      console.error(e);
-    }
-    setCurrentView('home');
-  };
-
-  const handleToggleAdminMode = () => {
-    if (!isAdminAuthenticated || !isAdminMode) {
-      setIsAdminAuthModalOpen(true);
-    } else {
-      setIsAdminAuthenticated(false);
-      setIsAdminMode(false);
-      setCurrentView('home');
-    }
-  };
-
-  const handleAdminAuthSuccess = () => {
-    setIsAdminAuthenticated(true);
-    setIsAdminMode(true);
-    setCurrentView('admin');
-  };
-
   const handleBuyNow = (product: Product) => {
-    setCart([{ product, quantity: 1 }]);
+    handleAddToCart(product);
+    setIsCartOpen(false);
     if (!isLoggedIn) {
       setPendingCheckoutAfterAuth(true);
       setIsAuthModalOpen(true);
@@ -268,8 +317,8 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white font-sans">
       {/* Header */}
       <Header
-        currentView={currentView}
-        setCurrentView={setCurrentView}
+        currentView={location.pathname === '/' ? 'home' : location.pathname.substring(1)}
+        setCurrentView={handleNavigateView}
         cart={cart}
         setIsCartOpen={setIsCartOpen}
         wishlistCount={wishlist.length}
@@ -278,7 +327,7 @@ export default function App() {
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
         isAdminMode={isAdminMode}
-        setIsAdminMode={handleToggleAdminMode}
+        setIsAdminMode={() => handleToggleAdminMode()}
         isLoggedIn={isLoggedIn}
         customerName={customerProfile.name}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
@@ -287,91 +336,114 @@ export default function App() {
 
       {/* Main View Router */}
       <main className="flex-1">
-        {currentView === 'home' && (
-          <HomeView
-            products={products}
-            services={services}
-            blogs={blogs}
-            onSelectProduct={setSelectedProductForDetail}
-            onAddToCart={handleAddToCart}
-            onBuyNow={handleBuyNow}
-            wishlist={wishlist}
-            onToggleWishlist={handleToggleWishlist}
-            onBookingSuccess={handleBookingSuccess}
-            setCurrentView={setCurrentView}
-            setSelectedCategory={setSelectedCategory}
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <HomeView
+                products={products}
+                services={services}
+                blogs={blogs}
+                onSelectProduct={setSelectedProductForDetail}
+                onAddToCart={handleAddToCart}
+                onBuyNow={handleBuyNow}
+                wishlist={wishlist}
+                onToggleWishlist={handleToggleWishlist}
+                onBookingSuccess={handleBookingSuccess}
+                setCurrentView={handleNavigateView}
+                setSelectedCategory={setSelectedCategory}
+              />
+            }
           />
-        )}
 
-        {currentView === 'store' && (
-          <StoreView
-            products={products}
-            onSelectProduct={setSelectedProductForDetail}
-            onAddToCart={handleAddToCart}
-            onBuyNow={handleBuyNow}
-            wishlist={wishlist}
-            onToggleWishlist={handleToggleWishlist}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            selectedCategory={selectedCategory}
-            setSelectedCategory={setSelectedCategory}
+          <Route
+            path="/store"
+            element={
+              <StoreView
+                products={products}
+                onSelectProduct={setSelectedProductForDetail}
+                onAddToCart={handleAddToCart}
+                onBuyNow={handleBuyNow}
+                wishlist={wishlist}
+                onToggleWishlist={handleToggleWishlist}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+              />
+            }
           />
-        )}
 
-        {currentView === 'services' && (
-          <ServicesView
-            services={services}
-            onBookingSuccess={handleBookingSuccess}
-            setCurrentView={setCurrentView}
+          <Route
+            path="/services"
+            element={
+              <ServicesView
+                services={services}
+                onBookingSuccess={handleBookingSuccess}
+                setCurrentView={handleNavigateView}
+              />
+            }
           />
-        )}
 
-        {currentView === 'remote-support' && (
-          <RemoteSupportBookingView
-            services={services}
-            onBookingSuccess={handleBookingSuccess}
-            setCurrentView={setCurrentView}
+          <Route
+            path="/remote-support"
+            element={
+              <RemoteSupportBookingView
+                services={services}
+                onBookingSuccess={handleBookingSuccess}
+                setCurrentView={handleNavigateView}
+              />
+            }
           />
-        )}
 
-        {currentView === 'dashboard' && (
-          <DashboardView
-            orders={orders}
-            bookings={bookings}
-            wishlistProducts={wishlistProducts}
-            customerProfile={customerProfile}
-            onUpdateCustomerProfile={setCustomerProfile}
-            onSelectProduct={setSelectedProductForDetail}
-            onAddToCart={handleAddToCart}
-            onBuyNow={handleBuyNow}
-            onToggleWishlist={handleToggleWishlist}
-            onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
-            setCurrentView={setCurrentView}
+          <Route path="/blog" element={<BlogView blogs={blogs} />} />
+
+          <Route path="/contact" element={<AboutContactView />} />
+          <Route path="/about-contact" element={<Navigate to="/contact" replace />} />
+
+          <Route
+            path="/dashboard"
+            element={
+              <DashboardView
+                orders={orders}
+                bookings={bookings}
+                wishlistProducts={wishlistProducts}
+                customerProfile={customerProfile}
+                onUpdateCustomerProfile={setCustomerProfile}
+                onSelectProduct={setSelectedProductForDetail}
+                onAddToCart={handleAddToCart}
+                onBuyNow={handleBuyNow}
+                onToggleWishlist={handleToggleWishlist}
+                onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
+                setCurrentView={handleNavigateView}
+              />
+            }
           />
-        )}
 
-        {currentView === 'admin' && (
-          <AdminView
-            products={products}
-            services={services}
-            blogs={blogs}
-            orders={orders}
-            bookings={bookings}
-            onAddProduct={handleAddProduct}
-            onDeleteProduct={handleDeleteProduct}
-            onAddService={handleAddService}
-            onDeleteService={handleDeleteService}
-            onAddBlog={handleAddBlog}
-            onDeleteBlog={handleDeleteBlog}
-            onUpdateBooking={handleUpdateBooking}
-            onDeleteBooking={handleDeleteBooking}
-            onExitAdmin={handleToggleAdminMode}
+          <Route
+            path="/admin"
+            element={
+              <AdminView
+                products={products}
+                services={services}
+                blogs={blogs}
+                orders={orders}
+                bookings={bookings}
+                onAddProduct={handleAddProduct}
+                onDeleteProduct={handleDeleteProduct}
+                onAddService={handleAddService}
+                onDeleteService={handleDeleteService}
+                onAddBlog={handleAddBlog}
+                onDeleteBlog={handleDeleteBlog}
+                onUpdateBooking={handleUpdateBooking}
+                onDeleteBooking={handleDeleteBooking}
+                onExitAdmin={() => handleToggleAdminMode(false)}
+              />
+            }
           />
-        )}
 
-        {currentView === 'blog' && <BlogView blogs={blogs} />}
-
-        {currentView === 'about-contact' && <AboutContactView />}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
 
       {/* Floating Widgets & Modals */}
@@ -435,7 +507,7 @@ export default function App() {
       />
 
       {/* Footer */}
-      <Footer setCurrentView={setCurrentView} setSelectedCategory={setSelectedCategory} />
+      <Footer setCurrentView={handleNavigateView} setSelectedCategory={setSelectedCategory} />
     </div>
   );
 }
