@@ -124,15 +124,35 @@ async function startServer() {
     next();
   });
 
+  // Anti-caching middleware for all dynamic API endpoints
+  app.use('/api', (_req: Request, res: Response, next: any) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    next();
+  });
+
   // API ROUTES
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', service: 'OMOVE TECH Engine', time: new Date().toISOString() });
   });
 
   let dynamicProductsStore: any[] = [...MOCK_PRODUCTS];
+  let currentCatalogVersion: number = Date.now();
+
+  // Catalog version endpoint for real-time background version checking
+  app.get('/api/catalog-version', (_req: Request, res: Response) => {
+    res.json({
+      version: currentCatalogVersion,
+      count: dynamicProductsStore.length,
+      timestamp: new Date(currentCatalogVersion).toISOString()
+    });
+  });
 
   // Get products with search & category filters
   app.get('/api/products', (req: Request, res: Response) => {
+    res.setHeader('X-Catalog-Version', String(currentCatalogVersion));
     const category = req.query.category as string;
     const search = (req.query.q as string || '').toLowerCase();
     const sort = req.query.sort as string;
@@ -191,13 +211,14 @@ async function startServer() {
       const { products, autoPush = true } = req.body || {};
       if (Array.isArray(products) && products.length > 0) {
         dynamicProductsStore = products;
+        currentCatalogVersion = Date.now();
         const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
         fs.writeFileSync(filePath, JSON.stringify(products, null, 2));
       }
       if (autoPush) {
         pushProductsToGitHub().catch(() => {});
       }
-      res.json({ success: true, count: dynamicProductsStore.length });
+      res.json({ success: true, count: dynamicProductsStore.length, version: currentCatalogVersion });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -216,11 +237,12 @@ async function startServer() {
       const { products } = req.body || {};
       if (Array.isArray(products) && products.length > 0) {
         dynamicProductsStore = products;
+        currentCatalogVersion = Date.now();
         const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
         fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
       }
       const gitRes = await pushProductsToGitHub();
-      res.json({ success: true, count: dynamicProductsStore.length, gitMessage: gitRes.message });
+      res.json({ success: true, count: dynamicProductsStore.length, version: currentCatalogVersion, gitMessage: gitRes.message });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }

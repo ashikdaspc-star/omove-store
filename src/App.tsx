@@ -38,22 +38,88 @@ export default function App() {
   }, [location.pathname]);
 
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
+  const catalogVersionRef = React.useRef<number>(0);
 
-  useEffect(() => {
-    fetch('/api/products?t=' + Date.now())
-      .then((res) => res.json())
-      .then((data) => {
+  // Helper to fetch latest products directly from server without caching
+  const loadLatestProductsFromServer = React.useCallback(async () => {
+    try {
+      const res = await fetch(`/api/products?v=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           setProducts(data);
+          const serverVerHeader = res.headers.get('X-Catalog-Version');
+          if (serverVerHeader) {
+            catalogVersionRef.current = parseInt(serverVerHeader, 10);
+          }
           try {
             localStorage.setItem('omove_products', JSON.stringify(data));
+            localStorage.setItem('omove_catalog_version', String(catalogVersionRef.current || Date.now()));
           } catch (e) {
             console.error(e);
           }
         }
-      })
-      .catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Server catalog fetch note:', e);
+    }
   }, []);
+
+  // 1. Initial Load + Real-Time Sync (Polling + BroadcastChannel + Storage Event + SW Purge)
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const reg of registrations) reg.unregister();
+      });
+    }
+
+    loadLatestProductsFromServer();
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('omove_catalog_sync_channel');
+      bc.onmessage = (event) => {
+        if (event.data && event.data.type === 'CATALOG_UPDATED') {
+          loadLatestProductsFromServer();
+        }
+      };
+    } catch (e) {}
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'omove_catalog_version' || e.key === 'omove_products') {
+        loadLatestProductsFromServer();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/catalog-version?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+        });
+        if (res.ok) {
+          const info = await res.json();
+          if (info.version && info.version > catalogVersionRef.current) {
+            catalogVersionRef.current = info.version;
+            loadLatestProductsFromServer();
+          }
+        }
+      } catch (e) {}
+    }, 10000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(pollInterval);
+      if (bc) bc.close();
+    };
+  }, [loadLatestProductsFromServer]);
 
   const [services, setServices] = useState<RemoteService[]>(MOCK_SERVICES);
   const [blogs, setBlogs] = useState<BlogPost[]>(MOCK_BLOGS);
@@ -320,12 +386,23 @@ export default function App() {
     setBookings((prev) => [newBooking, ...prev]);
   };
 
-  const syncProducts = (updated: Product[]) => {
+  const broadcastCatalogUpdate = (newProducts: Product[]) => {
+    const newVer = Date.now();
+    catalogVersionRef.current = newVer;
     try {
-      localStorage.setItem('omove_products', JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
+      localStorage.setItem('omove_products', JSON.stringify(newProducts));
+      localStorage.setItem('omove_catalog_version', String(newVer));
+    } catch (e) {}
+
+    try {
+      const bc = new BroadcastChannel('omove_catalog_sync_channel');
+      bc.postMessage({ type: 'CATALOG_UPDATED', version: newVer });
+      bc.close();
+    } catch (e) {}
+  };
+
+  const syncProducts = (updated: Product[]) => {
+    broadcastCatalogUpdate(updated);
     fetch('/api/products/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -359,11 +436,7 @@ export default function App() {
 
   const handlePublishCatalog = async (): Promise<{ success: boolean; message?: string }> => {
     try {
-      try {
-        localStorage.setItem('omove_products', JSON.stringify(products));
-      } catch (e) {
-        console.error(e);
-      }
+      broadcastCatalogUpdate(products);
 
       const res = await fetch('/api/products/publish', {
         method: 'POST',
@@ -378,6 +451,7 @@ export default function App() {
         data = { success: false, message: rawText ? rawText.substring(0, 150) : `HTTP ${res.status} empty response` };
       }
       if (res.ok && data.success) {
+        if (data.version) catalogVersionRef.current = data.version;
         return { success: true, message: 'Catalog saved to server & published live to GitHub!' };
       } else if (res.status === 405 || res.status === 404) {
         return { success: true, message: 'Catalog saved to store catalog!' };
