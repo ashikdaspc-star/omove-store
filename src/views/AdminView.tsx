@@ -183,8 +183,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
       licenseType: prodLicenseType,
       rating: 5.0,
       reviewCount: 1,
-      image: prodImage || 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80',
-      screenshots: [prodImage || 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80'],
+      image: prodImage || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+      screenshots: [prodImage || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80'],
       features: prodFeatures.split(',').map((f) => f.trim()).filter(Boolean),
       requirements: ['Windows 10 / 11 (64-bit)'],
       versionHistory: [
@@ -231,7 +231,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       downloadSize: prodDownloadSize || '10 MB',
       version: prodVersion || 'v1.0.0',
       licenseType: prodLicenseType,
-      image: prodImage || 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80',
+      image: prodImage || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
       fileUrl: prodFileUrl || 'https://github.com',
       features: prodFeatures.split(',').map((f) => f.trim()).filter(Boolean)
     };
