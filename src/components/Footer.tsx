@@ -41,7 +41,7 @@ export const Footer: React.FC<FooterProps> = ({ setCurrentView, setSelectedCateg
                 Get Weekly Windows Fixes, Driver Alerts & Exclusive Discounts
               </h3>
               <p className="text-emerald-100/80 text-sm mt-2">
-                Join 25,000+ IT admins and PC enthusiasts. Zero spam, unsubscribe anytime.
+                Join 1,000+ happy customers and PC enthusiasts. Zero spam, unsubscribe anytime.
               </p>
             </div>
             <div>

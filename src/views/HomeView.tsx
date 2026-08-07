@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Product, RemoteService, BlogPost } from '../types';
+import confetti from 'canvas-confetti';
+import { Product, RemoteService, RemoteBooking, BlogPost } from '../types';
 import { CATEGORIES } from '../data/mockData';
 import { ProductCard } from '../components/ProductCard';
 import {
@@ -12,7 +13,15 @@ import {
   Clock,
   ChevronRight,
   Laptop,
-  Wrench
+  Wrench,
+  Check,
+  Lock,
+  X,
+  Zap,
+  Monitor,
+  DownloadCloud,
+  ExternalLink,
+  MessageSquare
 } from 'lucide-react';
 
 interface HomeViewProps {
@@ -24,6 +33,7 @@ interface HomeViewProps {
   onBuyNow: (product: Product) => void;
   wishlist: string[];
   onToggleWishlist: (productId: string) => void;
+  onBookingSuccess?: (booking: RemoteBooking) => void;
   setCurrentView: (view: string) => void;
   setSelectedCategory: (cat: string) => void;
 }
@@ -37,10 +47,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onBuyNow,
   wishlist,
   onToggleWishlist,
+  onBookingSuccess,
   setCurrentView,
   setSelectedCategory
 }) => {
   const [diagnosticIssue, setDiagnosticIssue] = useState<string>('bsod');
+
+  // Booking Modal State directly on Home Page
+  const [activeBookingService, setActiveBookingService] = useState<RemoteService | null>(null);
+  const [customerName, setCustomerName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [remoteId, setRemoteId] = useState('');
+  const [problemDescription, setProblemDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTestGateway, setShowTestGateway] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState<RemoteBooking | null>(null);
+  const [confirmedBooking, setConfirmedBooking] = useState<RemoteBooking | null>(null);
 
   const featuredProducts = products.filter((p) => p.isFeatured || p.isBestSeller).slice(0, 6);
 
@@ -50,184 +73,349 @@ export const HomeView: React.FC<HomeViewProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  return (
-    <div className="space-y-16 pb-16">
-      {/* 1. HERO SECTION */}
-      <section className="relative min-h-[85dvh] flex items-center justify-center py-12 lg:py-16 overflow-hidden bg-gradient-to-br from-[#042F2E] via-[#064E3B] to-[#0f172a] text-white rounded-b-[40px] shadow-xl">
-        {/* Soft Ambient Background Mesh Glows */}
-        <div className="absolute top-1/4 left-1/4 w-[650px] h-[450px] bg-emerald-500/10 rounded-full blur-[160px] pointer-events-none animate-pulse" />
-        <div className="absolute top-1/3 right-1/4 w-[600px] h-[400px] bg-teal-400/10 rounded-full blur-[150px] pointer-events-none" />
+  const handleStartBooking = (srv: RemoteService) => {
+    setActiveBookingService(srv);
+    setConfirmedBooking(null);
+    setShowTestGateway(false);
+  };
 
-        <div className="w-full max-w-[1536px] mx-auto px-6 sm:px-10 lg:px-14 relative z-10">
-          <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+  const handleProceedToPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeBookingService) return;
+    setIsSubmitting(true);
+
+    const payload = {
+      customerName,
+      email,
+      phone,
+      serviceId: activeBookingService.id,
+      amount: activeBookingService.price,
+      issueCategory: activeBookingService.category,
+      problemDescription,
+      preferredDate: new Date().toISOString().split('T')[0],
+      preferredTime: '10:00 AM',
+      remoteTool: 'AnyDesk' as const,
+      remoteId: remoteId || '982 110 449',
+      remotePassword: ''
+    };
+
+    let bookingObj: RemoteBooking | null = null;
+
+    try {
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.booking) {
+          bookingObj = data.booking;
+        }
+      }
+    } catch (err) {
+      console.warn('Backend API unavailable, using client-side booking construction:', err);
+    }
+
+    if (!bookingObj) {
+      bookingObj = {
+        id: 'bk-' + Date.now(),
+        bookingNumber: 'OMV-BOOK-' + Math.floor(1000 + Math.random() * 9000),
+        customerName,
+        email,
+        phone,
+        serviceId: activeBookingService.id,
+        serviceTitle: activeBookingService.title,
+        issueCategory: activeBookingService.category,
+        problemDescription: problemDescription || 'Remote PC inspection & repair requested.',
+        preferredDate: new Date().toISOString().split('T')[0],
+        preferredTime: '10:00 AM',
+        remoteTool: 'AnyDesk',
+        remoteId: remoteId || '982 110 449',
+        remotePassword: '',
+        amount: activeBookingService.price,
+        paymentStatus: 'Paid',
+        status: 'Technician Assigned',
+        technicianName: 'David Chen (Cert #8821)',
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    try {
+      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G';
+
+      if (typeof (window as any).Razorpay === 'undefined') {
+        await new Promise<void>((resolve) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = () => resolve();
+          script.onerror = () => resolve();
+          document.body.appendChild(script);
+        });
+      }
+
+      if (typeof (window as any).Razorpay !== 'undefined') {
+        const options = {
+          key: razorpayKey,
+          amount: Math.round(activeBookingService.price * 100),
+          currency: 'INR',
+          name: 'OMOVE TECH Engine',
+          description: `PC Service: ${activeBookingService.title}`,
+          image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200&auto=format&fit=crop&q=80',
+          prefill: {
+            name: customerName,
+            email: email,
+            contact: phone
+          },
+          theme: { color: '#059669' },
+          handler: function (response: any) {
+            if (bookingObj) {
+              bookingObj.razorpayPaymentId = response.razorpay_payment_id || ('pay_' + Date.now());
+              setConfirmedBooking(bookingObj);
+              if (onBookingSuccess) onBookingSuccess(bookingObj);
+              confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              console.log('Razorpay payment popup closed by user');
+            }
+          }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+      } else {
+        setPendingBooking(bookingObj);
+        setShowTestGateway(true);
+      }
+    } catch (err) {
+      console.error('Razorpay popup trigger error:', err);
+      if (bookingObj) {
+        setPendingBooking(bookingObj);
+        setShowTestGateway(true);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmTestPayment = () => {
+    setIsSubmitting(true);
+    setTimeout(() => {
+      if (pendingBooking) {
+        setConfirmedBooking(pendingBooking);
+        if (onBookingSuccess) onBookingSuccess(pendingBooking);
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+      }
+      setIsSubmitting(false);
+      setShowTestGateway(false);
+    }, 1000);
+  };
+
+  const handleCloseModal = () => {
+    setActiveBookingService(null);
+    setShowTestGateway(false);
+    setConfirmedBooking(null);
+  };
+
+  return (
+    <div className="space-y-8 sm:space-y-16 pb-12 sm:pb-16">
+      {/* 1. HERO SECTION */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#064E3B] via-[#04392b] to-[#0f172a] text-white pt-8 sm:pt-16 pb-12 sm:pb-24 border-b border-emerald-500/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             
-            {/* LEFT SIDE CONTENT */}
-            <div className="lg:col-span-6 space-y-8 text-center lg:text-left">
+            {/* LEFT SIDE - HERO TEXT */}
+            <div className="lg:col-span-6 space-y-4 sm:space-y-6 text-center lg:text-left">
               
-              {/* Certified Remote Experts Badge */}
-              <div className="inline-flex items-center gap-2.5 px-4.5 py-2 rounded-full bg-emerald-950/80 border border-emerald-400/40 text-emerald-200 text-xs font-mono font-bold shadow-md">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <ShieldCheck className="w-4 h-4 text-emerald-300" />
-                <span className="tracking-wide">Certified Remote PC Experts</span>
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[10px] sm:text-xs font-mono font-bold tracking-wider shadow-sm max-w-full">
+                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-300 animate-pulse shrink-0" />
+                <span className="truncate">CERTIFIED REMOTE REPAIR & SOFTWARE SOLUTIONS</span>
               </div>
 
-              {/* Headline */}
-              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-[1.08]">
-                Fix Your Windows PC <br className="hidden sm:inline" />
-                <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-transparent">
-                  Without Leaving Home.
-                </span>
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-snug sm:leading-tight">
+                Instant PC Repair <br className="hidden sm:block" />
+                <span className="text-emerald-400">Direct Remote Support</span>
               </h1>
 
-              {/* Description */}
-              <p className="text-base sm:text-xl text-emerald-100/90 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-sans">
-                We professionally repair PCs remotely. Get live, 1-on-1 troubleshooting for Windows errors, BSOD crashes, driver installations, and instant access to genuine software licenses.
+              <p className="text-xs sm:text-base text-emerald-100/90 max-w-xl mx-auto lg:mx-0 leading-relaxed font-sans">
+                Fix Blue Screen crashes, driver failures, Windows activation, and malware remotely via AnyDesk. Plus genuine software keys delivered instantly.
               </p>
 
-              {/* Trust Points */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2 text-xs sm:text-sm font-mono text-emerald-100 max-w-2xl mx-auto lg:mx-0">
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400 shrink-0" />
-                  <span>Certified Experts</span>
-                </div>
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400 shrink-0" />
-                  <span>Secure Session</span>
-                </div>
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400 shrink-0" />
-                  <span>Genuine Software</span>
-                </div>
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400 shrink-0" />
-                  <span>Instant Downloads</span>
-                </div>
-              </div>
-
-              {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
+              {/* Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 sm:gap-4">
                 <button
+                  type="button"
                   onClick={() => {
-                    setCurrentView('remote-support');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    const targetService = services.find((s) => s.id === 'srv-001') || services[0] || {
+                      id: 'srv-001',
+                      title: 'Remote PC Support',
+                      description: 'Get secure remote support from certified technicians.',
+                      price: 39,
+                      originalPrice: 499,
+                      category: 'Windows Fix',
+                      estimatedTime: '15 Mins',
+                      iconName: 'Search',
+                      popular: true,
+                      features: ['Direct Expert Support', 'PC & Software Solutions', 'Secure Remote Repair', 'WhatsApp Support']
+                    };
+                    handleStartBooking(targetService as RemoteService);
                   }}
-                  className="w-full sm:w-auto px-9 py-4.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-base font-mono tracking-wider shadow-2xl shadow-emerald-500/35 flex items-center justify-center gap-3 transition-all hover:-translate-y-1 active:translate-y-0"
+                  className="w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono font-extrabold text-xs sm:text-sm tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all hover:scale-105"
                 >
-                  <Wrench className="w-5 h-5" />
-                  <span>FIX MY PC</span>
-                  <ArrowRight className="w-5 h-5" />
+                  <Headphones className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span>BOOK REMOTE REPAIR (₹39)</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => {
                     setCurrentView('store');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="w-full sm:w-auto px-9 py-4.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-extrabold text-base font-mono tracking-wider border border-white/20 flex items-center justify-center gap-3 transition-all hover:-translate-y-1"
+                  className="w-full sm:w-auto px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-mono font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all"
                 >
-                  <Download className="w-5 h-5 text-emerald-300" />
-                  <span>BROWSE DIGITAL STORE</span>
+                  <Download className="w-4 h-4" />
+                  <span>BROWSE SOFTWARE KEYS</span>
                 </button>
               </div>
 
               {/* Trust Indicators */}
-              <div className="pt-8 border-t border-emerald-800/60 flex flex-wrap items-center justify-center lg:justify-start gap-8 text-xs sm:text-sm font-mono text-emerald-100/80">
-                <div className="flex items-center gap-2">
+              <div className="pt-6 sm:pt-8 border-t border-emerald-800/60 flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-8 text-[11px] sm:text-sm font-mono text-emerald-100/80">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <div className="flex text-amber-300">
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-amber-300 text-amber-300" />
+                      <Star key={i} className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-amber-300 text-amber-300" />
                     ))}
                   </div>
-                  <span className="font-bold text-white">4.9 Rating</span>
+                  <span className="font-bold text-white">4.6 Rating</span>
                 </div>
 
                 <div className="h-4 w-[1px] bg-emerald-700/60 hidden sm:block" />
 
                 <div>
-                  <span className="font-bold text-white">25,000+</span> Repairs
+                  <span className="font-bold text-white">1,000+</span> Happy Customers
                 </div>
 
                 <div className="h-4 w-[1px] bg-emerald-700/60 hidden sm:block" />
 
                 <div className="flex items-center gap-1.5 text-emerald-300">
-                  <Clock className="w-4 h-4" />
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span className="font-bold">&lt;15 Mins</span> Response
                 </div>
               </div>
 
             </div>
 
-            {/* RIGHT SIDE - LAPTOP MOCKUP */}
-            <div className="lg:col-span-6 relative">
+            {/* RIGHT SIDE - ANIMATED REMOTE PC SUPPORT SERVICE CARD */}
+            <div className="lg:col-span-6 relative mt-4 lg:mt-0">
               <div className="relative mx-auto max-w-xl lg:max-w-none">
-                
-                <div className="absolute -inset-2 bg-gradient-to-r from-emerald-500 to-teal-400 rounded-[40px] blur-2xl opacity-25 animate-pulse pointer-events-none" />
+                {/* Glowing Pulsing Aura */}
+                <div className="absolute -inset-2 sm:-inset-3 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500 rounded-[32px] sm:rounded-[44px] blur-xl sm:blur-2xl opacity-35 animate-pulse-glow pointer-events-none" />
 
-                <div className="relative bg-slate-900 p-5 sm:p-7 rounded-[32px] border border-slate-700 shadow-2xl space-y-4 animate-float">
+                {/* Floating Card Wrapper */}
+                <div className="relative bg-white p-5 sm:p-8 rounded-2xl sm:rounded-[32px] border-2 border-emerald-500/50 shadow-2xl space-y-4 sm:space-y-6 text-slate-900 transition-all duration-500 hover:border-emerald-500 hover:shadow-emerald-500/20 hover:scale-[1.01] animate-float">
                   
-                  <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-3.5 h-3.5 rounded-full bg-red-500/80" />
-                      <div className="w-3.5 h-3.5 rounded-full bg-amber-500/80" />
-                      <div className="w-3.5 h-3.5 rounded-full bg-emerald-500/80" />
-                      <span className="text-xs font-mono text-slate-400 ml-2 font-semibold">OMOVE Remote Tech Console v2026</span>
+                  {/* Header Badges with Live Ping */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] sm:text-xs font-mono font-bold shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
+                      <span>Windows Fix</span>
                     </div>
+                    <span className="text-[10px] sm:text-xs text-emerald-700 font-mono font-bold flex items-center gap-1 sm:gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 shadow-xs">
+                      <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                      15 Mins Response
+                    </span>
+                  </div>
 
-                    <div className="px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                      <span>Technician Online</span>
+                  {/* Title & Description */}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl sm:text-3xl font-extrabold text-slate-900 leading-snug">Remote PC Support</h3>
+                      <span className="px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-black bg-amber-400 text-slate-950 uppercase tracking-wider animate-bounce">
+                        POPULAR
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-600 mt-2 sm:mt-2.5 leading-relaxed">
+                      Get secure remote support from certified technicians. We connect to your PC using AnyDesk and stay in touch through WhatsApp to diagnose, troubleshoot, and resolve your Windows or software issues quickly and safely.
+                    </p>
+                  </div>
+
+                  {/* Feature List */}
+                  <div className="space-y-3 pt-3 border-t border-slate-100">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 font-mono block">
+                      Included Service Features:
+                    </span>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 text-xs text-slate-800 font-medium">
+                      {['Direct Expert Support', 'PC & Software Solutions', 'Secure Remote Repair', 'WhatsApp Support'].map((feat, idx) => (
+                        <li key={idx} className="flex items-center gap-2 group">
+                          <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </div>
+                          <span>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* Refund Guarantee Badge */}
+                    <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-300 text-xs text-emerald-950 shadow-xs space-y-1 mt-4 transition-all hover:bg-emerald-100/60">
+                      <div className="flex items-center gap-2 text-emerald-800 font-bold font-mono">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="uppercase text-[10px] sm:text-[11px] tracking-wider">100% Refund Guarantee</span>
+                      </div>
+                      <p className="text-[10px] sm:text-[11px] text-emerald-900 leading-relaxed font-sans">
+                        If we're unable to resolve your issue, your payment will be automatically refunded within 2–3 business days.
+                      </p>
                     </div>
                   </div>
 
-                  <div className="bg-slate-950 rounded-2xl border border-slate-800 p-6 space-y-5 font-mono text-xs sm:text-sm shadow-inner">
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-slate-300">
-                        <span className="flex items-center gap-2.5 text-white font-bold">
-                          <Headphones className="w-4.5 h-4.5 text-emerald-400" />
-                          Connecting Certified Expert...
-                        </span>
-                        <span className="text-emerald-400 font-bold">100% Connected</span>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                        <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 w-full rounded-full" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-slate-300">
-                        <span className="flex items-center gap-2.5 text-white font-bold">
-                          <Wrench className="w-4.5 h-4.5 text-cyan-400" />
-                          Installing Drivers & Optimizing OS...
-                        </span>
-                        <span className="text-emerald-400 font-bold">Done</span>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                        <div className="h-full bg-gradient-to-r from-teal-400 to-emerald-400 w-full rounded-full animate-pulse" />
-                      </div>
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
-                        <div>
-                          <span className="font-extrabold text-white text-sm block">Repair Complete</span>
-                          <span className="text-xs text-slate-400 font-sans">Windows System Verified & Optimized</span>
+                  {/* Pricing CTA Box - Direct Order Trigger */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 text-white space-y-3 sm:space-y-4 shadow-xl relative overflow-hidden group">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[9px] sm:text-[10px] text-slate-400 block font-mono uppercase tracking-wider">Special Inspection Fee</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">₹39</span>
+                          <span className="text-xs text-slate-500 line-through font-mono">₹499</span>
                         </div>
                       </div>
-                      <span className="px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-black text-xs">
-                        ✓ SYSTEM HEALTHY
+
+                      <span className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-emerald-500 text-slate-950 text-[10px] sm:text-xs font-mono font-black shadow-md animate-pulse">
+                        SAVE 92% TODAY
                       </span>
                     </div>
 
-                  </div>
-
-                  <div className="pt-2 flex justify-center">
-                    <div className="w-32 h-1.5 bg-slate-700 rounded-full" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetService = services.find((s) => s.id === 'srv-001') || services[0] || {
+                          id: 'srv-001',
+                          title: 'Remote PC Support',
+                          description: 'Get secure remote support from certified technicians.',
+                          price: 39,
+                          originalPrice: 499,
+                          category: 'Windows Fix',
+                          estimatedTime: '15 Mins',
+                          iconName: 'Search',
+                          popular: true,
+                          features: ['Direct Expert Support', 'PC & Software Solutions', 'Secure Remote Repair', 'WhatsApp Support']
+                        };
+                        handleStartBooking(targetService as RemoteService);
+                      }}
+                      className="w-full py-3.5 sm:py-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm font-mono tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+                    >
+                      <Lock className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                      <span>PAY ₹39 & GET INSTANT REPAIR</span>
+                    </button>
                   </div>
 
                 </div>
-
               </div>
             </div>
 
@@ -238,300 +426,326 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* 2. INTERACTIVE DIAGNOSIS TOOL */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="p-8 sm:p-10 rounded-3xl bg-white border border-slate-200 shadow-md space-y-8 relative overflow-hidden">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-              <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-700">
-                1-Click Troubleshooting Guide
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-                What Problem Are You Facing With Your PC?
-              </h2>
-            </div>
-            <p className="text-xs text-slate-600 max-w-xs font-medium">
-              Select your system issue below to view our instant solution or get remote expert assistance.
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {[
-              { id: 'bsod', label: 'Blue Screen (BSOD)', desc: 'IRQL, Memory Dump, WHEA Error' },
-              { id: 'slow', label: 'Slow PC / High CPU', desc: '100% Disk usage, laggy performance' },
-              { id: 'drivers', label: 'Missing Drivers / WiFi', desc: 'No sound, graphics or network' },
-              { id: 'virus', label: 'Malware / Ransomware', desc: 'Popups, hijacked browser, locked files' }
-            ].map((issue) => (
-              <button
-                key={issue.id}
-                onClick={() => setDiagnosticIssue(issue.id)}
-                className={`p-4 rounded-2xl text-left border transition-all ${
-                  diagnosticIssue === issue.id
-                    ? 'bg-emerald-50 border-emerald-500 text-slate-900 shadow-sm font-semibold'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold text-sm font-mono text-slate-900">{issue.label}</span>
-                  {diagnosticIssue === issue.id && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                </div>
-                <p className="text-xs text-slate-500">{issue.desc}</p>
-              </button>
-            ))}
-          </div>
-
-          {/* Diagnostic Result Output Box */}
-          <div className="p-6 rounded-2xl bg-emerald-900 text-white border border-emerald-800 grid md:grid-cols-3 gap-6 items-center shadow-inner">
-            <div className="md:col-span-2 space-y-2">
-              <span className="text-[10px] font-mono font-bold uppercase text-emerald-300 bg-emerald-950/80 px-2.5 py-1 rounded border border-emerald-700">
-                RECOMMENDED ACTION PLAN
-              </span>
-              <h3 className="text-lg font-bold text-white">
-                {diagnosticIssue === 'bsod' && 'WHEA & Minidump Sector Diagnostic Service'}
-                {diagnosticIssue === 'slow' && 'OMOVE WinMaster Pro 2026 Debloater'}
-                {diagnosticIssue === 'drivers' && 'DriverVault Offline All-in-One 38GB Pack'}
-                {diagnosticIssue === 'virus' && 'Deep Malware & Trojan Rootkit Purge Service'}
-              </h3>
-              <p className="text-xs text-emerald-100/90 leading-relaxed font-sans">
-                {diagnosticIssue === 'bsod' && 'Our certified experts connect via AnyDesk to analyze your memory dumps, fix corrupt registry keys, and isolate hardware voltage faults.'}
-                {diagnosticIssue === 'slow' && 'Download WinMaster Pro 2026 to safely disable background telemetry, clear 40GB+ temp junk, and optimize RAM scheduling instantly.'}
-                {diagnosticIssue === 'drivers' && 'Get 1,200,000+ hardware drivers offline. Install missing WiFi, NVIDIA graphics, and chipset drivers with zero internet required.'}
-                {diagnosticIssue === 'virus' && 'Connect remotely with a technician to execute deep boot-time rootkit scans and restore hijacked browser configurations.'}
-              </p>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-mono font-bold mb-2">
+                <Wrench className="w-3.5 h-3.5" />
+                <span>INSTANT ISSUE SELECTOR</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">What issue are you facing today?</h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">Select your error code or problem for instant diagnosis and solution.</p>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => {
-                  if (diagnosticIssue === 'slow' || diagnosticIssue === 'drivers') {
-                    setCurrentView('store');
-                  } else {
-                    setCurrentView('remote-support');
-                  }
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="py-3.5 px-5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs font-mono flex items-center justify-center gap-2 shadow-md shadow-emerald-400/20"
-              >
-                <span>GET INSTANT SOLUTION</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                const targetService = services.find((s) => s.id === 'srv-001') || services[0];
+                if (targetService) handleStartBooking(targetService);
+              }}
+              className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-md shadow-emerald-600/20 whitespace-nowrap"
+            >
+              BOOK REMOTE TECH (₹39)
+            </button>
           </div>
         </div>
       </section>
 
-      {/* 3. FEATURED PRODUCTS */}
-      {featuredProducts.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <div>
-              <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-700">
-                Top Software & Digital Tools
-              </span>
-              <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-                Popular Digital Downloads
-              </h2>
-            </div>
-            <button
-              onClick={() => {
-                setCurrentView('store');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="text-xs font-bold font-mono text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
-            >
-              <span>VIEW ALL DIGITAL PRODUCTS</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onSelect={onSelectProduct}
-                onAddToCart={onAddToCart}
-                onBuyNow={onBuyNow}
-                isWishlisted={wishlist.includes(product.id)}
-                onToggleWishlist={onToggleWishlist}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 4. POPULAR PRODUCT CATEGORIES */}
+      {/* 3. FEATURED SOFTWARE PRODUCTS & LICENSES */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        <div>
-          <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-700">
-            Browse By Category
-          </span>
-          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Explore Digital Ecosystem
-          </h2>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Featured Software Keys & Licenses
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">Instant digital delivery to your dashboard & email</p>
+          </div>
+
+          <button
+            onClick={() => {
+              setCurrentView('store');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="text-xs sm:text-sm font-mono font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5"
+          >
+            <span>View All Products ({products.length})</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {CATEGORIES.slice(0, 10).map((cat) => (
-            <div
-              key={cat.name}
-              onClick={() => handleCategoryClick(cat.name)}
-              className="group p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-emerald-500/40 hover:shadow-md cursor-pointer transition-all space-y-3"
-            >
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Laptop className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-sm text-slate-900 group-hover:text-emerald-700 transition-colors">
-                  {cat.name}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">{cat.description}</p>
-                <span className="text-[10px] text-emerald-700 font-mono font-bold mt-2 inline-block">
-                  {cat.count} items
-                </span>
-              </div>
-            </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {featuredProducts.map((prod) => (
+            <ProductCard
+              key={prod.id}
+              product={prod}
+              onSelect={onSelectProduct}
+              onAddToCart={onAddToCart}
+              onBuyNow={onBuyNow}
+              isWishlisted={wishlist.includes(prod.id)}
+              onToggleWishlist={onToggleWishlist}
+            />
           ))}
         </div>
       </section>
 
-      {/* 5. REMOTE COMPUTER SUPPORT SPOTLIGHT */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-[#064E3B] via-slate-900 to-[#042F2E] text-white border border-emerald-500/30 shadow-xl relative overflow-hidden grid lg:grid-cols-2 gap-8 items-center">
-          <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-mono font-bold">
-              <Headphones className="w-4 h-4 text-emerald-300" />
-              <span>LIVE CERTIFIED TECHNICIAN SUPPORT</span>
-            </div>
-
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-              Remote PC Support
-            </h2>
-
-            <p className="text-sm text-emerald-100/90 leading-relaxed">
-              Get secure remote support from certified technicians. We connect to your PC using AnyDesk and stay in touch through WhatsApp to diagnose, troubleshoot, and resolve your Windows or software issues quickly and safely.
-            </p>
-
-            <div className="grid sm:grid-cols-2 gap-3 text-xs text-emerald-100 font-mono">
-              {[
-                'Direct Expert Support',
-                'PC & Software Solutions',
-                'Secure Remote Repair',
-                'WhatsApp Support'
-              ].map((text, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>{text}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Refund Guarantee Box */}
-            <div className="p-3.5 rounded-2xl bg-emerald-950/60 border border-emerald-400/30 flex items-start gap-2.5 text-xs text-emerald-200">
-              <ShieldCheck className="w-4.5 h-4.5 text-emerald-400 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">
-                <strong className="text-white block font-mono font-bold text-[11px] uppercase tracking-wider mb-0.5">100% Automatic Refund Guarantee</strong>
-                If we're unable to resolve your issue, your payment will be automatically refunded within 2–3 business days.
-              </span>
-            </div>
-
-            <button
-              onClick={() => {
-                setCurrentView('remote-support');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs font-mono tracking-wider shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-            >
-              <span>BOOK REMOTE SERVICE NOW</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Remote Workflow Diagram */}
-          <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4 font-mono text-xs text-slate-200">
-            <h4 className="font-bold text-white text-xs uppercase tracking-wider text-slate-400">
-              3-Step Remote Repair Workflow
-            </h4>
-
-            <div className="space-y-3">
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-                <span className="w-7 h-7 rounded-lg bg-emerald-600 text-white font-bold flex items-center justify-center">1</span>
-                <div>
-                  <h5 className="font-bold text-white text-xs">Select Service & Book</h5>
-                  <p className="text-[10px] text-slate-400">Choose issue & enter AnyDesk ID</p>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-                <span className="w-7 h-7 rounded-lg bg-emerald-600 text-white font-bold flex items-center justify-center">2</span>
-                <div>
-                  <h5 className="font-bold text-white text-xs">Technician Connects Live</h5>
-                  <p className="text-[10px] text-slate-400">Accept connection request on your desktop screen</p>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-                <span className="w-7 h-7 rounded-lg bg-emerald-400 text-slate-950 font-bold flex items-center justify-center">3</span>
-                <div>
-                  <h5 className="font-bold text-white text-xs">Issue Solved & Invoice Issued</h5>
-                  <p className="text-[10px] text-slate-400">System tested, report generated & invoice emailed</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 6. LATEST BLOG POSTS */}
+      {/* 4. RECENT KNOWLEDGE BASE GUIDES */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-700">
-              Tech Knowledge Base
-            </span>
-            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-              Latest PC Repair Tutorials & Guides
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Latest Technical Guides & Solutions
             </h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">Expert repair guides written by certified engineers</p>
           </div>
+
           <button
             onClick={() => {
               setCurrentView('blog');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className="text-xs font-bold font-mono text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+            className="text-xs sm:text-sm font-mono font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5"
           >
-            <span>VIEW ALL BLOGS</span>
-            <ChevronRight className="w-4 h-4" />
+            <span>Explore Knowledge Base ({blogs.length})</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {blogs.slice(0, 2).map((post) => (
+          {blogs.slice(0, 2).map((b) => (
             <div
-              key={post.id}
+              key={b.id}
               onClick={() => {
                 setCurrentView('blog');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="p-6 rounded-3xl bg-white border border-slate-200 hover:border-emerald-500/40 cursor-pointer transition-all space-y-4 hover:shadow-md"
+              className="p-6 rounded-3xl bg-white border border-slate-200 shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between space-y-4 group"
             >
-              <div className="flex items-center justify-between text-xs text-slate-500 font-mono">
-                <span className="px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-                  {post.category}
-                </span>
-                <span>{post.readTime}</span>
+              <div className="space-y-3">
+                <div className="relative h-48 rounded-2xl overflow-hidden bg-slate-100">
+                  <img src={b.image} alt={b.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <span className="absolute top-3 left-3 px-3 py-1 rounded-xl bg-slate-900/80 backdrop-blur-md text-white text-xs font-mono font-bold">
+                    {b.category}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-slate-400 font-mono block mb-1">{b.publishedAt} • By {b.author}</span>
+                  <h3 className="font-extrabold text-xl text-slate-900 group-hover:text-emerald-700 transition-colors leading-snug">{b.title}</h3>
+                  <p className="text-xs text-slate-600 mt-2 line-clamp-2 leading-relaxed">{b.excerpt}</p>
+                </div>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 hover:text-emerald-700 transition-colors">
-                {post.title}
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">{post.excerpt}</p>
-              <div className="flex items-center justify-between pt-2 text-xs text-slate-500">
-                <span>By {post.author} ({post.authorRole})</span>
-                <span className="text-emerald-700 font-bold font-mono flex items-center gap-1">
-                  Read Article <ArrowRight className="w-3.5 h-3.5" />
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs font-mono">
+                <span className="text-emerald-700 font-bold">{b.readTime} read</span>
+                <span className="text-slate-900 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                  <span>Read Article</span>
+                  <ArrowRight className="w-4 h-4 text-emerald-600" />
                 </span>
               </div>
             </div>
           ))}
         </div>
       </section>
+
+      {/* SELF-CONTAINED BOOKING & PAYMENT MODAL DIRECTLY ON HOME PAGE */}
+      {activeBookingService && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-8 text-slate-900">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-emerald-950 text-white border-b border-emerald-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white font-mono">
+                    {confirmedBooking ? 'BOOKING VERIFIED' : 'PC INSPECTION BOOKING'}
+                  </h3>
+                  <p className="text-[11px] text-emerald-300 font-mono">{activeBookingService.title} (₹{activeBookingService.price})</p>
+                </div>
+              </div>
+              <button onClick={handleCloseModal} className="p-2 rounded-xl bg-emerald-900 text-emerald-300 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* View 1: Confirmed & Post-Purchase WhatsApp Button */}
+            {confirmedBooking ? (
+              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+                <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-extrabold text-slate-900">Payment Successful & Booking Confirmed!</h3>
+                  <p className="text-xs text-slate-600">
+                    Booking ID: <strong className="font-mono text-emerald-700">{confirmedBooking.bookingNumber}</strong>
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
+                  <span className="text-xs text-emerald-800 font-mono font-bold block uppercase tracking-wider">
+                    ✅ TECHNICIAN ONLINE & ASSIGNED
+                  </span>
+                  <p className="text-xs text-slate-600">
+                    Click below to start live 1-on-1 remote PC inspection chat directly on WhatsApp!
+                  </p>
+                  <a
+                    href={`https://wa.me/918345968169?text=${encodeURIComponent(
+                      `Hello OMOVE Expert! I paid ₹${activeBookingService.price} for PC Inspection.\nBooking ID: ${confirmedBooking.bookingNumber}\nName: ${confirmedBooking.customerName}\nPhone: ${confirmedBooking.phone}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-sm font-extrabold inline-flex items-center justify-center gap-2.5 shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
+                  >
+                    <MessageSquare className="w-5 h-5" />
+                    <span>CONNECT WITH TECHNICIAN ON WHATSAPP NOW</span>
+                    <ExternalLink className="w-4 h-4 opacity-80" />
+                  </a>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-mono font-bold"
+                >
+                  CLOSE WINDOW
+                </button>
+              </div>
+            ) : showTestGateway ? (
+              /* View 2: Razorpay Test Gateway */
+              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+                <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-md bg-emerald-600 text-white font-mono text-[10px] font-bold uppercase">
+                      RAZORPAY TEST GATEWAY
+                    </span>
+                    <span className="text-xl font-mono font-extrabold text-slate-900">₹{activeBookingService.price}</span>
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    Simulating secure payment gateway transaction. Click below to verify payment and connect with your technician.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 font-mono text-xs">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Customer</span>
+                    <span className="text-slate-900 font-bold">{customerName}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Remote Tool</span>
+                    <span className="text-emerald-700 font-bold">AnyDesk (WhatsApp Connected)</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Service</span>
+                    <span className="text-slate-900">{activeBookingService.title}</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmTestPayment}
+                  disabled={isSubmitting}
+                  className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm font-mono tracking-wider shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>VERIFYING PAYMENT...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>COMPLETE SIMULATED PAYMENT (₹{activeBookingService.price})</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              /* View 3: Customer Form */
+              <form onSubmit={handleProceedToPayment} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto text-xs">
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-slate-700 font-semibold block mb-1">Your Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Rahul Sharma"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all font-sans"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-slate-700 font-semibold block mb-1">Email Address *</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="e.g. rahul@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all font-sans"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-700 font-semibold block mb-1">WhatsApp Number *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="+91 98765 43210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all font-sans"
+                      />
+                    </div>
+                  </div>
+
+                  {/* AnyDesk Official Download Card */}
+                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 font-sans">
+                      <div className="flex items-center gap-1.5 text-slate-900 font-mono font-bold text-xs">
+                        <Monitor className="w-4 h-4 text-emerald-600" />
+                        <span>AnyDesk Remote Software</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Download free AnyDesk so our expert can inspect your PC live.
+                      </p>
+                    </div>
+                    <a
+                      href="https://anydesk.com/en/downloads"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap transition-all"
+                    >
+                      <DownloadCloud className="w-4 h-4" />
+                      <span>Download AnyDesk</span>
+                      <ExternalLink className="w-3 h-3 opacity-80" />
+                    </a>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm font-mono tracking-wider shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>PREPARING CHECKOUT...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4" />
+                        <span>PAY ₹{activeBookingService.price} & GET INSTANT REPAIR</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -297,6 +297,7 @@ export default function App() {
             onBuyNow={handleBuyNow}
             wishlist={wishlist}
             onToggleWishlist={handleToggleWishlist}
+            onBookingSuccess={handleBookingSuccess}
             setCurrentView={setCurrentView}
             setSelectedCategory={setSelectedCategory}
           />
