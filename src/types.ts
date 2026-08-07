@@ -89,6 +89,7 @@ export interface RemoteBooking {
   paymentStatus: 'Paid' | 'Pending';
   status: BookingStatus;
   technicianName?: string;
+  razorpayPaymentId?: string;
   createdAt: string;
 }
 
