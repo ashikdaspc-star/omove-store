@@ -37,11 +37,30 @@ export default function App() {
     return () => clearInterval(interval);
   }, [location.pathname]);
 
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const cached = localStorage.getItem('omove_products');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          console.log('[OMOVE SYNC] Initialized state from local cache:', parsed.length, 'products');
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    console.log('[OMOVE SYNC] Initialized state from default MOCK_PRODUCTS');
+    return MOCK_PRODUCTS;
+  });
+
   const catalogVersionRef = React.useRef<number>(0);
 
-  // Helper to fetch latest products directly from server without caching
+  // Helper to fetch latest products directly from server or GitHub Raw CDN without caching
   const loadLatestProductsFromServer = React.useCallback(async () => {
+    console.log('[OMOVE SYNC] 7. Store fetch started...');
+    let fetchedData: Product[] | null = null;
+    let source = '';
+
+    // Primary: Backend API endpoint
     try {
       const res = await fetch(`/api/products?v=${Date.now()}`, {
         cache: 'no-store',
@@ -51,23 +70,50 @@ export default function App() {
         }
       });
       if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setProducts(data);
+        const text = await res.text();
+        if (text && text.trim().startsWith('[')) {
+          fetchedData = JSON.parse(text);
+          source = 'Backend API (/api/products)';
           const serverVerHeader = res.headers.get('X-Catalog-Version');
           if (serverVerHeader) {
             catalogVersionRef.current = parseInt(serverVerHeader, 10);
           }
-          try {
-            localStorage.setItem('omove_products', JSON.stringify(data));
-            localStorage.setItem('omove_catalog_version', String(catalogVersionRef.current || Date.now()));
-          } catch (e) {
-            console.error(e);
-          }
         }
       }
     } catch (e) {
-      console.warn('Server catalog fetch note:', e);
+      console.log('[OMOVE SYNC] Backend API fetch skipped:', e);
+    }
+
+    // Secondary Fallback: GitHub Raw CDN (for static deployments like Vercel/GitHub Pages)
+    if (!fetchedData || !Array.isArray(fetchedData) || fetchedData.length === 0) {
+      try {
+        const ghRes = await fetch(`https://raw.githubusercontent.com/ashikdaspc-star/omove-store/main/src/data/products.json?v=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
+        if (ghRes.ok) {
+          fetchedData = await ghRes.json();
+          source = 'GitHub Raw CDN (main/src/data/products.json)';
+        }
+      } catch (e) {
+        console.warn('[OMOVE SYNC] GitHub CDN fetch note:', e);
+      }
+    }
+
+    if (Array.isArray(fetchedData) && fetchedData.length > 0) {
+      console.log(`[OMOVE SYNC] 8. Store fetch result received from ${source}:`, fetchedData.length, 'items');
+      setProducts(fetchedData);
+      try {
+        localStorage.setItem('omove_products', JSON.stringify(fetchedData));
+        localStorage.setItem('omove_catalog_version', String(catalogVersionRef.current || Date.now()));
+      } catch (e) {
+        console.error(e);
+      }
+      console.log('[OMOVE SYNC] 9. UI re-rendered with latest catalog');
+      console.log('[OMOVE SYNC] 10. Cache status: Clean & Synced');
     }
   }, []);
 
@@ -75,7 +121,10 @@ export default function App() {
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const reg of registrations) reg.unregister();
+        for (const reg of registrations) {
+          console.log('[OMOVE SYNC] Unregistering legacy Service Worker:', reg);
+          reg.unregister();
+        }
       });
     }
 
@@ -86,6 +135,7 @@ export default function App() {
       bc = new BroadcastChannel('omove_catalog_sync_channel');
       bc.onmessage = (event) => {
         if (event.data && event.data.type === 'CATALOG_UPDATED') {
+          console.log('[OMOVE SYNC] BroadcastChannel message received, re-fetching catalog...');
           loadLatestProductsFromServer();
         }
       };
@@ -93,12 +143,14 @@ export default function App() {
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'omove_catalog_version' || e.key === 'omove_products') {
+        console.log('[OMOVE SYNC] Storage event detected across windows, re-fetching catalog...');
         loadLatestProductsFromServer();
       }
     };
     window.addEventListener('storage', handleStorageChange);
 
     const pollInterval = setInterval(async () => {
+      console.log('[OMOVE SYNC] 7. Background version check starting...');
       try {
         const res = await fetch(`/api/catalog-version?t=${Date.now()}`, {
           cache: 'no-store',
@@ -107,8 +159,32 @@ export default function App() {
         if (res.ok) {
           const info = await res.json();
           if (info.version && info.version > catalogVersionRef.current) {
+            console.log('[OMOVE SYNC] Server catalog version updated:', info.version, 'vs current:', catalogVersionRef.current);
             catalogVersionRef.current = info.version;
             loadLatestProductsFromServer();
+            return;
+          }
+        }
+      } catch (e) {}
+
+      // Fallback polling check directly from GitHub Raw CDN
+      try {
+        const ghRes = await fetch(`https://raw.githubusercontent.com/ashikdaspc-star/omove-store/main/src/data/products.json?v=${Date.now()}`, {
+          cache: 'no-store'
+        });
+        if (ghRes.ok) {
+          const ghProducts = await ghRes.json();
+          if (Array.isArray(ghProducts) && ghProducts.length > 0) {
+            setProducts((current) => {
+              if (JSON.stringify(current) !== JSON.stringify(ghProducts)) {
+                console.log('[OMOVE SYNC] GitHub Raw CDN updated catalog detected! Auto-updating UI...');
+                try {
+                  localStorage.setItem('omove_products', JSON.stringify(ghProducts));
+                } catch (e) {}
+                return ghProducts;
+              }
+              return current;
+            });
           }
         }
       } catch (e) {}
@@ -387,6 +463,7 @@ export default function App() {
   };
 
   const broadcastCatalogUpdate = (newProducts: Product[]) => {
+    console.log('[OMOVE SYNC] 1. Save started:', newProducts.length, 'products');
     const newVer = Date.now();
     catalogVersionRef.current = newVer;
     try {
@@ -398,16 +475,25 @@ export default function App() {
       const bc = new BroadcastChannel('omove_catalog_sync_channel');
       bc.postMessage({ type: 'CATALOG_UPDATED', version: newVer });
       bc.close();
+      console.log('[OMOVE SYNC] 6. BroadcastChannel event posted to all open tabs');
     } catch (e) {}
   };
 
   const syncProducts = (updated: Product[]) => {
     broadcastCatalogUpdate(updated);
+    console.log('[OMOVE SYNC] 2. React state updated locally');
     fetch('/api/products/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ products: updated, autoPush: true })
-    }).catch(() => {});
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log('[OMOVE SYNC] 4. Server API sync response:', data);
+      })
+      .catch((e) => {
+        console.log('[OMOVE SYNC] Local server sync note:', e.message);
+      });
   };
 
   const handleAddProduct = (newProd: Product) => {
@@ -435,6 +521,7 @@ export default function App() {
   };
 
   const handlePublishCatalog = async (): Promise<{ success: boolean; message?: string }> => {
+    console.log('[OMOVE SYNC] 3. Publish started...');
     try {
       broadcastCatalogUpdate(products);
 
@@ -450,15 +537,21 @@ export default function App() {
       } catch {
         data = { success: false, message: rawText ? rawText.substring(0, 150) : `HTTP ${res.status} empty response` };
       }
+      console.log('[OMOVE SYNC] 4. Server API publish response:', data);
+      console.log('[OMOVE SYNC] 5. GitHub push message:', data.gitMessage || 'Done');
+
       if (res.ok && data.success) {
         if (data.version) catalogVersionRef.current = data.version;
+        console.log('[OMOVE SYNC] Publish finished successfully!');
         return { success: true, message: 'Catalog saved to server & published live to GitHub!' };
       } else if (res.status === 405 || res.status === 404) {
+        console.log('[OMOVE SYNC] Static deployment mode detected (HTTP 405/404), catalog saved locally!');
         return { success: true, message: 'Catalog saved to store catalog!' };
       } else {
         return { success: false, message: data.error || data.message || `Server status (HTTP ${res.status})` };
       }
     } catch (err: any) {
+      console.log('[OMOVE SYNC] Publish error handled gracefully:', err.message);
       return { success: true, message: 'Catalog saved to store catalog!' };
     }
   };
