@@ -203,14 +203,22 @@ async function startServer() {
     }
   });
 
-  app.post('/api/products/publish', async (req: Request, res: Response) => {
+  app.all('/api/products/publish', async (req: Request, res: Response) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+
     try {
       const { products } = req.body || {};
       if (Array.isArray(products) && products.length > 0) {
         dynamicProductsStore = products;
+        const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+        fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
       }
-      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
-      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
       const gitRes = await pushProductsToGitHub();
       res.json({ success: true, count: dynamicProductsStore.length, gitMessage: gitRes.message });
     } catch (err: any) {
