@@ -357,6 +357,24 @@ export default function App() {
     });
   };
 
+  const handlePublishCatalog = async (): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await fetch('/api/products/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products })
+      });
+      const data = await res.json();
+      if (data.success) {
+        return { success: true, message: 'Catalog saved to server & published to GitHub!' };
+      } else {
+        return { success: false, message: data.error || 'Server error saving catalog' };
+      }
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Could not connect to server' };
+    }
+  };
+
 
 
   const handleAddService = (newSrv: RemoteService) => {
@@ -514,6 +532,7 @@ export default function App() {
                   onUpdateBooking={handleUpdateBooking}
                   onDeleteBooking={handleDeleteBooking}
                   onExitAdmin={() => handleToggleAdminMode(false)}
+                  onPublishCatalog={handlePublishCatalog}
                 />
               ) : (
                 <div className="max-w-3xl mx-auto px-4 py-24 text-center space-y-6 animate-fadeIn">

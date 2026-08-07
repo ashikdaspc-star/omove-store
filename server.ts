@@ -187,12 +187,16 @@ async function startServer() {
     res.json({ success: true, count: dynamicProductsStore.length });
   });
 
-  app.post('/api/products/publish', async (_req: Request, res: Response) => {
+  app.post('/api/products/publish', async (req: Request, res: Response) => {
     try {
+      const { products } = req.body || {};
+      if (Array.isArray(products) && products.length > 0) {
+        dynamicProductsStore = products;
+      }
       const filePath = path.join(__dirname, 'src', 'data', 'products.json');
       fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
       const gitRes = await pushProductsToGitHub();
-      res.json({ success: true, gitMessage: gitRes.message });
+      res.json({ success: true, count: dynamicProductsStore.length, gitMessage: gitRes.message });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }

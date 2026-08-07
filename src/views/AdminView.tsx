@@ -66,6 +66,7 @@ interface AdminViewProps {
   onUpdateBooking?: (booking: RemoteBooking) => void;
   onDeleteBooking?: (bookingId: string) => void;
   onExitAdmin?: () => void;
+  onPublishCatalog?: () => Promise<{ success: boolean; message?: string }>;
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({
@@ -83,12 +84,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onDeleteBlog,
   onUpdateBooking,
   onDeleteBooking,
-  onExitAdmin
+  onExitAdmin,
+  onPublishCatalog
 }) => {
   const [activeTab, setActiveTab] = useState<'products' | 'bookings' | 'traffic' | 'users' | 'coupons' | 'analytics' | 'services' | 'blogs' | 'gateway'>('products');
   const [razorpayKeyId, setRazorpayKeyId] = useState(import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G');
   const [razorpayKeySecret, setRazorpayKeySecret] = useState('●●●●●●●●●●●●●●●●●●●●');
   const [isSaved, setIsSaved] = useState(false);
+  const [isPublishingCatalog, setIsPublishingCatalog] = useState(false);
+  const [publishNotification, setPublishNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Products Management State
   const [showAddProductModal, setShowAddProductModal] = useState(false);
@@ -467,8 +471,50 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setShowAddBlogModal(false);
   };
 
+  const handlePublishCatalogClick = async () => {
+    if (!onPublishCatalog) return;
+    setIsPublishingCatalog(true);
+    setPublishNotification(null);
+    try {
+      const res = await onPublishCatalog();
+      if (res.success) {
+        setPublishNotification({
+          type: 'success',
+          message: '✅ Store Catalog successfully saved on server & published live to GitHub! All customers on all devices will see the updated products.'
+        });
+      } else {
+        setPublishNotification({
+          type: 'error',
+          message: `⚠️ Publish Notice: ${res.message}`
+        });
+      }
+    } catch (err: any) {
+      setPublishNotification({
+        type: 'error',
+        message: `❌ Error saving catalog: ${err.message || 'Server connection error'}`
+      });
+    } finally {
+      setIsPublishingCatalog(false);
+      setTimeout(() => setPublishNotification(null), 10000);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      {/* Toast Notification Banner for Publishing Catalog */}
+      {publishNotification && (
+        <div className={`p-4 rounded-2xl border text-sm font-mono flex items-center justify-between shadow-lg transition-all animate-fadeIn ${
+          publishNotification.type === 'success'
+            ? 'bg-emerald-950/90 text-emerald-200 border-emerald-500/50'
+            : 'bg-rose-950/90 text-rose-200 border-rose-500/50'
+        }`}>
+          <span>{publishNotification.message}</span>
+          <button onClick={() => setPublishNotification(null)} className="p-1 hover:opacity-75">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Admin Command Header */}
       <div className="p-8 rounded-3xl bg-gradient-to-r from-[#064E3B] via-[#04392b] to-slate-900 text-white shadow-xl border border-emerald-500/30 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-4">
@@ -488,6 +534,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
 
         <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+          {onPublishCatalog && (
+            <button
+              onClick={handlePublishCatalogClick}
+              disabled={isPublishingCatalog}
+              className="px-4 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black font-mono text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all hover:scale-105"
+              title="Save catalog on server and publish to GitHub so all customers see updated store"
+            >
+              <Upload className={`w-4 h-4 text-slate-950 ${isPublishingCatalog ? 'animate-spin' : ''}`} />
+              <span>{isPublishingCatalog ? 'SAVING TO SERVER...' : '💾 SAVE & PUBLISH CATALOG'}</span>
+            </button>
+          )}
+
           <button
             onClick={() => setShowAddProductModal(true)}
             className="px-4 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all hover:scale-105"
@@ -583,6 +641,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 onChange={(e) => setProdSearchQuery(e.target.value)}
                 className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-sans text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600"
               />
+              {onPublishCatalog && (
+                <button
+                  onClick={handlePublishCatalogClick}
+                  disabled={isPublishingCatalog}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-mono text-xs font-bold shadow-sm shrink-0 flex items-center gap-1.5 transition-all"
+                  title="Save product updates on server and publish live to GitHub"
+                >
+                  <Upload className={`w-3.5 h-3.5 ${isPublishingCatalog ? 'animate-spin' : ''}`} />
+                  <span>{isPublishingCatalog ? 'Saving...' : '💾 Save to Live Server'}</span>
+                </button>
+              )}
               <button
                 onClick={() => setShowAddProductModal(true)}
                 className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0"
