@@ -37,18 +37,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [location.pathname]);
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const stored = localStorage.getItem('omove_products');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return MOCK_PRODUCTS;
-  });
+  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
 
   useEffect(() => {
     fetch('/api/products')

@@ -118,7 +118,7 @@ async function startServer() {
     res.json({ status: 'ok', service: 'OMOVE TECH Engine', time: new Date().toISOString() });
   });
 
-  let dynamicProductsStore: any[] = [];
+  let dynamicProductsStore: any[] = [...MOCK_PRODUCTS];
 
   // Get products with search & category filters
   app.get('/api/products', (req: Request, res: Response) => {
