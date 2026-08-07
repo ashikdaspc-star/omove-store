@@ -114,7 +114,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             {/* Gallery Column */}
             <div className="space-y-4">
               <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-950 border border-slate-800">
-                <img src={selectedImage} alt={product.name} className="w-full h-full object-cover" />
+                <img
+                  src={selectedImage}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80';
+                  }}
+                />
                 <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-slate-950/80 backdrop-blur-md text-xs font-mono text-cyan-400 border border-slate-800">
                   {product.licenseType}
                 </div>
