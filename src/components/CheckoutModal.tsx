@@ -125,7 +125,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         };
       }
 
-      if (typeof (window as any).Razorpay === 'undefined') {
+    if (finalTotal <= 0) {
+      if (orderObj) {
+        orderObj.razorpayPaymentId = 'FREE_COUPON_' + Date.now();
+        setCreatedOrder(orderObj);
+        onOrderSuccess(orderObj);
+        onClearCart();
+        sendAdminOrderNotificationEmail({
+          type: 'PRODUCT_PURCHASE',
+          customerName: orderObj.customerName,
+          email: orderObj.customerEmail,
+          phone: orderObj.customerPhone,
+          title: orderObj.items.map((i) => i.productName).join(', '),
+          amount: 0,
+          paymentId: 'FREE (100% Coupon Discount)',
+          orderOrBookingId: orderObj.orderNumber
+        });
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      }
+      setIsProcessing(false);
+      return;
+    }
+
+    if (typeof (window as any).Razorpay === 'undefined') {
         await new Promise<void>((resolve) => {
           const script = document.createElement('script');
           script.src = 'https://checkout.razorpay.com/v1/checkout.js';

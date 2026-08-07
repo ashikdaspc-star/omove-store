@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { Product, RemoteService, RemoteBooking, BlogPost } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
+import { validateAndApplyCoupon } from '../utils/couponManager';
 import { CATEGORIES } from '../data/mockData';
 import { ProductCard } from '../components/ProductCard';
 import {
@@ -22,7 +23,8 @@ import {
   Monitor,
   DownloadCloud,
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  Tag
 } from 'lucide-react';
 
 interface HomeViewProps {
@@ -66,6 +68,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [pendingBooking, setPendingBooking] = useState<RemoteBooking | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<RemoteBooking | null>(null);
 
+  // Coupon state for booking form
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState(0);
+  const [couponMessage, setCouponMessage] = useState('');
+
+  const handleApplyBookingCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeBookingService) return;
+    const res = validateAndApplyCoupon(couponInput, activeBookingService.price);
+    if (res.valid) {
+      setAppliedDiscount(res.discountAmount);
+      setCouponMessage(res.message);
+    } else {
+      setAppliedDiscount(0);
+      setCouponMessage(res.message);
+    }
+  };
+
   const featuredProducts = products.filter((p) => p.isFeatured || p.isBestSeller).slice(0, 6);
 
   const handleCategoryClick = (catName: string) => {
@@ -78,6 +98,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     setActiveBookingService(srv);
     setConfirmedBooking(null);
     setShowTestGateway(false);
+    setCouponInput('');
+    setAppliedDiscount(0);
+    setCouponMessage('');
   };
 
   const handleProceedToPayment = async (e: React.FormEvent) => {
@@ -85,12 +108,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
     if (!activeBookingService) return;
     setIsSubmitting(true);
 
+    const finalPrice = Math.max(0, activeBookingService.price - appliedDiscount);
+
     const payload = {
       customerName,
       email,
       phone,
       serviceId: activeBookingService.id,
-      amount: activeBookingService.price,
+      amount: finalPrice,
       issueCategory: activeBookingService.category,
       problemDescription,
       preferredDate: new Date().toISOString().split('T')[0],
@@ -135,12 +160,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
         remoteTool: 'AnyDesk',
         remoteId: remoteId || '982 110 449',
         remotePassword: '',
-        amount: activeBookingService.price,
+        amount: finalPrice,
         paymentStatus: 'Paid',
         status: 'Technician Assigned',
         technicianName: 'David Chen (Cert #8821)',
         createdAt: new Date().toISOString()
       };
+    }
+
+    if (finalPrice <= 0) {
+      if (bookingObj) {
+        bookingObj.razorpayPaymentId = 'FREE_COUPON_' + Date.now();
+        setConfirmedBooking(bookingObj);
+        if (onBookingSuccess) onBookingSuccess(bookingObj);
+        sendAdminOrderNotificationEmail({
+          type: 'REMOTE_BOOKING',
+          customerName: bookingObj.customerName,
+          email: bookingObj.email,
+          phone: bookingObj.phone,
+          title: bookingObj.serviceTitle,
+          amount: 0,
+          paymentId: 'FREE (100% Coupon Discount)',
+          orderOrBookingId: bookingObj.bookingNumber,
+          remoteId: bookingObj.remoteId,
+          problemDescription: bookingObj.problemDescription
+        });
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      }
+      setIsSubmitting(false);
+      return;
     }
 
     try {
@@ -159,7 +207,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       if (typeof (window as any).Razorpay !== 'undefined') {
         const options = {
           key: razorpayKey,
-          amount: Math.round(activeBookingService.price * 100),
+          amount: Math.round(finalPrice * 100),
           currency: 'INR',
           name: 'OMOVE TECH Engine',
           description: `PC Service: ${activeBookingService.title}`,
@@ -745,6 +793,40 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       <ExternalLink className="w-3 h-3 opacity-80" />
                     </a>
                   </div>
+
+                  {/* Promo Coupon Code Box */}
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                    <label className="text-slate-700 font-bold flex items-center justify-between text-xs font-mono">
+                      <span className="flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Have a Discount Coupon?</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal">Try: OMOVE15</span>
+                    </label>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="ENTER COUPON CODE"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 uppercase focus:outline-none focus:border-emerald-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyBookingCoupon}
+                        className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-mono text-xs font-bold transition-all"
+                      >
+                        APPLY
+                      </button>
+                    </div>
+
+                    {couponMessage && (
+                      <p className={`text-[11px] font-mono font-bold ${appliedDiscount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {couponMessage}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="pt-2">
@@ -761,7 +843,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     ) : (
                       <>
                         <Lock className="w-4 h-4" />
-                        <span>PAY ₹{activeBookingService.price} & GET INSTANT REPAIR</span>
+                        <span>PAY ₹{Math.max(0, activeBookingService.price - appliedDiscount)} & GET INSTANT REPAIR</span>
                       </>
                     )}
                   </button>

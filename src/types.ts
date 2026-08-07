@@ -168,12 +168,15 @@ export interface UserProfile {
 }
 
 export interface Coupon {
+  id: string;
   code: string;
-  discountPercent: number;
-  maxDiscount: number;
-  minSpend: number;
-  validUntil: string;
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+  minOrderAmount: number;
+  description: string;
   isActive: boolean;
+  expiryDate?: string;
+  usageCount: number;
 }
 
 export interface CartItem {

@@ -178,11 +178,13 @@ async function startServer() {
     if (!coupon || !coupon.isActive) {
       return res.status(400).json({ error: 'Invalid or expired coupon code' });
     }
-    if (cartSubtotal < coupon.minSpend) {
-      return res.status(400).json({ error: `Minimum spend of ₹${coupon.minSpend} required for this coupon` });
+    if (cartSubtotal < coupon.minOrderAmount) {
+      return res.status(400).json({ error: `Minimum spend of ₹${coupon.minOrderAmount} required for this coupon` });
     }
-    const discount = Math.min((cartSubtotal * coupon.discountPercent) / 100, coupon.maxDiscount);
-    res.json({ code: coupon.code, discountPercent: coupon.discountPercent, discountAmount: Number(discount.toFixed(2)) });
+    const discount = coupon.discountType === 'percentage' 
+      ? (cartSubtotal * coupon.discountValue) / 100 
+      : Math.min(cartSubtotal, coupon.discountValue);
+    res.json({ code: coupon.code, discountAmount: Math.round(discount) });
   });
 
   // Create Order (Razorpay Order creation & store registration)

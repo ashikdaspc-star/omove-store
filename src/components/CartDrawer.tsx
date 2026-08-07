@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CartItem } from '../types';
 import { X, Trash2, Plus, Minus, Tag, ShieldCheck, ArrowRight, ShoppingBag } from 'lucide-react';
+import { validateAndApplyCoupon } from '../utils/couponManager';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -22,38 +23,31 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   if (!isOpen) return null;
 
   const [couponInput, setCouponInput] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; discountAmount: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number; message: string } | null>(null);
   const [couponError, setCouponError] = useState('');
   const [validating, setValidating] = useState(false);
 
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
 
-  const handleApplyCoupon = async (e: React.FormEvent) => {
+  const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponInput.trim()) return;
 
     setValidating(true);
     setCouponError('');
 
-    try {
-      const res = await fetch('/api/coupons/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: couponInput, cartSubtotal: subtotal })
+    const result = validateAndApplyCoupon(couponInput, subtotal);
+    if (result.valid && result.coupon) {
+      setAppliedCoupon({
+        code: result.coupon.code,
+        discountAmount: result.discountAmount,
+        message: result.message
       });
-      const data = await res.json();
-
-      if (res.ok) {
-        setAppliedCoupon(data);
-        setCouponInput('');
-      } else {
-        setCouponError(data.error || 'Invalid coupon');
-      }
-    } catch (err) {
-      setCouponError('Error validating coupon');
-    } finally {
-      setValidating(false);
+      setCouponInput('');
+    } else {
+      setCouponError(result.message);
     }
+    setValidating(false);
   };
 
   const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;

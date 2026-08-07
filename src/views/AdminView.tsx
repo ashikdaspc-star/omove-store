@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Product, RemoteService, RemoteBooking, Order, BlogPost } from '../types';
+import { Product, RemoteService, RemoteBooking, Order, BlogPost, Coupon } from '../types';
+import { MOCK_COUPONS } from '../data/mockData';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -33,7 +34,8 @@ import {
   Monitor,
   ArrowUpRight,
   Eye,
-  Compass
+  Compass,
+  Tag
 } from 'lucide-react';
 
 import { getActiveVisitorCount, getTrafficLogs, sendVisitorHeartbeat, TrafficHit } from '../utils/trafficTracker';
@@ -79,10 +81,69 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onDeleteBooking,
   onExitAdmin
 }) => {
-  const [activeTab, setActiveTab] = useState<'bookings' | 'traffic' | 'users' | 'analytics' | 'services' | 'blogs' | 'gateway'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'traffic' | 'users' | 'coupons' | 'analytics' | 'services' | 'blogs' | 'gateway'>('bookings');
   const [razorpayKeyId, setRazorpayKeyId] = useState(import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G');
   const [razorpayKeySecret, setRazorpayKeySecret] = useState('●●●●●●●●●●●●●●●●●●●●');
   const [isSaved, setIsSaved] = useState(false);
+
+  // Coupons Management State
+  const [couponList, setCouponList] = useState<Coupon[]>(() => {
+    try {
+      const stored = localStorage.getItem('omove_coupons');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return MOCK_COUPONS;
+  });
+
+  const [showAddCouponModal, setShowAddCouponModal] = useState(false);
+  const [newCode, setNewCode] = useState('');
+  const [newDiscountType, setNewDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [newDiscountValue, setNewDiscountValue] = useState<number>(15);
+  const [newMinOrderAmount, setNewMinOrderAmount] = useState<number>(0);
+  const [newDescription, setNewDescription] = useState('');
+
+  const handleCreateCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCode.trim()) return;
+
+    const created: Coupon = {
+      id: 'cpn-' + Date.now(),
+      code: newCode.trim().toUpperCase(),
+      discountType: newDiscountType,
+      discountValue: Number(newDiscountValue) || 10,
+      minOrderAmount: Number(newMinOrderAmount) || 0,
+      description: newDescription || `Discount code ${newCode.toUpperCase()}`,
+      isActive: true,
+      usageCount: 0
+    };
+
+    const updated = [created, ...couponList];
+    setCouponList(updated);
+    try {
+      localStorage.setItem('omove_coupons', JSON.stringify(updated));
+    } catch (err) {
+      console.error(err);
+    }
+
+    setNewCode('');
+    setNewDiscountValue(15);
+    setNewDescription('');
+    setShowAddCouponModal(false);
+  };
+
+  const handleToggleCouponActive = (id: string) => {
+    const updated = couponList.map((cp) => (cp.id === id ? { ...cp, isActive: !cp.isActive } : cp));
+    setCouponList(updated);
+    localStorage.setItem('omove_coupons', JSON.stringify(updated));
+  };
+
+  const handleDeleteCoupon = (id: string) => {
+    const updated = couponList.filter((cp) => cp.id !== id);
+    setCouponList(updated);
+    localStorage.setItem('omove_coupons', JSON.stringify(updated));
+  };
 
   // Live Accurate Traffic State
   const [liveVisitorCount, setLiveVisitorCount] = useState<number>(() => getActiveVisitorCount());
@@ -306,6 +367,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           { id: 'bookings', label: '🛠️ Remote Repairs Queue', icon: Headphones, count: bookings.length },
           { id: 'traffic', label: '🌐 Live Traffic & Visitors', icon: Activity, count: liveVisitorCount },
           { id: 'users', label: '👥 Registered User Accounts', icon: UserCheck, count: userList.length },
+          { id: 'coupons', label: '🏷️ Discount Coupons', icon: Tag, count: couponList.length },
           { id: 'analytics', label: '📊 Revenue & Analytics', icon: BarChart2 },
           { id: 'services', label: '⚡ Remote Services Catalog', icon: Wrench, count: services.length },
           { id: 'blogs', label: '📰 Blog & Knowledge Base', icon: BookOpen, count: blogs.length },
@@ -777,7 +839,81 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 4: REVENUE & ANALYTICS */}
+      {/* TAB 4: DISCOUNT COUPON MANAGER */}
+      {activeTab === 'coupons' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-xl text-slate-900 font-mono flex items-center gap-2">
+                <Tag className="w-5 h-5 text-emerald-600" />
+                <span>Promotional Discount Coupons ({couponList.length})</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-mono">Create, toggle and manage discount codes for products and remote support services</p>
+            </div>
+
+            <button
+              onClick={() => setShowAddCouponModal(true)}
+              className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center gap-2 transition-all hover:scale-105"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>+ CREATE NEW COUPON CODE</span>
+            </button>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {couponList.map((cp) => (
+              <div
+                key={cp.id}
+                className={`p-6 rounded-3xl bg-white border shadow-sm space-y-4 relative transition-all ${
+                  cp.isActive ? 'border-emerald-500/50 shadow-emerald-500/5' : 'border-slate-200 opacity-60'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="px-3.5 py-1.5 rounded-xl bg-slate-900 text-emerald-400 font-mono font-extrabold text-sm tracking-wider shadow-sm">
+                    {cp.code}
+                  </span>
+
+                  <button
+                    onClick={() => handleToggleCouponActive(cp.id)}
+                    className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold transition-all ${
+                      cp.isActive
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border border-rose-300'
+                    }`}
+                  >
+                    {cp.isActive ? '🟢 ACTIVE' : '🔴 DISABLED'}
+                  </button>
+                </div>
+
+                <div>
+                  <span className="text-2xl font-black font-mono text-slate-900 block">
+                    {cp.discountType === 'percentage' ? `${cp.discountValue}% OFF` : `₹${cp.discountValue} OFF`}
+                  </span>
+                  <p className="text-xs text-slate-500 font-mono mt-1">{cp.description}</p>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-mono text-slate-600">
+                  <span>Min Spend: <strong className="text-slate-900">₹{cp.minOrderAmount}</strong></span>
+                  <span className="text-emerald-700 font-bold">Used {cp.usageCount} times</span>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={() => handleDeleteCoupon(cp.id)}
+                    className="p-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 text-xs font-mono flex items-center gap-1.5"
+                    title="Delete coupon code"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Code</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: REVENUE & ANALYTICS */}
       {activeTab === 'analytics' && (
         <div className="space-y-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1187,6 +1323,92 @@ export const AdminView: React.FC<AdminViewProps> = ({
               >
                 PUBLISH ARTICLE TO WEBSITE BLOG
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* CREATE NEW COUPON MODAL */}
+      {showAddCouponModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md">
+          <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-8 text-slate-900">
+            <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
+              <div className="flex items-center gap-2 font-mono text-sm font-bold">
+                <Tag className="w-5 h-5 text-emerald-400" />
+                <span>CREATE NEW DISCOUNT COUPON</span>
+              </div>
+              <button onClick={() => setShowAddCouponModal(false)} className="p-1.5 rounded-xl text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCoupon} className="p-6 space-y-4 font-mono text-xs">
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Coupon Code *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. OMOVE25 or SAVE100"
+                  value={newCode}
+                  onChange={(e) => setNewCode(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold uppercase placeholder-slate-400 focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Discount Type</label>
+                  <select
+                    value={newDiscountType}
+                    onChange={(e) => setNewDiscountType(e.target.value as any)}
+                    className="w-full px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                  >
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed Amount (₹)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Discount Value *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={newDiscountValue}
+                    onChange={(e) => setNewDiscountValue(Number(e.target.value))}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Minimum Order Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newMinOrderAmount}
+                  onChange={(e) => setNewMinOrderAmount(Number(e.target.value))}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Description / Tagline</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 25% OFF on all remote support services"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-sans focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20"
+                >
+                  SAVE & PUBLISH COUPON CODE
+                </button>
+              </div>
             </form>
           </div>
         </div>

@@ -97,7 +97,7 @@ A \`WHEA_UNCORRECTABLE_ERROR\` indicates a hardware error detected by the Window
 ];
 
 export const MOCK_COUPONS: Coupon[] = [
-  { code: 'OMOVE20', discountPercent: 20, maxDiscount: 50, minSpend: 10, validUntil: '2026-12-31', isActive: true },
-  { code: 'WELCOME10', discountPercent: 10, maxDiscount: 20, minSpend: 0, validUntil: '2026-12-31', isActive: true },
-  { code: 'FREELICENSE', discountPercent: 15, maxDiscount: 30, minSpend: 15, validUntil: '2026-12-31', isActive: true }
+  { id: 'cpn-1', code: 'OMOVE15', discountType: 'percentage', discountValue: 15, minOrderAmount: 0, description: '15% OFF on all orders & services', isActive: true, usageCount: 42 },
+  { id: 'cpn-2', code: 'PROMO50', discountType: 'fixed', discountValue: 50, minOrderAmount: 99, description: 'Flat ₹50 Instant Discount', isActive: true, usageCount: 18 },
+  { id: 'cpn-3', code: 'ASHIK20', discountType: 'percentage', discountValue: 20, minOrderAmount: 199, description: 'VIP 20% OFF Special Code', isActive: true, usageCount: 9 }
 ];

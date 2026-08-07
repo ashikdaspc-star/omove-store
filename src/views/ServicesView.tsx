@@ -105,6 +105,32 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
       };
     }
 
+    const finalPrice = Math.max(0, activeService.price);
+
+    if (finalPrice <= 0) {
+      if (bookingObj) {
+        bookingObj.razorpayPaymentId = 'FREE_COUPON_' + Date.now();
+        bookingObj.amount = 0;
+        setConfirmedBooking(bookingObj);
+        if (onBookingSuccess) onBookingSuccess(bookingObj);
+        sendAdminOrderNotificationEmail({
+          type: 'REMOTE_BOOKING',
+          customerName: bookingObj.customerName,
+          email: bookingObj.email,
+          phone: bookingObj.phone,
+          title: bookingObj.serviceTitle,
+          amount: 0,
+          paymentId: 'FREE (100% Coupon Discount)',
+          orderOrBookingId: bookingObj.bookingNumber,
+          remoteId: bookingObj.remoteId,
+          problemDescription: bookingObj.problemDescription
+        });
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      }
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G';
 
