@@ -1,11 +1,12 @@
 import { Product, RemoteService, BlogPost, Coupon, ProductCategory } from '../types';
+import initialProductsData from './products.json';
 
 export const CATEGORIES: { name: ProductCategory; icon: string; count: number; description: string }[] = [
   { name: 'Windows Tools', icon: 'Monitor', count: 6, description: 'Windows system tools, debloaters, activation & OS utilities' },
   { name: 'Software', icon: 'FileText', count: 4, description: 'Digital software applications, PC tools & productivity suites' }
 ];
 
-export const MOCK_PRODUCTS: Product[] = [];
+export const MOCK_PRODUCTS: Product[] = initialProductsData as Product[];
 
 export const MOCK_SERVICES: RemoteService[] = [
   {

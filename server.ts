@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import Razorpay from 'razorpay';
 import { createServer as createViteServer } from 'vite';
@@ -157,6 +158,12 @@ async function startServer() {
     const { products } = req.body;
     if (Array.isArray(products)) {
       dynamicProductsStore = products;
+      try {
+        const filePath = path.join(__dirname, 'src', 'data', 'products.json');
+        fs.writeFileSync(filePath, JSON.stringify(products, null, 2));
+      } catch (err) {
+        console.error('Failed to write products.json:', err);
+      }
     }
     res.json({ success: true, count: dynamicProductsStore.length });
   });
