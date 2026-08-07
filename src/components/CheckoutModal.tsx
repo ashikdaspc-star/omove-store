@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { CartItem, Order } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
+import { validateAndApplyCoupon } from '../utils/couponManager';
 import {
   X,
   ShieldCheck,
@@ -17,7 +18,8 @@ import {
   FileText,
   Zap,
   Printer,
-  Phone
+  Phone,
+  Tag
 } from 'lucide-react';
 
 interface CheckoutModalProps {
@@ -56,9 +58,49 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [simulatingSuccess, setSimulatingSuccess] = useState(false);
   const [paymentFailedNotice, setPaymentFailedNotice] = useState('');
 
+  // Coupon state inside Checkout Modal
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<number>(discountAmount || 0);
+  const [appliedCode, setAppliedCode] = useState<string>(discountCode || '');
+  const [couponStatus, setCouponStatus] = useState<{ valid: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    if (discountAmount && discountAmount > 0) {
+      setAppliedDiscount(discountAmount);
+    }
+    if (discountCode) {
+      setAppliedCode(discountCode);
+    }
+  }, [discountAmount, discountCode]);
+
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const taxAmount = 0;
-  const finalTotal = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
+  const finalTotal = Math.max(0, Number((subtotal - appliedDiscount).toFixed(2)));
+
+  const handleApplyCouponCode = (codeToApply?: string) => {
+    const code = (codeToApply || couponInput).trim();
+    if (!code) {
+      setCouponStatus({ valid: false, message: 'Please enter a promo coupon code.' });
+      return;
+    }
+
+    const res = validateAndApplyCoupon(code, subtotal);
+    if (res.valid) {
+      setAppliedDiscount(res.discountAmount);
+      setAppliedCode(res.coupon?.code || code.toUpperCase());
+      setCouponStatus({ valid: true, message: res.message });
+      setCouponInput('');
+    } else {
+      setCouponStatus({ valid: false, message: res.message });
+    }
+  };
+
+  const handleRemoveCouponCode = () => {
+    setAppliedDiscount(0);
+    setAppliedCode('');
+    setCouponStatus({ valid: true, message: 'Coupon removed.' });
+    setTimeout(() => setCouponStatus(null), 3000);
+  };
 
   const handleProcessPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +114,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         customerEmail,
         customerPhone,
         paymentMethod,
-        discountAmount
+        discountAmount: appliedDiscount
       };
 
       let orderObj: Order | null = null;
@@ -497,16 +539,86 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             </div>
 
+            {/* Promo Coupon Apply Section */}
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-300 font-mono flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Apply Promo Coupon</span>
+                </h4>
+                {appliedCode && (
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-400" />
+                    Code '{appliedCode}' Active (-₹{appliedDiscount})
+                  </span>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="ENTER COUPON CODE (e.g. OMOVE15)"
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white uppercase font-mono placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleApplyCouponCode()}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold font-mono text-xs shadow-md shadow-amber-500/20 shrink-0 transition-all active:scale-95"
+                >
+                  APPLY
+                </button>
+                {appliedCode && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveCouponCode}
+                    className="px-3 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-mono font-bold transition-all"
+                  >
+                    REMOVE
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Clickable Promo Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none pt-1">
+                <span className="text-[10px] text-slate-400 font-mono shrink-0">Available Promos:</span>
+                {[
+                  { code: 'OMOVE15', desc: '15% OFF' },
+                  { code: 'PROMO50', desc: '₹50 OFF' },
+                  { code: 'ASHIK20', desc: '20% OFF' }
+                ].map((cpn) => (
+                  <button
+                    type="button"
+                    key={cpn.code}
+                    onClick={() => handleApplyCouponCode(cpn.code)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold whitespace-nowrap transition-all flex items-center gap-1 active:scale-95"
+                  >
+                    <span>{cpn.code}</span>
+                    <span className="text-slate-400 text-[9px]">({cpn.desc})</span>
+                  </button>
+                ))}
+              </div>
+
+              {couponStatus && (
+                <div className={`p-2.5 rounded-xl border text-xs font-mono ${
+                  couponStatus.valid ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40' : 'bg-rose-950/70 text-rose-300 border-rose-500/40'
+                }`}>
+                  {couponStatus.message}
+                </div>
+              )}
+            </div>
+
             {/* Order Total Breakdown */}
             <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
               <div className="flex justify-between text-slate-400">
                 <span>Subtotal ({cart.length} items)</span>
                 <span className="font-mono text-white">₹{subtotal.toFixed(2)}</span>
               </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-emerald-400">
-                  <span>Discount</span>
-                  <span className="font-mono">-₹{discountAmount.toFixed(2)}</span>
+              {appliedDiscount > 0 && (
+                <div className="flex justify-between text-emerald-400 font-mono font-bold">
+                  <span>Coupon Discount ({appliedCode || 'PROMO'})</span>
+                  <span>-₹{appliedDiscount.toFixed(2)}</span>
                 </div>
               )}
 
