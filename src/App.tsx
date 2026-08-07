@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product, CartItem, Order, RemoteBooking, RemoteService, BlogPost } from './types';
 import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS } from './data/mockData';
 import { Header } from './components/Header';
@@ -19,9 +19,19 @@ import { DashboardView } from './views/DashboardView';
 import { AdminView } from './views/AdminView';
 import { BlogView } from './views/BlogView';
 import { AboutContactView } from './views/AboutContactView';
+import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<string>('home');
+
+  // Real-time Traffic Tracking
+  useEffect(() => {
+    recordPageViewHit(currentView);
+    const interval = setInterval(() => {
+      sendVisitorHeartbeat();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [currentView]);
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const [services, setServices] = useState<RemoteService[]>(MOCK_SERVICES);
   const [blogs, setBlogs] = useState<BlogPost[]>(MOCK_BLOGS);

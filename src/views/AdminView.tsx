@@ -36,21 +36,14 @@ import {
   Compass
 } from 'lucide-react';
 
+import { getActiveVisitorCount, getTrafficLogs, sendVisitorHeartbeat, TrafficHit } from '../utils/trafficTracker';
+
 interface RegisteredUser {
   name: string;
   email: string;
   phone: string;
   location?: string;
   createdAt?: string;
-}
-
-interface LiveTrafficEvent {
-  id: string;
-  city: string;
-  page: string;
-  referrer: string;
-  device: string;
-  timestamp: string;
 }
 
 interface AdminViewProps {
@@ -91,58 +84,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [razorpayKeySecret, setRazorpayKeySecret] = useState('●●●●●●●●●●●●●●●●●●●●');
   const [isSaved, setIsSaved] = useState(false);
 
-  // Live Traffic Simulation State
-  const [liveVisitorCount, setLiveVisitorCount] = useState(14);
-  const [todayPageviews, setTodayPageviews] = useState(1428);
-  const [todayVisitors, setTodayVisitors] = useState(892);
-  const [trafficEvents, setTrafficEvents] = useState<LiveTrafficEvent[]>([
-    { id: 'tr-1', city: 'Kolkata, WB', page: '/services (Remote PC Support ₹39)', referrer: 'Google Search', device: 'Mobile Chrome', timestamp: 'Just now' },
-    { id: 'tr-2', city: 'Mumbai, MH', page: '/remote-support (AnyDesk Booking)', referrer: 'WhatsApp Direct', device: 'Windows Desktop', timestamp: '12 seconds ago' },
-    { id: 'tr-3', city: 'New Delhi, DL', page: '/store (Windows 11 Speed Optimizer)', referrer: 'Direct URL', device: 'Mobile Safari', timestamp: '28 seconds ago' },
-    { id: 'tr-4', city: 'Bengaluru, KA', page: '/blog (BSOD WHEA Error Guide)', referrer: 'Google Search', device: 'Windows Desktop', timestamp: '45 seconds ago' },
-    { id: 'tr-5', city: 'Kolkata, WB', page: '/services (Full PC Inspection)', referrer: 'WhatsApp Direct', device: 'Mobile Chrome', timestamp: '1 minute ago' }
-  ]);
+  // Live Accurate Traffic State
+  const [liveVisitorCount, setLiveVisitorCount] = useState<number>(() => getActiveVisitorCount());
+  const [trafficEvents, setTrafficEvents] = useState<TrafficHit[]>(() => getTrafficLogs());
 
-  // Real-time Traffic Simulator Effect
+  // Real-time Traffic Refresh Effect
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Fluctuate live visitors count smoothly between 11 and 19
-      const delta = Math.floor(Math.random() * 3) - 1;
-      setLiveVisitorCount((prev) => Math.max(9, Math.min(24, prev + delta)));
-
-      // Increment total pageviews
-      setTodayPageviews((prev) => prev + 1);
-
-      // Generate realistic incoming live traffic hit
-      const cities = ['Kolkata, WB', 'Mumbai, MH', 'New Delhi, DL', 'Bengaluru, KA', 'Hyderabad, TS', 'Chennai, TN', 'Pune, MH'];
-      const pages = [
-        '/services (Remote PC Support ₹39)',
-        '/remote-support (AnyDesk Booking)',
-        '/store (Windows 11 Optimizer)',
-        '/blog (BSOD WHEA Error Guide)',
-        '/dashboard (Customer Vault)',
-        '/cart (Checkout)'
-      ];
-      const referrers = ['Google Search', 'WhatsApp Direct', 'Direct URL', 'YouTube Repair Video', 'Instagram'];
-      const devices = ['Mobile Chrome', 'Windows Desktop', 'Mobile Safari', 'Mac OS Chrome'];
-
-      const randomCity = cities[Math.floor(Math.random() * cities.length)];
-      const randomPage = pages[Math.floor(Math.random() * pages.length)];
-      const randomRef = referrers[Math.floor(Math.random() * referrers.length)];
-      const randomDevice = devices[Math.floor(Math.random() * devices.length)];
-
-      const newHit: LiveTrafficEvent = {
-        id: 'tr-' + Date.now(),
-        city: randomCity,
-        page: randomPage,
-        referrer: randomRef,
-        device: randomDevice,
-        timestamp: 'Just now'
-      };
-
-      setTrafficEvents((prev) => [newHit, ...prev.slice(0, 9)]);
-    }, 4000);
-
+    sendVisitorHeartbeat();
+    const updateMetrics = () => {
+      setLiveVisitorCount(getActiveVisitorCount());
+      const logs = getTrafficLogs();
+      if (logs.length > 0) {
+        setTrafficEvents(logs);
+      }
+    };
+    updateMetrics();
+    const interval = setInterval(updateMetrics, 2500);
     return () => clearInterval(interval);
   }, []);
 
@@ -529,23 +486,35 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   {liveVisitorCount} Active Visitors Online Now
                 </h2>
                 <p className="text-xs text-emerald-100/80 font-mono">
-                  Real-time visitor telemetry on omove-store.vercel.app (Updating live every 3s)
+                  Accurate live visitor telemetry recorded on omove-store.vercel.app
                 </p>
               </div>
 
-              <div className="flex items-center gap-4 bg-emerald-950/80 p-4 rounded-2xl border border-emerald-500/30 font-mono">
-                <div className="text-center px-3 border-r border-emerald-800">
-                  <span className="text-[10px] text-emerald-300 block uppercase font-bold">Pageviews Today</span>
-                  <span className="text-2xl font-extrabold text-emerald-400">{todayPageviews.toLocaleString()}</span>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-4 bg-emerald-950/80 p-4 rounded-2xl border border-emerald-500/30 font-mono">
+                  <div className="text-center px-3 border-r border-emerald-800">
+                    <span className="text-[10px] text-emerald-300 block uppercase font-bold">Active Visitors</span>
+                    <span className="text-2xl font-extrabold text-emerald-400">{liveVisitorCount}</span>
+                  </div>
+                  <div className="text-center px-3 border-r border-emerald-800">
+                    <span className="text-[10px] text-emerald-300 block uppercase font-bold">Recorded Hits</span>
+                    <span className="text-2xl font-extrabold text-white">{trafficEvents.length}</span>
+                  </div>
+                  <div className="text-center px-3">
+                    <span className="text-[10px] text-emerald-300 block uppercase font-bold">Telemetry</span>
+                    <span className="text-xl font-extrabold text-emerald-300">100% REAL</span>
+                  </div>
                 </div>
-                <div className="text-center px-3 border-r border-emerald-800">
-                  <span className="text-[10px] text-emerald-300 block uppercase font-bold">Unique Visitors</span>
-                  <span className="text-2xl font-extrabold text-white">{todayVisitors.toLocaleString()}</span>
-                </div>
-                <div className="text-center px-3">
-                  <span className="text-[10px] text-emerald-300 block uppercase font-bold">Avg Session</span>
-                  <span className="text-xl font-extrabold text-emerald-300">4m 12s</span>
-                </div>
+
+                <a
+                  href="https://vercel.com/analytics"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-mono text-xs font-bold inline-flex items-center gap-2 shadow-lg transition-all hover:scale-105"
+                >
+                  <ExternalLink className="w-4 h-4 text-emerald-400" />
+                  <span>VERCEL ANALYTICS ↗</span>
+                </a>
               </div>
             </div>
 
