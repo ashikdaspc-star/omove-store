@@ -369,12 +369,12 @@ export default function App() {
       try {
         data = JSON.parse(rawText);
       } catch {
-        data = { success: res.ok, message: rawText || 'Server response error' };
+        data = { success: false, message: rawText ? rawText.substring(0, 150) : `HTTP ${res.status} empty response` };
       }
-      if (data.success) {
+      if (res.ok && data.success) {
         return { success: true, message: 'Catalog saved to server & published to GitHub!' };
       } else {
-        return { success: false, message: data.error || data.message || 'Server error saving catalog' };
+        return { success: false, message: data.error || data.message || `Server error (HTTP ${res.status})` };
       }
     } catch (err: any) {
       return { success: false, message: err.message || 'Could not connect to server' };

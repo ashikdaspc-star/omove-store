@@ -112,7 +112,17 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // JSON Error handler middleware
+  app.use((err: any, _req: Request, res: Response, next: any) => {
+    if (err) {
+      console.error('Express request parsing error:', err.message);
+      return res.status(400).json({ success: false, error: `Invalid request payload: ${err.message}` });
+    }
+    next();
+  });
 
   // API ROUTES
   app.get('/api/health', (req: Request, res: Response) => {
