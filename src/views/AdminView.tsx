@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product, RemoteService, RemoteBooking, Order, BlogPost } from '../types';
 import {
   LayoutDashboard,
@@ -23,8 +23,19 @@ import {
   Wrench,
   Lock,
   BookOpen,
-  FileText
+  FileText,
+  UserCheck,
+  Search,
+  Users
 } from 'lucide-react';
+
+interface RegisteredUser {
+  name: string;
+  email: string;
+  phone: string;
+  location?: string;
+  createdAt?: string;
+}
 
 interface AdminViewProps {
   products: Product[];
@@ -59,10 +70,89 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onDeleteBooking,
   onExitAdmin
 }) => {
-  const [activeTab, setActiveTab] = useState<'bookings' | 'analytics' | 'services' | 'blogs' | 'gateway'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'users' | 'analytics' | 'services' | 'blogs' | 'gateway'>('bookings');
   const [razorpayKeyId, setRazorpayKeyId] = useState(import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G');
   const [razorpayKeySecret, setRazorpayKeySecret] = useState('●●●●●●●●●●●●●●●●●●●●');
   const [isSaved, setIsSaved] = useState(false);
+
+  // User Accounts State
+  const [userList, setUserList] = useState<RegisteredUser[]>([]);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+
+  // Load Registered Users from LocalStorage + Bookings + Orders
+  useEffect(() => {
+    const loadedUsers: Record<string, RegisteredUser> = {};
+
+    // 1. From LocalStorage registry
+    try {
+      const stored = localStorage.getItem('omove_registered_users');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        Object.values(parsed).forEach((u: any) => {
+          if (u.email) {
+            loadedUsers[u.email.toLowerCase()] = {
+              name: u.name || 'Customer',
+              email: u.email,
+              phone: u.phone || '',
+              location: u.location || 'Kolkata, WB, India',
+              createdAt: '2026-08-07'
+            };
+          }
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 2. From Remote Bookings
+    bookings.forEach((bk) => {
+      if (bk.email && !loadedUsers[bk.email.toLowerCase()]) {
+        loadedUsers[bk.email.toLowerCase()] = {
+          name: bk.customerName || 'Client',
+          email: bk.email,
+          phone: bk.phone || '',
+          location: 'Kolkata, WB, India',
+          createdAt: bk.createdAt ? bk.createdAt.split('T')[0] : '2026-08-07'
+        };
+      }
+    });
+
+    // 3. From Orders
+    orders.forEach((ord) => {
+      if (ord.customerEmail && !loadedUsers[ord.customerEmail.toLowerCase()]) {
+        loadedUsers[ord.customerEmail.toLowerCase()] = {
+          name: ord.customerName || 'Client',
+          email: ord.customerEmail,
+          phone: ord.customerPhone || '',
+          location: 'Kolkata, WB, India',
+          createdAt: ord.createdAt ? ord.createdAt.split('T')[0] : '2026-08-07'
+        };
+      }
+    });
+
+    setUserList(Object.values(loadedUsers));
+  }, [bookings, orders]);
+
+  const handleDeleteUser = (email: string) => {
+    setUserList((prev) => prev.filter((u) => u.email.toLowerCase() !== email.toLowerCase()));
+    try {
+      const stored = localStorage.getItem('omove_registered_users');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        delete parsed[email.toLowerCase()];
+        localStorage.setItem('omove_registered_users', JSON.stringify(parsed));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Filtered Users List
+  const filteredUsers = userList.filter((u) =>
+    u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+    u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+    u.phone.includes(userSearchQuery)
+  );
 
   // New Service Modal state
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
@@ -130,7 +220,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
     if (onAddBlog) onAddBlog(newBlog);
 
-    // Reset form
     setBlogTitle('');
     setBlogExcerpt('');
     setBlogContent('');
@@ -152,7 +241,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 LIVE ROOT ACCESS
               </span>
             </div>
-            <p className="text-xs text-emerald-100/80 font-mono mt-0.5">Manage live remote repairs, client queue, blog articles & Razorpay credentials</p>
+            <p className="text-xs text-emerald-100/80 font-mono mt-0.5">Manage live remote repairs, client user accounts, blog articles & Razorpay credentials</p>
           </div>
         </div>
 
@@ -190,6 +279,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
         {[
           { id: 'bookings', label: '🛠️ Remote Repairs Queue', icon: Headphones, count: bookings.length },
+          { id: 'users', label: '👥 Registered User Accounts', icon: UserCheck, count: userList.length },
           { id: 'analytics', label: '📊 Revenue & Analytics', icon: BarChart2 },
           { id: 'services', label: '⚡ Remote Services Catalog', icon: Wrench, count: services.length },
           { id: 'blogs', label: '📰 Blog & Knowledge Base', icon: BookOpen, count: blogs.length },
@@ -355,7 +445,116 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 2: REVENUE & ANALYTICS */}
+      {/* TAB 2: REGISTERED USER ACCOUNTS */}
+      {activeTab === 'users' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-xl text-slate-900 font-mono flex items-center gap-2">
+                <Users className="w-5 h-5 text-emerald-600" />
+                <span>Registered Customer Accounts ({userList.length})</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-mono">View all users registered on your site, customer contact details & WhatsApp links</p>
+            </div>
+
+            {/* User Search Bar */}
+            <div className="relative max-w-xs w-full">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search user by name or email..."
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-mono focus:outline-none focus:border-emerald-600 shadow-xs"
+              />
+            </div>
+          </div>
+
+          {filteredUsers.length === 0 ? (
+            <div className="p-16 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
+              <UserCheck className="w-12 h-12 text-slate-400 mx-auto" />
+              <h4 className="font-bold text-slate-900 text-base">No customer accounts found</h4>
+              <p className="text-xs text-slate-500 font-mono max-w-md mx-auto">
+                When new users register an account or book remote repairs on your website, their contact details will automatically show up here.
+              </p>
+            </div>
+          ) : (
+            <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Customer Name</th>
+                      <th className="p-3">Email Address</th>
+                      <th className="p-3">WhatsApp Number</th>
+                      <th className="p-3">Location</th>
+                      <th className="p-3">Account Status</th>
+                      <th className="p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredUsers.map((u, idx) => (
+                      <tr key={idx} className="text-slate-800 hover:bg-slate-50/80 transition-colors">
+                        <td className="p-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center font-sans">
+                              {u.name ? u.name.charAt(0).toUpperCase() : 'C'}
+                            </div>
+                            <span className="font-bold text-slate-900">{u.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-slate-600">{u.email}</td>
+                        <td className="p-3 font-bold text-emerald-800">
+                          {u.phone ? (
+                            <span className="flex items-center gap-1.5">
+                              <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>{u.phone}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">Not provided</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-500 text-[11px]">{u.location || 'Kolkata, WB, India'}</td>
+                        <td className="p-3">
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 text-[10px]">
+                            VERIFIED CUSTOMER
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {u.phone && (
+                              <a
+                                href={`https://wa.me/${u.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                                  `Hello ${u.name}! Welcome to OMOVE Store & Remote PC Support.`
+                                )}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-xs"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>WhatsApp</span>
+                              </a>
+                            )}
+                            <button
+                              onClick={() => handleDeleteUser(u.email)}
+                              className="p-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-xs font-mono"
+                              title="Delete customer record"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: REVENUE & ANALYTICS */}
       {activeTab === 'analytics' && (
         <div className="space-y-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -366,15 +565,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">Remote PC Repairs</span>
-              <span className="text-3xl font-extrabold font-mono text-slate-900 block">{bookings.length}</span>
-              <span className="text-[10px] text-slate-500">Active AnyDesk sessions</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">Registered Customers</span>
+              <span className="text-3xl font-extrabold font-mono text-slate-900 block">{userList.length}</span>
+              <span className="text-[10px] text-slate-500">Registered website users</span>
             </div>
 
             <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">Published Blog Articles</span>
-              <span className="text-3xl font-extrabold font-mono text-emerald-700 block">{blogs.length}</span>
-              <span className="text-[10px] text-slate-500">Knowledge Base guides</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">Remote PC Repairs</span>
+              <span className="text-3xl font-extrabold font-mono text-emerald-700 block">{bookings.length}</span>
+              <span className="text-[10px] text-slate-500">Active AnyDesk sessions</span>
             </div>
 
             <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-2">
@@ -418,7 +617,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 3: REMOTE SERVICES CATALOG */}
+      {/* TAB 4: REMOTE SERVICES CATALOG */}
       {activeTab === 'services' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
@@ -462,7 +661,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 4: BLOG & KNOWLEDGE BASE PUBLISHING */}
+      {/* TAB 5: BLOG & KNOWLEDGE BASE PUBLISHING */}
       {activeTab === 'blogs' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -518,7 +717,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 5: GATEWAY CONFIG */}
+      {/* TAB 6: GATEWAY CONFIG */}
       {activeTab === 'gateway' && (
         <div className="p-8 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-6">
           <div className="flex items-center gap-3">
