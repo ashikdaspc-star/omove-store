@@ -110,8 +110,8 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
             <Key className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="font-bold text-slate-900 text-sm">Instant License Keys</h4>
-            <p className="text-xs text-slate-500">Keys delivered instantly on checkout screen</p>
+            <h4 className="font-bold text-slate-900 text-sm">Instant Access & License Keys</h4>
+            <p className="text-xs text-slate-500">Keys & downloads delivered instantly on checkout screen</p>
           </div>
         </div>
 

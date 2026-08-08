@@ -130,9 +130,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <span className="text-xs text-slate-400 line-through font-mono">₹{product.originalPrice}</span>
             )}
           </div>
-          <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
-            <Zap className="w-3 h-3" />
-            Instant Download
+          <span className="text-[10px] text-emerald-600 font-extrabold flex items-center gap-0.5">
+            <Zap className="w-3 h-3 fill-emerald-600 animate-pulse" />
+            Instant Access & Key
           </span>
         </div>
 
