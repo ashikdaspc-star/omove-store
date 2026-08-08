@@ -288,7 +288,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             <div className="pt-6">
               {activeTab === 'overview' && (
                 <div className="grid sm:grid-cols-2 gap-3">
-                  {product.features.map((feat, idx) => (
+                  {(product.features || ['Instant Product Access Key', 'Official Setup Package']).map((feat, idx) => (
                     <div key={idx} className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-start gap-3">
                       <div className="p-1 rounded-lg bg-emerald-500/10 text-emerald-400 mt-0.5">
                         <Check className="w-4 h-4" />
@@ -303,7 +303,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3 text-xs">
                   <h4 className="font-bold text-white uppercase tracking-wider text-[11px] text-slate-400">Minimum System Requirements</h4>
                   <ul className="space-y-2">
-                    {product.requirements.map((req, idx) => (
+                    {(product.requirements || ['Windows 10/11 (64-bit)', '2 GB RAM', '1 GB Storage']).map((req, idx) => (
                       <li key={idx} className="flex items-center gap-2 text-slate-300">
                         <Cpu className="w-4 h-4 text-cyan-400" />
                         <span>{req}</span>
@@ -315,19 +315,25 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
               {activeTab === 'history' && (
                 <div className="space-y-3">
-                  {product.versionHistory.map((vh, idx) => (
-                    <div key={idx} className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-mono">
-                        <span className="font-bold text-indigo-400">{vh.version}</span>
-                        <span className="text-slate-500">{vh.date}</span>
+                  {(product.versionHistory || []).length > 0 ? (
+                    (product.versionHistory || []).map((vh, idx) => (
+                      <div key={idx} className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-mono">
+                          <span className="font-bold text-indigo-400">{vh.version}</span>
+                          <span className="text-slate-500">{vh.date}</span>
+                        </div>
+                        <ul className="list-disc list-inside text-xs text-slate-300 space-y-1">
+                          {(vh.changes || []).map((ch, i) => (
+                            <li key={i}>{ch}</li>
+                          ))}
+                        </ul>
                       </div>
-                      <ul className="list-disc list-inside text-xs text-slate-300 space-y-1">
-                        {vh.changes.map((ch, i) => (
-                          <li key={i}>{ch}</li>
-                        ))}
-                      </ul>
+                    ))
+                  ) : (
+                    <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 text-xs text-slate-400 font-mono">
+                      Current Version: {product.version || 'v1.0.0'} (Initial Release)
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
 

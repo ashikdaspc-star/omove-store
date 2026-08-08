@@ -30,16 +30,20 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
   );
 
   const digitalProducts = digitalProductsOnly.filter((p) => {
+    const pCat = p.category || '';
+    const pName = p.name || '';
+    const pDesc = p.shortDescription || '';
+
     const matchesCategory =
       selectedCategory === 'All' ||
       selectedCategory === 'Software Keys' ||
       selectedCategory === 'Lifetime Licenses' ||
-      p.category.toLowerCase() === selectedCategory.toLowerCase();
+      pCat.toLowerCase() === selectedCategory.toLowerCase();
     const matchesSearch =
       !searchQuery ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.tags && p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
+      pName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      pDesc.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ((p.tags || []).some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
     return matchesCategory && matchesSearch;
   });
 

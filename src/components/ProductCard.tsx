@@ -107,7 +107,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
           {/* Key Feature Bullets */}
           <ul className="space-y-1 text-[11px] text-slate-600 pt-1">
-            {product.features.slice(0, 2).map((feat, idx) => (
+            {(product.features || []).slice(0, 2).map((feat, idx) => (
               <li key={idx} className="flex items-center gap-1.5 line-clamp-1">
                 <Check className="w-3 h-3 text-emerald-600 flex-shrink-0" />
                 <span className="truncate">{feat}</span>

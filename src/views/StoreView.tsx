@@ -54,21 +54,25 @@ export const StoreView: React.FC<StoreViewProps> = ({
   const filteredProducts = useMemo(() => {
     return storeProductsOnly
       .filter((p) => {
-        const matchesCategory = selectedCategory === 'All' || p.category.toLowerCase() === selectedCategory.toLowerCase();
+        const pCat = p.category || '';
+        const pName = p.name || '';
+        const pDesc = p.shortDescription || '';
+
+        const matchesCategory = selectedCategory === 'All' || pCat.toLowerCase() === selectedCategory.toLowerCase();
         const matchesQuery =
           !searchQuery ||
-          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          pName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          pDesc.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (p.tags || []).some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
-        const matchesPrice = p.price <= maxPrice;
+        const matchesPrice = (p.price || 0) <= maxPrice;
         const matchesLicense = selectedLicense === 'All' || p.licenseType === selectedLicense;
 
         return matchesCategory && matchesQuery && matchesPrice && matchesLicense;
       })
       .sort((a, b) => {
-        if (sortOption === 'price-low') return a.price - b.price;
-        if (sortOption === 'price-high') return b.price - a.price;
-        if (sortOption === 'rating') return b.rating - a.rating;
+        if (sortOption === 'price-low') return (a.price || 0) - (b.price || 0);
+        if (sortOption === 'price-high') return (b.price || 0) - (a.price || 0);
+        if (sortOption === 'rating') return (b.rating || 0) - (a.rating || 0);
         return (b.salesCount || 0) - (a.salesCount || 0);
       });
   }, [storeProductsOnly, selectedCategory, searchQuery, maxPrice, selectedLicense, sortOption]);
@@ -77,7 +81,7 @@ export const StoreView: React.FC<StoreViewProps> = ({
     const counts: Record<string, number> = {};
     storeProductsOnly.forEach((p) => {
       if (p.category) {
-        const catName = CATEGORIES.find((c) => c.name.toLowerCase() === p.category.toLowerCase())?.name || p.category;
+        const catName = CATEGORIES.find((c) => c.name.toLowerCase() === (p.category || '').toLowerCase())?.name || p.category;
         counts[catName] = (counts[catName] || 0) + 1;
       }
     });
