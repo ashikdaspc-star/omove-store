@@ -1,9 +1,9 @@
 [
   {
-    "id": "prod-1786152972116",
-    "name": "Word",
-    "slug": "word",
-    "category": "Windows Tools",
+    "id": "prod-1786153044404",
+    "name": "Autocad 2026",
+    "slug": "autocad-2026",
+    "category": "Software",
     "shortDescription": "Digital software product and utility package.",
     "fullDescription": "Complete digital product license with instant download access.",
     "price": 0,
@@ -41,7 +41,7 @@
     "isFeatured": true,
     "isNew": true,
     "tags": [
-      "Windows Tools",
+      "Software",
       "Store Card",
       "Software"
     ],
