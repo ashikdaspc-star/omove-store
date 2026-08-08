@@ -149,7 +149,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setProdLicenseType('Lifetime License');
     setProdImage('https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80');
     setProdFileUrl('https://www.autodesk.com');
-    setProdFeatures('Lifetime License Key, 1-Click Installer, 24/7 Digital Support');
+    setProdFeatures('Lifetime Access, 1-Click Installer, 24/7 Digital Support');
     setShowAddProductModal(true);
   };
 
@@ -197,7 +197,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
     const isDigital = prodCategory === 'Software';
     const prodTags = isDigital
-      ? ['Software', 'Digital Product', 'License Key']
+      ? ['Software', 'Digital Product']
       : ['Windows Tools', 'Store Card'];
 
     const newProd: Product = {
@@ -205,8 +205,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
       name: prodName.trim(),
       slug: prodName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
       category: prodCategory,
-      shortDescription: prodShortDesc || (isDigital ? 'Digital software activation key.' : 'Digital software product and utility package.'),
-      fullDescription: prodFullDesc || prodShortDesc || (isDigital ? 'Complete digital product license key with instant download access.' : 'Complete software package.'),
+      shortDescription: prodShortDesc || (isDigital ? 'Digital software product.' : 'Digital software product and utility package.'),
+      fullDescription: prodFullDesc || prodShortDesc || (isDigital ? 'Complete digital product with instant download access.' : 'Complete software package.'),
       price: Number(prodPrice) || 0,
       originalPrice: Number(prodOriginalPrice) || 499,
       discountPercent: discountPct,
@@ -668,7 +668,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <Sparkles className="w-5 h-5 text-emerald-600" />
                 <span>Digital Product Cards Catalog ({products.filter((p) => p.category === 'Software' || (p.tags && p.tags.includes('Digital Product') && !p.tags.includes('Store Card'))).length})</span>
               </h3>
-              <p className="text-xs text-slate-500 font-mono">Create, publish, edit, and remove software activation keys & digital products for the /digital-products store section</p>
+              <p className="text-xs text-slate-500 font-mono">Create, publish, edit, and remove digital products for the /digital-products store section</p>
             </div>
             <div className="flex items-center gap-3">
               <input
@@ -704,7 +704,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <Sparkles className="w-12 h-12 text-slate-400 mx-auto" />
               <h4 className="font-bold text-slate-900 text-base">No digital product cards available yet</h4>
               <p className="text-xs text-slate-500 max-w-md mx-auto font-mono">
-                Click "+ Add Digital Product" above to create and publish your first software license or activation key.
+                Click "+ Add Digital Product" above to create and publish your first digital product.
               </p>
             </div>
           ) : (
@@ -743,7 +743,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           {prod.licenseType}
                         </span>
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
-                          Instant Key Delivery
+                          Instant Product Access
                         </span>
                       </div>
                     </div>
