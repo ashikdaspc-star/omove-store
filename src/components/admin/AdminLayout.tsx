@@ -32,6 +32,7 @@ interface AdminLayoutProps {
   onUpdateProduct?: (prod: Product) => void;
   onDeleteProduct?: (prodId: string) => void;
   onAddService?: (srv: RemoteService) => void;
+  onUpdateService?: (srv: RemoteService) => void;
   onDeleteService?: (srvId: string) => void;
   onAddBlog?: (blog: BlogPost) => void;
   onDeleteBlog?: (blogId: string) => void;
@@ -52,6 +53,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onUpdateProduct,
   onDeleteProduct,
   onAddService,
+  onUpdateService,
   onDeleteService,
   onAddBlog,
   onDeleteBlog,
@@ -289,7 +291,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {activeTab === 'orders' && <AdminOrdersView orders={orders} />}
           {activeTab === 'customers' && <AdminCustomersView orders={orders} />}
           {activeTab === 'payments' && <AdminPaymentsView orders={orders} />}
-          {activeTab === 'services' && <AdminServicesView services={services} onDeleteService={onDeleteService} />}
+          {activeTab === 'services' && (
+            <AdminServicesView
+              services={services}
+              onAddService={onAddService}
+              onUpdateService={onUpdateService}
+              onDeleteService={onDeleteService}
+            />
+          )}
           {activeTab === 'remote-support' && <AdminRemoteSupportView bookings={bookings} onUpdateBooking={onUpdateBooking} />}
           {activeTab === 'blog' && <AdminBlogView blogs={blogs} onDeleteBlog={onDeleteBlog} />}
           {activeTab === 'categories' && (

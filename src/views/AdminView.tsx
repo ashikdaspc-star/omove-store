@@ -12,6 +12,7 @@ interface AdminViewProps {
   onUpdateProduct?: (prod: Product) => void;
   onDeleteProduct?: (prodId: string) => void;
   onAddService?: (srv: RemoteService) => void;
+  onUpdateService?: (srv: RemoteService) => void;
   onDeleteService?: (srvId: string) => void;
   onAddBlog?: (blog: BlogPost) => void;
   onDeleteBlog?: (blogId: string) => void;

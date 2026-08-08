@@ -748,6 +748,14 @@ export default function App() {
     });
   };
 
+  const handleUpdateService = (updatedSrv: RemoteService) => {
+    setServices((prev) => {
+      const updated = prev.map((s) => (s.id === updatedSrv.id ? updatedSrv : s));
+      try { localStorage.setItem('omove_services', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+  };
+
   const handleDeleteService = (srvId: string) => {
     setServices((prev) => {
       const updated = prev.filter((s) => s.id !== srvId);
@@ -976,6 +984,7 @@ export default function App() {
                   onUpdateProduct={handleUpdateProduct}
                   onDeleteProduct={handleDeleteProduct}
                   onAddService={handleAddService}
+                  onUpdateService={handleUpdateService}
                   onDeleteService={handleDeleteService}
                   onAddBlog={handleAddBlog}
                   onDeleteBlog={handleDeleteBlog}
