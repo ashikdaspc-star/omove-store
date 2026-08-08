@@ -123,7 +123,7 @@ export default function App() {
       }
     }
 
-    // Don't lose locally added products if GitHub CDN hasn't updated yet, and respect deleted products
+    // Authoritative Catalog Update: Remote Server / GitHub CDN is single source of truth
     if (Array.isArray(fetchedData) && fetchedData.length > 0) {
       let deletedIds: string[] = [];
       try {
@@ -135,21 +135,30 @@ export default function App() {
         fetchedData = fetchedData.filter((p) => !deletedIds.includes(p.id));
       }
 
-      let localProducts: Product[] = [];
-      try {
-        const cached = localStorage.getItem('omove_products');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed)) localProducts = parsed.filter((p) => !deletedIds.includes(p.id));
-        }
-      } catch (e) {}
+      // Only preserve freshly added local products (created < 10 mins ago) if in Admin Mode
+      const inAdminMode = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+      if (inAdminMode) {
+        let localProducts: Product[] = [];
+        try {
+          const cached = localStorage.getItem('omove_products');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed)) localProducts = parsed.filter((p) => !deletedIds.includes(p.id));
+          }
+        } catch (e) {}
 
-      if (localProducts.length > 0) {
-        const fetchedIds = new Set(fetchedData.map((p) => p.id));
-        const localOnly = localProducts.filter((p) => !fetchedIds.has(p.id));
-        if (localOnly.length > 0) {
-          console.log(`[OMOVE SYNC] Preserving ${localOnly.length} locally created product(s) alongside remote catalog.`);
-          fetchedData = [...localOnly, ...fetchedData];
+        if (localProducts.length > 0) {
+          const fetchedIds = new Set(fetchedData.map((p) => p.id));
+          const tenMinsAgo = Date.now() - 10 * 60 * 1000;
+          const freshLocalOnly = localProducts.filter((p) => {
+            if (fetchedIds.has(p.id)) return false;
+            const createdTime = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+            return createdTime > tenMinsAgo;
+          });
+          if (freshLocalOnly.length > 0) {
+            console.log(`[OMOVE SYNC] Preserving ${freshLocalOnly.length} freshly created local product(s) in Admin Mode.`);
+            fetchedData = [...freshLocalOnly, ...fetchedData];
+          }
         }
       }
 
@@ -232,7 +241,6 @@ export default function App() {
       } catch (e) {}
 
       // Fallback polling check directly from GitHub Raw CDN
-      // Also skip if sync cooldown is active
       if (Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) {
         return;
       }
@@ -244,17 +252,23 @@ export default function App() {
           const ghProducts = await ghRes.json();
           if (Array.isArray(ghProducts) && ghProducts.length > 0) {
             setProducts((current) => {
-              // Preserve locally added products not in ghProducts
-              const ghIds = new Set(ghProducts.map((p) => p.id));
-              const localOnly = current.filter((p) => !ghIds.has(p.id));
-              const merged = localOnly.length > 0 ? [...localOnly, ...ghProducts] : ghProducts;
+              let deletedIds: string[] = [];
+              try {
+                const storedDeleted = localStorage.getItem('omove_deleted_product_ids');
+                if (storedDeleted) deletedIds = JSON.parse(storedDeleted);
+              } catch (e) {}
 
-              if (JSON.stringify(current) !== JSON.stringify(merged)) {
+              let updated = ghProducts;
+              if (deletedIds.length > 0) {
+                updated = updated.filter((p: Product) => !deletedIds.includes(p.id));
+              }
+
+              if (JSON.stringify(current) !== JSON.stringify(updated)) {
                 console.log('[OMOVE SYNC] GitHub Raw CDN updated catalog detected! Auto-updating UI...');
                 try {
-                  localStorage.setItem('omove_products', JSON.stringify(merged));
+                  localStorage.setItem('omove_products', JSON.stringify(updated));
                 } catch (e) {}
-                return merged;
+                return updated;
               }
               return current;
             });
