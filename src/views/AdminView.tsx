@@ -528,7 +528,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-[1500px] w-full mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-8">
       {/* Toast Notification Banner for Publishing Catalog */}
       {publishNotification && (
         <div className={`p-4 rounded-2xl border text-sm font-mono flex items-center justify-between shadow-lg transition-all animate-fadeIn ${
@@ -544,14 +544,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
       )}
 
       {/* Admin Command Header */}
-      <div className="p-8 rounded-3xl bg-gradient-to-r from-[#064E3B] via-[#04392b] to-slate-900 text-white shadow-xl border border-emerald-500/30 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#064E3B] via-[#04392b] to-slate-900 text-white shadow-xl border border-emerald-500/30 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 w-full">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold shadow-lg shadow-emerald-500/20">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold shadow-lg shadow-emerald-500/20 shrink-0">
             <ShieldCheck className="w-8 h-8" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold font-mono text-white">ADMIN COMMAND CENTER</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold font-mono text-white">ADMIN COMMAND CENTER</h1>
               <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-mono flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                 <span>LIVE TRAFFIC ONLINE</span>
@@ -561,22 +561,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:flex xl:flex-wrap items-center gap-3 w-full xl:w-auto">
           {onPublishCatalog && (
             <button
               onClick={handlePublishCatalogClick}
               disabled={isPublishingCatalog}
-              className="px-4 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black font-mono text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all hover:scale-105"
+              className="px-4 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black font-mono text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all hover:scale-105 min-h-[44px]"
               title="Save catalog on server and publish to GitHub so all customers see updated store"
             >
               <Upload className={`w-4 h-4 text-slate-950 ${isPublishingCatalog ? 'animate-spin' : ''}`} />
-              <span>{isPublishingCatalog ? 'SAVING TO SERVER...' : '💾 SAVE & PUBLISH CATALOG'}</span>
+              <span>{isPublishingCatalog ? 'SAVING...' : '💾 SAVE & PUBLISH CATALOG'}</span>
             </button>
           )}
 
           <button
             onClick={handleOpenAddDigitalProduct}
-            className="px-4 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all hover:scale-105"
+            className="px-4 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all hover:scale-105 min-h-[44px]"
           >
             <Sparkles className="w-4 h-4 text-slate-950" />
             <span>+ ADD DIGITAL PRODUCT</span>
@@ -584,7 +584,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
           <button
             onClick={handleOpenAddStoreCard}
-            className="px-4 py-3 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-black font-mono text-xs shadow-lg flex items-center gap-2 transition-all hover:scale-105"
+            className="px-4 py-3 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-black font-mono text-xs shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-105 min-h-[44px]"
           >
             <ShoppingBag className="w-4 h-4 text-white" />
             <span>+ ADD STORE CARD</span>
@@ -592,7 +592,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
           <button
             onClick={() => setShowAddBlogModal(true)}
-            className="px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold font-mono text-xs shadow-md border border-slate-700 flex items-center gap-1.5 transition-all hover:scale-105"
+            className="px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold font-mono text-xs shadow-md border border-slate-700 flex items-center justify-center gap-1.5 transition-all hover:scale-105 min-h-[44px]"
           >
             <BookOpen className="w-4 h-4 text-emerald-400" />
             <span>+ PUBLISH BLOG</span>
@@ -600,7 +600,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
           <button
             onClick={() => setShowAddServiceModal(true)}
-            className="px-4 py-3 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-400/20 flex items-center gap-2 transition-all hover:scale-105"
+            className="px-4 py-3 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-400/20 flex items-center justify-center gap-2 transition-all hover:scale-105 min-h-[44px]"
           >
             <Plus className="w-4.5 h-4.5 stroke-[3]" />
             <span>+ ADD SERVICE (₹39)</span>
@@ -609,7 +609,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           {onExitAdmin && (
             <button
               onClick={onExitAdmin}
-              className="px-4 py-3 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-400/30 font-bold font-mono text-xs flex items-center gap-1.5 transition-all"
+              className="px-4 py-3 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-400/30 font-bold font-mono text-xs flex items-center justify-center gap-1.5 transition-all min-h-[44px]"
               title="Lock Admin Command Center and logout"
             >
               <Lock className="w-4 h-4 text-rose-300" />
@@ -620,7 +620,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       </div>
 
       {/* Admin Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto scrollbar-none w-full">
         {[
           { id: 'digital-products', label: '✨ Digital Product Cards', icon: Sparkles, count: products.filter((p) => p.category === 'Software' || (p.tags && p.tags.includes('Digital Product') && !p.tags.includes('Store Card'))).length },
           { id: 'products', label: '📦 Store Product Cards', icon: ShoppingBag, count: products.filter((p) => p.category === 'Windows Tools' || (p.tags && p.tags.includes('Store Card'))).length },
@@ -639,7 +639,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-5 py-3 rounded-2xl text-xs font-bold font-mono whitespace-nowrap flex items-center gap-2 transition-all ${
+              className={`px-5 py-3 rounded-2xl text-xs font-bold font-mono whitespace-nowrap flex items-center gap-2 transition-all min-h-[44px] ${
                 isActive
                   ? 'bg-emerald-600 text-white shadow-md font-extrabold'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
@@ -661,8 +661,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
       {/* TAB 0: DIGITAL PRODUCTS SECTION CARDS MANAGER */}
       {activeTab === 'digital-products' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-6 w-full">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
             <div>
               <h3 className="font-bold text-xl text-slate-900 font-mono flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-emerald-600" />
@@ -670,19 +670,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </h3>
               <p className="text-xs text-slate-500 font-mono">Create, publish, edit, and remove digital products for the /digital-products store section</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
               <input
                 type="text"
                 placeholder="Search digital products..."
                 value={prodSearchQuery}
                 onChange={(e) => setProdSearchQuery(e.target.value)}
-                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-sans text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600"
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-sans text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 w-full sm:w-64 min-h-[44px]"
               />
               {onPublishCatalog && (
                 <button
                   onClick={handlePublishCatalogClick}
                   disabled={isPublishingCatalog}
-                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-mono text-xs font-bold shadow-sm shrink-0 flex items-center gap-1.5 transition-all"
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-mono text-xs font-bold shadow-sm shrink-0 flex items-center justify-center gap-1.5 transition-all min-h-[44px]"
                   title="Save product updates on server and publish live to GitHub"
                 >
                   <Upload className={`w-3.5 h-3.5 ${isPublishingCatalog ? 'animate-spin' : ''}`} />
@@ -691,7 +691,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               )}
               <button
                 onClick={handleOpenAddDigitalProduct}
-                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0 flex items-center gap-1.5"
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0 flex items-center justify-center gap-1.5 min-h-[44px]"
               >
                 <Sparkles className="w-4 h-4 text-emerald-300" />
                 <span>+ Add Digital Product</span>
@@ -700,7 +700,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
 
           {products.filter((p) => (p.category === 'Software' || (p.tags && p.tags.includes('Digital Product') && !p.tags.includes('Store Card')))).length === 0 ? (
-            <div className="p-16 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
+            <div className="p-16 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3 w-full">
               <Sparkles className="w-12 h-12 text-slate-400 mx-auto" />
               <h4 className="font-bold text-slate-900 text-base">No digital product cards available yet</h4>
               <p className="text-xs text-slate-500 max-w-md mx-auto font-mono">
@@ -708,7 +708,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </p>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
               {products
                 .filter((p) => p.category === 'Software' || (p.tags && p.tags.includes('Digital Product') && !p.tags.includes('Store Card')))
                 .filter((p) =>
@@ -717,9 +717,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   p.category.toLowerCase().includes(prodSearchQuery.toLowerCase())
                 )
                 .map((prod) => (
-                  <div key={prod.id} className="p-5 rounded-3xl bg-white border-2 border-emerald-500/40 shadow-sm flex flex-col justify-between space-y-4">
+                  <div key={prod.id} className="w-full min-w-0 p-5 rounded-3xl bg-white border-2 border-emerald-500/40 shadow-sm flex flex-col justify-between space-y-4 hover:border-emerald-500 transition-all">
                     <div className="space-y-3">
-                      <div className="relative h-44 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100">
+                      <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden bg-slate-100 border border-slate-100">
                         <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
                         <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/90 text-emerald-400 backdrop-blur-md">
                           DIGITAL PRODUCT
@@ -738,7 +738,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">{prod.shortDescription}</p>
                       </div>
 
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex items-center gap-2 pt-1 flex-wrap">
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                           {prod.licenseType}
                         </span>
@@ -753,7 +753,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         href={prod.fileUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-mono font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                        className="text-xs font-mono font-bold text-emerald-700 hover:underline flex items-center gap-1 shrink-0"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span>Source Link</span>
@@ -763,7 +763,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         {onUpdateProduct && (
                           <button
                             onClick={() => handleOpenEditProduct(prod)}
-                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors min-h-[36px]"
                           >
                             <Edit3 className="w-3.5 h-3.5 text-slate-600" />
                             <span>Edit</span>
@@ -773,7 +773,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         {onDeleteProduct && (
                           <button
                             onClick={() => onDeleteProduct(prod.id)}
-                            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1 transition-colors min-h-[36px]"
                           >
                             <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                             <span>Delete</span>
@@ -790,8 +790,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
       {/* TAB 1: STORE PRODUCT CARDS MANAGER */}
       {activeTab === 'products' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-6 w-full">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
             <div>
               <h3 className="font-bold text-xl text-slate-900 font-mono flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-emerald-600" />
@@ -799,19 +799,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </h3>
               <p className="text-xs text-slate-500 font-mono">Create, publish, inspect, and remove software product cards from the /store section</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
               <input
                 type="text"
                 placeholder="Search products by title or category..."
                 value={prodSearchQuery}
                 onChange={(e) => setProdSearchQuery(e.target.value)}
-                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-sans text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600"
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-sans text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 w-full sm:w-64 min-h-[44px]"
               />
               {onPublishCatalog && (
                 <button
                   onClick={handlePublishCatalogClick}
                   disabled={isPublishingCatalog}
-                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-mono text-xs font-bold shadow-sm shrink-0 flex items-center gap-1.5 transition-all"
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-mono text-xs font-bold shadow-sm shrink-0 flex items-center justify-center gap-1.5 transition-all min-h-[44px]"
                   title="Save product updates on server and publish live to GitHub"
                 >
                   <Upload className={`w-3.5 h-3.5 ${isPublishingCatalog ? 'animate-spin' : ''}`} />
@@ -820,7 +820,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               )}
               <button
                 onClick={() => setShowGithubTokenModal(true)}
-                className="px-3.5 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono text-xs font-bold shadow-xs shrink-0 flex items-center gap-1 transition-all"
+                className="px-3.5 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono text-xs font-bold shadow-xs shrink-0 flex items-center justify-center gap-1 transition-all min-h-[44px]"
                 title="Configure Live GitHub PAT Token for 1-click publishing from Vercel web"
               >
                 <Key className="w-3.5 h-3.5 text-indigo-600" />
@@ -828,7 +828,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </button>
               <button
                 onClick={handleOpenAddStoreCard}
-                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0"
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0 min-h-[44px]"
               >
                 + Add Store Card
               </button>
@@ -836,7 +836,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
 
           {products.filter((p) => p.category === 'Windows Tools' || (p.tags && p.tags.includes('Store Card'))).length === 0 ? (
-            <div className="p-16 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
+            <div className="p-16 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3 w-full">
               <ShoppingBag className="w-12 h-12 text-slate-400 mx-auto" />
               <h4 className="font-bold text-slate-900 text-base">No store product cards available</h4>
               <p className="text-xs text-slate-500 max-w-md mx-auto font-mono">
@@ -844,7 +844,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </p>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
               {products
                 .filter((p) => p.category === 'Windows Tools' || (p.tags && p.tags.includes('Store Card')))
                 .filter((p) =>
@@ -853,9 +853,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   p.category.toLowerCase().includes(prodSearchQuery.toLowerCase())
                 )
                 .map((prod) => (
-                  <div key={prod.id} className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between space-y-4">
+                  <div key={prod.id} className="w-full min-w-0 p-5 rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between space-y-4 hover:border-emerald-500 transition-all">
                     <div className="space-y-3">
-                      <div className="relative h-44 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100">
+                      <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden bg-slate-100 border border-slate-100">
                         <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
                         <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/90 text-white backdrop-blur-md">
                           {prod.category}
@@ -874,7 +874,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">{prod.shortDescription}</p>
                       </div>
 
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex items-center gap-2 pt-1 flex-wrap">
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                           {prod.licenseType}
                         </span>
@@ -889,7 +889,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         href={prod.fileUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-mono font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                        className="text-xs font-mono font-bold text-emerald-700 hover:underline flex items-center gap-1 shrink-0"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span>Source Link</span>
@@ -899,7 +899,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         {onUpdateProduct && (
                           <button
                             onClick={() => handleOpenEditProduct(prod)}
-                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors min-h-[36px]"
                           >
                             <Edit3 className="w-3.5 h-3.5 text-slate-600" />
                             <span>Edit</span>
@@ -909,7 +909,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         {onDeleteProduct && (
                           <button
                             onClick={() => onDeleteProduct(prod.id)}
-                            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1 transition-colors min-h-[36px]"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span>Delete</span>
@@ -1385,7 +1385,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </button>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
             {couponList.map((cp) => (
               <div
                 key={cp.id}
@@ -1514,7 +1514,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </button>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
             {services.map((srv) => (
               <div key={srv.id} className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between space-y-4">
                 <div className="space-y-2">
@@ -1565,7 +1565,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </button>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
             {blogs.map((b) => (
               <div key={b.id} className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-md flex flex-col justify-between space-y-4">
                 <div className="space-y-3">

@@ -100,7 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
+      <div className="max-w-[1500px] w-full mx-auto px-4 sm:px-5 md:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
         {/* Left: Brand Logo & Title */}
         <Link
           to="/"
