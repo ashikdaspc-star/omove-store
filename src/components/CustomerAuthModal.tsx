@@ -80,39 +80,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     }
   };
 
-  // Initialize Google Identity Services
-  useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
-      try {
-        (window as any).google.accounts.id.initialize({
-          client_id: '1054366627011-omovestore.apps.googleusercontent.com',
-          callback: (response: any) => {
-            if (response && response.credential) {
-              const payload = parseJwt(response.credential);
-              if (payload && payload.email) {
-                const userEmail = payload.email.toLowerCase();
-                const userName = payload.name || userEmail.split('@')[0];
-                const googleProfile = {
-                  name: userName,
-                  email: userEmail,
-                  phone: '+91 8345968169',
-                  password: 'google-oauth-authenticated',
-                  location: 'Kolkata, West Bengal, India'
-                };
-                saveRegisteredUser(googleProfile);
-                onLoginSuccess(googleProfile);
-                onClose();
-              }
-            }
-          }
-        });
-      } catch (e) {
-        console.warn('Google One Tap init warning:', e);
-      }
-    }
-  }, [isOpen]);
+  const handleGoogleLogin = async () => {
+    setIsSubmitting(true);
+    setErrorNotice('');
 
-  const openGoogleChooserFallback = async () => {
     let targetEmail = email.trim().toLowerCase();
 
     if (!targetEmail) {
@@ -124,12 +95,17 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     const rawName = targetEmail === 'ashikdaspc@gmail.com' ? 'Ashik Das' : (targetEmail.split('@')[0] || 'google');
     const googleName = rawName === 'Ashik Das' ? 'Ashik Das' : (rawName.charAt(0).toUpperCase() + rawName.slice(1));
 
+    // Open official Google Account Sign-In / Chooser window (without invalid OAuth client_id parameter!)
     let popup: Window | null = null;
     try {
+      const googleUrl = email.trim()
+        ? `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(targetEmail)}`
+        : `https://accounts.google.com/ServiceLogin?service=lso&passive=1209600&continue=https://accounts.google.com/`;
+
       popup = window.open(
-        'https://myaccount.google.com',
+        googleUrl,
         'GoogleAuthPopup',
-        'width=520,height=620,left=300,top=100'
+        'width=520,height=640,left=300,top=100'
       );
     } catch (e) {
       console.error(e);
@@ -141,6 +117,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       return;
     }
 
+    // Monitor popup window completion
     const checkTimer = setInterval(async () => {
       if (popup && popup.closed) {
         clearInterval(checkTimer);
@@ -185,27 +162,6 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         setIsSubmitting(false);
       }
     }, 400);
-  };
-
-  const handleGoogleLogin = async () => {
-    setIsSubmitting(true);
-    setErrorNotice('');
-
-    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
-      try {
-        (window as any).google.accounts.id.prompt((notification: any) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            openGoogleChooserFallback();
-          }
-        });
-        setIsSubmitting(false);
-        return;
-      } catch (e) {
-        console.warn('Google prompt exception:', e);
-      }
-    }
-
-    openGoogleChooserFallback();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
