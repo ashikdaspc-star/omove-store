@@ -1,5 +1,53 @@
 [
   {
+    "id": "prod-1786152972116",
+    "name": "Word",
+    "slug": "word",
+    "category": "Windows Tools",
+    "shortDescription": "Digital software product and utility package.",
+    "fullDescription": "Complete digital product license with instant download access.",
+    "price": 0,
+    "originalPrice": 499,
+    "discountPercent": 100,
+    "downloadSize": "15.4 MB",
+    "version": "v1.0.0",
+    "licenseType": "Lifetime License",
+    "rating": 5,
+    "reviewCount": 1,
+    "image": "https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80",
+    "screenshots": [
+      "https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80"
+    ],
+    "features": [
+      "One-Click Installation",
+      "High Performance",
+      "Open Source"
+    ],
+    "requirements": [
+      "Windows 10 / 11 (64-bit)"
+    ],
+    "versionHistory": [
+      {
+        "version": "v1.0.0",
+        "date": "2026-08-08",
+        "changes": [
+          "Initial Store Release"
+        ]
+      }
+    ],
+    "fileUrl": "https://github.com",
+    "instantKeyAvailable": true,
+    "isBestSeller": true,
+    "isFeatured": true,
+    "isNew": true,
+    "tags": [
+      "Windows Tools",
+      "Store Card",
+      "Software"
+    ],
+    "salesCount": 1
+  },
+  {
     "id": "prod-1723046000000",
     "name": "Autodesk AutoCAD 2010-2026",
     "slug": "autodesk-autocad-2010-2026",
