@@ -817,8 +817,11 @@ export default function App() {
             element={
               <DownloadsView
                 products={products}
+                orders={orders}
+                customerProfile={customerProfile}
                 onSelectProduct={setSelectedProductForDetail}
                 onAddToCart={handleAddToCart}
+                onBuyNow={handleBuyNow}
               />
             }
           />

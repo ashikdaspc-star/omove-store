@@ -1,16 +1,56 @@
 import React, { useState } from 'react';
-import { Product } from '../types';
-import { Download, Search, ShieldCheck, CheckCircle2, FileText, Zap, ExternalLink, HardDrive, Terminal } from 'lucide-react';
+import { Product, Order } from '../types';
+import {
+  Download,
+  Search,
+  ShieldCheck,
+  CheckCircle2,
+  FileText,
+  Zap,
+  ExternalLink,
+  HardDrive,
+  Terminal,
+  Key,
+  Copy,
+  Check,
+  ShoppingBag,
+  Clock,
+  Sparkles
+} from 'lucide-react';
 
 interface DownloadsViewProps {
   products: Product[];
+  orders?: Order[];
+  customerProfile?: { name: string; email: string; phone?: string; location?: string };
   onSelectProduct?: (product: Product) => void;
   onAddToCart?: (product: Product) => void;
+  onBuyNow?: (product: Product) => void;
 }
 
-export const DownloadsView: React.FC<DownloadsViewProps> = ({ products, onSelectProduct, onAddToCart }) => {
+export const DownloadsView: React.FC<DownloadsViewProps> = ({
+  products,
+  orders = [],
+  customerProfile,
+  onSelectProduct,
+  onAddToCart,
+  onBuyNow
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+
+  // Extract all purchased items from completed orders
+  const purchasedItems = orders
+    .filter((o) => o.paymentStatus === 'SUCCESS')
+    .flatMap((o) =>
+      o.items.map((item) => ({
+        ...item,
+        orderId: o.id,
+        orderNumber: o.orderNumber,
+        createdAt: o.createdAt,
+        customerEmail: o.customerEmail
+      }))
+    );
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === 'All' || p.category.toLowerCase() === selectedCategory.toLowerCase();
@@ -22,15 +62,21 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({ products, onSelect
     return matchesCategory && matchesSearch;
   });
 
-  const handleTriggerDownload = (prod: Product) => {
-    // If product has direct fileUrl or setup endpoint
-    const downloadUrl = prod.fileUrl && prod.fileUrl.startsWith('http')
-      ? prod.fileUrl
-      : `/api/downloads/ord-demo/${prod.id}`;
+  const handleCopyKey = (key: string, keyId: string) => {
+    navigator.clipboard.writeText(key);
+    setCopiedKeyId(keyId);
+    setTimeout(() => setCopiedKeyId(null), 2500);
+  };
 
+  const handleTriggerDownload = (productId: string, productName: string, fileUrl?: string, orderId?: string) => {
+    const downloadUrl = fileUrl && fileUrl.startsWith('http')
+      ? fileUrl
+      : `/api/downloads/${orderId || 'ord-demo'}/${productId}`;
+
+    const slug = productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const a = document.createElement('a');
     a.href = downloadUrl;
-    a.download = `${prod.slug || 'omove-software'}-setup.exe`;
+    a.download = `${slug}-setup.exe`;
     a.target = '_blank';
     document.body.appendChild(a);
     a.click();
@@ -38,7 +84,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({ products, onSelect
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
       {/* Header Banner */}
       <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-r from-slate-900 via-[#04392b] to-[#064E3B] text-white shadow-xl border border-emerald-500/30 relative overflow-hidden space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
@@ -51,16 +97,16 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({ products, onSelect
               Software & Utility Downloads
             </h1>
             <p className="text-sm sm:text-base text-emerald-100/90 leading-relaxed font-sans">
-              Download verified 1-click installers, Windows optimization utilities, telemetry cleanup tools, and licensed digital software packages.
+              Access your purchased digital licenses, instant software setup installers, and optimization utility packages.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
             <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-center font-mono space-y-1 w-full sm:w-auto">
-              <span className="text-[10px] text-emerald-300 uppercase font-bold block">Security Status</span>
-              <span className="text-sm font-bold text-white flex items-center justify-center gap-1">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>100% Virus-Free</span>
+              <span className="text-[10px] text-emerald-300 uppercase font-bold block">Purchased Downloads</span>
+              <span className="text-base font-extrabold text-emerald-400 flex items-center justify-center gap-1">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span>{purchasedItems.length} Active Key(s)</span>
               </span>
             </div>
           </div>
@@ -99,6 +145,117 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({ products, onSelect
         </div>
       </div>
 
+      {/* SECTION 1: MY PURCHASED SOFTWARE & LICENSE KEYS */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold">
+              <ShoppingBag className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-extrabold text-slate-900 font-mono flex items-center gap-2">
+                <span>My Purchased Downloads & License Keys</span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold">
+                  {purchasedItems.length}
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 font-mono">Software items you bought will show up here with instant activation keys</p>
+            </div>
+          </div>
+        </div>
+
+        {purchasedItems.length === 0 ? (
+          <div className="p-8 text-center rounded-3xl bg-emerald-50/50 border-2 border-dashed border-emerald-200 space-y-3">
+            <ShoppingBag className="w-10 h-10 text-emerald-600 mx-auto" />
+            <h3 className="font-bold text-slate-900 text-base font-mono">No Purchased Software Yet</h3>
+            <p className="text-xs text-slate-600 max-w-md mx-auto font-sans">
+              When you buy software or digital tools from the Omove Store, your purchased installer downloads and license key activations will appear here automatically!
+            </p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-6">
+            {purchasedItems.map((item, idx) => {
+              const uniqueKeyId = `${item.orderId}-${item.productId}-${idx}`;
+              const matchingProduct = products.find((p) => p.id === item.productId);
+
+              return (
+                <div
+                  key={uniqueKeyId}
+                  className="p-6 rounded-3xl bg-white border-2 border-emerald-500/40 shadow-md space-y-4 hover:border-emerald-500 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
+                          PURCHASED • {item.orderNumber}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Recent'}
+                        </span>
+                      </div>
+                      <h3 className="font-extrabold text-slate-900 text-lg leading-snug">{item.productName}</h3>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-900 text-emerald-400 font-mono shrink-0">
+                      ₹{item.price} Paid
+                    </span>
+                  </div>
+
+                  {/* License Key Box */}
+                  <div className="p-3.5 rounded-2xl bg-slate-900 text-white space-y-1.5 font-mono">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold">
+                      <span className="flex items-center gap-1">
+                        <Key className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>ACTIVATION LICENSE KEY:</span>
+                      </span>
+                      <span className="text-[10px] text-emerald-400">GENUINE LICENSE</span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                      <code className="text-emerald-400 font-extrabold text-xs sm:text-sm tracking-wider overflow-x-auto select-all">
+                        {item.licenseKey}
+                      </code>
+                      <button
+                        onClick={() => handleCopyKey(item.licenseKey, uniqueKeyId)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 shrink-0 transition-all active:scale-95"
+                      >
+                        {copiedKeyId === uniqueKeyId ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-white" />
+                            <span>COPIED!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>COPY</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Download Action Bar */}
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-xs font-mono text-slate-500 flex items-center gap-3">
+                      <span>Size: <strong>{item.fileSize || '42.5 MB'}</strong></span>
+                      <span>Limit: <strong>{item.downloadsCount || 0}/{item.downloadLimit || 5}</strong></span>
+                    </div>
+
+                    <button
+                      onClick={() => handleTriggerDownload(item.productId, item.productName, item.fileUrl, item.orderId)}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-105"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>DOWNLOAD PURCHASED INSTALLER</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Trust Highlights */}
       <div className="grid sm:grid-cols-3 gap-4">
         <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex items-center gap-3">
@@ -132,12 +289,12 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({ products, onSelect
         </div>
       </div>
 
-      {/* Downloads Catalog Grid */}
+      {/* SECTION 2: ALL PUBLIC SOFTWARE DOWNLOADS CATALOG */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h2 className="text-xl font-extrabold text-slate-900 font-mono flex items-center gap-2">
             <HardDrive className="w-5 h-5 text-emerald-600" />
-            <span>Available Software Downloads ({filteredProducts.length})</span>
+            <span>Browse All Available Downloads ({filteredProducts.length})</span>
           </h2>
           <span className="text-xs text-slate-500 font-mono">Sorted by Popular Downloads</span>
         </div>
@@ -188,13 +345,23 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({ products, onSelect
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 space-y-2">
-                  <button
-                    onClick={() => handleTriggerDownload(prod)}
-                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>DOWNLOAD INSTALLER ({prod.downloadSize})</span>
-                  </button>
+                  {prod.price > 0 && onBuyNow ? (
+                    <button
+                      onClick={() => onBuyNow(prod)}
+                      className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                    >
+                      <ShoppingBag className="w-4 h-4" />
+                      <span>BUY NOW & GET DOWNLOAD KEY (₹{prod.price})</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleTriggerDownload(prod.id, prod.name, prod.fileUrl)}
+                      className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>DOWNLOAD INSTALLER ({prod.downloadSize})</span>
+                    </button>
+                  )}
 
                   <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 px-1 pt-1">
                     {onSelectProduct && (
@@ -233,8 +400,8 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({ products, onSelect
 
         <div className="grid sm:grid-cols-3 gap-6 text-xs text-slate-600 font-sans">
           <div className="space-y-1.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <span className="font-bold font-mono text-emerald-800 text-sm block">1. Run Setup Executable</span>
-            <p>Click "Download Installer" above to get the official setup file directly to your Downloads folder.</p>
+            <span className="font-bold font-mono text-emerald-800 text-sm block">1. Purchase & Activation</span>
+            <p>Buy any digital product to instantly unlock your activation license key and setup installer right here.</p>
           </div>
 
           <div className="space-y-1.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -243,8 +410,8 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({ products, onSelect
           </div>
 
           <div className="space-y-1.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <span className="font-bold font-mono text-emerald-800 text-sm block">3. License Key Activation</span>
-            <p>For premium software packages, your digital license key will be available instantly in your Customer Dashboard after checkout.</p>
+            <span className="font-bold font-mono text-emerald-800 text-sm block">3. Copy License Key</span>
+            <p>Click "COPY" on your purchased key card above and paste it into the installer when prompted.</p>
           </div>
         </div>
       </div>
