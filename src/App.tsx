@@ -20,6 +20,7 @@ import { RemoteSupportBookingView } from './views/RemoteSupportBookingView';
 import { DashboardView } from './views/DashboardView';
 import { AdminView } from './views/AdminView';
 import { BlogView } from './views/BlogView';
+import { DownloadsView } from './views/DownloadsView';
 import { AboutContactView } from './views/AboutContactView';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
 
@@ -388,6 +389,9 @@ export default function App() {
         break;
       case 'remote-support':
         navigate('/remote-support');
+        break;
+      case 'downloads':
+        navigate('/downloads');
         break;
       case 'blog':
         navigate('/blog');
@@ -804,6 +808,17 @@ export default function App() {
                 services={services}
                 onBookingSuccess={handleBookingSuccess}
                 setCurrentView={handleNavigateView}
+              />
+            }
+          />
+
+          <Route
+            path="/downloads"
+            element={
+              <DownloadsView
+                products={products}
+                onSelectProduct={setSelectedProductForDetail}
+                onAddToCart={handleAddToCart}
               />
             }
           />

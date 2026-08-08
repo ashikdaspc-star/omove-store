@@ -14,7 +14,8 @@ import {
   LogIn,
   LogOut,
   ShieldCheck,
-  MessageSquare
+  MessageSquare,
+  Download
 } from 'lucide-react';
 import { CartItem } from '../types';
 
@@ -65,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
     { path: '/store', label: 'Store', icon: ShoppingBag },
     { path: '/services', label: 'Services', icon: Zap },
     { path: '/remote-support', label: 'Remote Support', icon: Headphones, badge: 'Live' },
+    { path: '/downloads', label: 'Downloads', icon: Download },
     { path: '/blog', label: 'Blog', icon: BookOpen },
     { path: '/contact', label: 'Contact', icon: Info }
   ];
