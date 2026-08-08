@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Lock, User, Phone, LogIn, UserPlus, X, AlertTriangle } from 'lucide-react';
 
 interface CustomerAuthModalProps {
@@ -27,6 +27,23 @@ const GoogleIcon = () => (
     />
   </svg>
 );
+
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Failed to parse Google JWT token:', e);
+    return null;
+  }
+}
 
 export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   isOpen,
@@ -63,30 +80,61 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setIsSubmitting(true);
-    setErrorNotice('');
+  // Initialize Google Identity Services
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
+      try {
+        (window as any).google.accounts.id.initialize({
+          client_id: '1054366627011-omovestore.apps.googleusercontent.com',
+          callback: (response: any) => {
+            if (response && response.credential) {
+              const payload = parseJwt(response.credential);
+              if (payload && payload.email) {
+                const userEmail = payload.email.toLowerCase();
+                const userName = payload.name || userEmail.split('@')[0];
+                const googleProfile = {
+                  name: userName,
+                  email: userEmail,
+                  phone: '+91 8345968169',
+                  password: 'google-oauth-authenticated',
+                  location: 'Kolkata, West Bengal, India'
+                };
+                saveRegisteredUser(googleProfile);
+                onLoginSuccess(googleProfile);
+                onClose();
+              }
+            }
+          }
+        });
+      } catch (e) {
+        console.warn('Google One Tap init warning:', e);
+      }
+    }
+  }, [isOpen]);
 
+  const openGoogleChooserFallback = async () => {
     let targetEmail = email.trim().toLowerCase();
 
     if (!targetEmail) {
-      targetEmail = 'google.user@gmail.com';
-    } else if (!targetEmail.includes('@')) {
+      const inputEmail = prompt('Enter or confirm your device Google Account email:', 'ashik8611@gmail.com');
+      if (inputEmail === null) {
+        setIsSubmitting(false);
+        return;
+      }
+      targetEmail = (inputEmail || 'ashik8611@gmail.com').trim().toLowerCase();
+    }
+
+    if (!targetEmail.includes('@')) {
       targetEmail = `${targetEmail}@gmail.com`;
     }
 
-    const rawName = targetEmail === 'google.user@gmail.com' ? 'Google Account' : (targetEmail.split('@')[0] || 'google');
+    const rawName = targetEmail.split('@')[0] || 'google';
     const googleName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
-    // Open real Google Account chooser popup window directly for customer device
     let popup: Window | null = null;
     try {
-      const googleAuthUrl = email.trim()
-        ? `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(targetEmail)}`
-        : `https://accounts.google.com/ServiceLogin?service=lso&passive=1209600&continue=https://accounts.google.com/`;
-
       popup = window.open(
-        googleAuthUrl,
+        `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(targetEmail)}`,
         'GoogleAuthPopup',
         'width=520,height=620,left=300,top=100'
       );
@@ -100,7 +148,6 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       return;
     }
 
-    // Wait until the user completes Google verification and closes the Google popup window
     const checkTimer = setInterval(async () => {
       if (popup && popup.closed) {
         clearInterval(checkTimer);
@@ -129,7 +176,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             }
           }
         } catch (err) {
-          console.warn('Google backend note, continuing with verified Google profile:', err);
+          console.warn('Google backend note:', err);
         }
 
         const googleUser = {
@@ -145,6 +192,27 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         setIsSubmitting(false);
       }
     }, 400);
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsSubmitting(true);
+    setErrorNotice('');
+
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
+      try {
+        (window as any).google.accounts.id.prompt((notification: any) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            openGoogleChooserFallback();
+          }
+        });
+        setIsSubmitting(false);
+        return;
+      } catch (e) {
+        console.warn('Google prompt exception:', e);
+      }
+    }
+
+    openGoogleChooserFallback();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
