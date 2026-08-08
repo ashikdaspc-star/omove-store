@@ -37,7 +37,8 @@ import {
   ArrowUpRight,
   Eye,
   Compass,
-  Tag
+  Tag,
+  Sparkles
 } from 'lucide-react';
 
 import { getActiveVisitorCount, getTrafficLogs, sendVisitorHeartbeat, TrafficHit } from '../utils/trafficTracker';
@@ -87,7 +88,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onExitAdmin,
   onPublishCatalog
 }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'bookings' | 'traffic' | 'users' | 'coupons' | 'analytics' | 'services' | 'blogs' | 'gateway'>('products');
+  const [activeTab, setActiveTab] = useState<'digital-products' | 'products' | 'bookings' | 'traffic' | 'users' | 'coupons' | 'analytics' | 'services' | 'blogs' | 'gateway'>('digital-products');
   const [razorpayKeyId, setRazorpayKeyId] = useState(import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G');
   const [razorpayKeySecret, setRazorpayKeySecret] = useState('●●●●●●●●●●●●●●●●●●●●');
   const [isSaved, setIsSaved] = useState(false);
@@ -135,13 +136,30 @@ export const AdminView: React.FC<AdminViewProps> = ({
   };
 
 
-  const handleOpenAddProduct = () => {
+  const handleOpenAddDigitalProduct = () => {
+    setEditingProduct(null);
+    setProdName('');
+    setProdCategory('Software');
+    setProdShortDesc('');
+    setProdFullDesc('');
+    setProdPrice(399);
+    setProdOriginalPrice(499);
+    setProdDownloadSize('3.5 GB');
+    setProdVersion('2026');
+    setProdLicenseType('Lifetime License');
+    setProdImage('https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80');
+    setProdFileUrl('https://www.autodesk.com');
+    setProdFeatures('Lifetime License Key, 1-Click Installer, 24/7 Digital Support');
+    setShowAddProductModal(true);
+  };
+
+  const handleOpenAddStoreCard = () => {
     setEditingProduct(null);
     setProdName('');
     setProdCategory('Windows Tools');
     setProdShortDesc('');
     setProdFullDesc('');
-    setProdPrice(0);
+    setProdPrice(60);
     setProdOriginalPrice(499);
     setProdDownloadSize('15.4 MB');
     setProdVersion('v1.0.0');
@@ -177,13 +195,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
       ? Math.round(((prodOriginalPrice - prodPrice) / prodOriginalPrice) * 100)
       : 0;
 
+    const isDigital = prodCategory === 'Software';
+    const prodTags = isDigital
+      ? ['Software', 'Digital Product', 'License Key']
+      : ['Windows Tools', 'Store Card'];
+
     const newProd: Product = {
       id: 'prod-' + Date.now(),
       name: prodName.trim(),
       slug: prodName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
       category: prodCategory,
-      shortDescription: prodShortDesc || 'Digital software product and utility package.',
-      fullDescription: prodFullDesc || prodShortDesc || 'Complete digital product license with instant download access.',
+      shortDescription: prodShortDesc || (isDigital ? 'Digital software activation key.' : 'Digital software product and utility package.'),
+      fullDescription: prodFullDesc || prodShortDesc || (isDigital ? 'Complete digital product license key with instant download access.' : 'Complete software package.'),
       price: Number(prodPrice) || 0,
       originalPrice: Number(prodOriginalPrice) || 499,
       discountPercent: discountPct,
@@ -192,7 +215,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       licenseType: prodLicenseType,
       rating: 5.0,
       reviewCount: 1,
-      image: prodImage || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+      image: prodImage || (isDigital ? 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80' : 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80'),
       screenshots: [prodImage || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80'],
       features: prodFeatures.split(',').map((f) => f.trim()).filter(Boolean),
       requirements: ['Windows 10 / 11 (64-bit)'],
@@ -200,7 +223,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         {
           version: prodVersion || 'v1.0.0',
           date: new Date().toISOString().split('T')[0],
-          changes: ['Initial Store Release']
+          changes: ['Initial Release']
         }
       ],
       fileUrl: prodFileUrl || 'https://github.com',
@@ -208,7 +231,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       isBestSeller: true,
       isFeatured: true,
       isNew: true,
-      tags: [prodCategory, 'Store Card', 'Software'],
+      tags: prodTags,
       salesCount: 1
     };
 
@@ -552,10 +575,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
           )}
 
           <button
-            onClick={handleOpenAddProduct}
+            onClick={handleOpenAddDigitalProduct}
             className="px-4 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all hover:scale-105"
           >
-            <ShoppingBag className="w-4 h-4 text-slate-950" />
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            <span>+ ADD DIGITAL PRODUCT</span>
+          </button>
+
+          <button
+            onClick={handleOpenAddStoreCard}
+            className="px-4 py-3 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-black font-mono text-xs shadow-lg flex items-center gap-2 transition-all hover:scale-105"
+          >
+            <ShoppingBag className="w-4 h-4 text-white" />
             <span>+ ADD STORE CARD</span>
           </button>
 
@@ -591,7 +622,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
         {[
-          { id: 'products', label: '📦 Store Product Cards', icon: ShoppingBag, count: products.length },
+          { id: 'digital-products', label: '✨ Digital Product Cards', icon: Sparkles, count: products.filter((p) => p.category === 'Software' || (p.tags && p.tags.includes('Digital Product') && !p.tags.includes('Store Card'))).length },
+          { id: 'products', label: '📦 Store Product Cards', icon: ShoppingBag, count: products.filter((p) => p.category === 'Windows Tools' || (p.tags && p.tags.includes('Store Card'))).length },
           { id: 'bookings', label: '🛠️ Remote Repairs Queue', icon: Headphones, count: bookings.length },
           { id: 'traffic', label: '🌐 Live Traffic & Visitors', icon: Activity, count: liveVisitorCount },
           { id: 'users', label: '👥 Registered User Accounts', icon: UserCheck, count: userList.length },
@@ -627,16 +659,145 @@ export const AdminView: React.FC<AdminViewProps> = ({
         })}
       </div>
 
-      {/* TAB 0: DIGITAL STORE PRODUCT CARDS MANAGER */}
+      {/* TAB 0: DIGITAL PRODUCTS SECTION CARDS MANAGER */}
+      {activeTab === 'digital-products' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-xl text-slate-900 font-mono flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-emerald-600" />
+                <span>Digital Product Cards Catalog ({products.filter((p) => p.category === 'Software' || (p.tags && p.tags.includes('Digital Product') && !p.tags.includes('Store Card'))).length})</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-mono">Create, publish, edit, and remove software activation keys & digital products for the /digital-products store section</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                placeholder="Search digital products..."
+                value={prodSearchQuery}
+                onChange={(e) => setProdSearchQuery(e.target.value)}
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-sans text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600"
+              />
+              {onPublishCatalog && (
+                <button
+                  onClick={handlePublishCatalogClick}
+                  disabled={isPublishingCatalog}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-mono text-xs font-bold shadow-sm shrink-0 flex items-center gap-1.5 transition-all"
+                  title="Save product updates on server and publish live to GitHub"
+                >
+                  <Upload className={`w-3.5 h-3.5 ${isPublishingCatalog ? 'animate-spin' : ''}`} />
+                  <span>{isPublishingCatalog ? 'Saving...' : '💾 Save & Publish Catalog'}</span>
+                </button>
+              )}
+              <button
+                onClick={handleOpenAddDigitalProduct}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0 flex items-center gap-1.5"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-300" />
+                <span>+ Add Digital Product</span>
+              </button>
+            </div>
+          </div>
+
+          {products.filter((p) => (p.category === 'Software' || (p.tags && p.tags.includes('Digital Product') && !p.tags.includes('Store Card')))).length === 0 ? (
+            <div className="p-16 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
+              <Sparkles className="w-12 h-12 text-slate-400 mx-auto" />
+              <h4 className="font-bold text-slate-900 text-base">No digital product cards available yet</h4>
+              <p className="text-xs text-slate-500 max-w-md mx-auto font-mono">
+                Click "+ Add Digital Product" above to create and publish your first software license or activation key.
+              </p>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {products
+                .filter((p) => p.category === 'Software' || (p.tags && p.tags.includes('Digital Product') && !p.tags.includes('Store Card')))
+                .filter((p) =>
+                  !prodSearchQuery ||
+                  p.name.toLowerCase().includes(prodSearchQuery.toLowerCase()) ||
+                  p.category.toLowerCase().includes(prodSearchQuery.toLowerCase())
+                )
+                .map((prod) => (
+                  <div key={prod.id} className="p-5 rounded-3xl bg-white border-2 border-emerald-500/40 shadow-sm flex flex-col justify-between space-y-4">
+                    <div className="space-y-3">
+                      <div className="relative h-44 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100">
+                        <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                        <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/90 text-emerald-400 backdrop-blur-md">
+                          DIGITAL PRODUCT
+                        </span>
+                        <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-sm">
+                          {prod.price === 0 ? 'FREE / OPEN SOURCE' : `₹${prod.price}`}
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                          <span>{prod.version}</span>
+                          <span>{prod.downloadSize}</span>
+                        </div>
+                        <h4 className="font-bold text-slate-900 text-base mt-1 line-clamp-1">{prod.name}</h4>
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-1">{prod.shortDescription}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          {prod.licenseType}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                          Instant Key Delivery
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <a
+                        href={prod.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-mono font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Source Link</span>
+                      </a>
+
+                      <div className="flex items-center gap-2">
+                        {onUpdateProduct && (
+                          <button
+                            onClick={() => handleOpenEditProduct(prod)}
+                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-slate-600" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+
+                        {onDeleteProduct && (
+                          <button
+                            onClick={() => onDeleteProduct(prod.id)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Delete</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 1: STORE PRODUCT CARDS MANAGER */}
       {activeTab === 'products' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h3 className="font-bold text-xl text-slate-900 font-mono flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-emerald-600" />
-                <span>Digital Store Product Cards Catalog ({products.length})</span>
+                <span>Store Product Cards Catalog ({products.filter((p) => p.category === 'Windows Tools' || (p.tags && p.tags.includes('Store Card'))).length})</span>
               </h3>
-              <p className="text-xs text-slate-500 font-mono">Create, publish, inspect, and remove software product cards from the online store</p>
+              <p className="text-xs text-slate-500 font-mono">Create, publish, inspect, and remove software product cards from the /store section</p>
             </div>
             <div className="flex items-center gap-3">
               <input
@@ -666,7 +827,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <span>🔑 Set GitHub Token</span>
               </button>
               <button
-                onClick={handleOpenAddProduct}
+                onClick={handleOpenAddStoreCard}
                 className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0"
               >
                 + Add Store Card
@@ -674,7 +835,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
           </div>
 
-          {products.length === 0 ? (
+          {products.filter((p) => p.category === 'Windows Tools' || (p.tags && p.tags.includes('Store Card'))).length === 0 ? (
             <div className="p-16 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
               <ShoppingBag className="w-12 h-12 text-slate-400 mx-auto" />
               <h4 className="font-bold text-slate-900 text-base">No store product cards available</h4>
@@ -685,6 +846,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {products
+                .filter((p) => p.category === 'Windows Tools' || (p.tags && p.tags.includes('Store Card')))
                 .filter((p) =>
                   !prodSearchQuery ||
                   p.name.toLowerCase().includes(prodSearchQuery.toLowerCase()) ||
