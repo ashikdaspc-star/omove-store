@@ -111,18 +111,24 @@ export default function App() {
       }
     }
 
-    // Don't overwrite if local has more products (admin added cards that haven't synced to GitHub yet)
+    // Don't lose locally added products if GitHub CDN hasn't updated yet
     if (Array.isArray(fetchedData) && fetchedData.length > 0) {
-      const localVersion = catalogVersionRef.current;
-      let localCount = 0;
+      let localProducts: Product[] = [];
       try {
         const cached = localStorage.getItem('omove_products');
-        if (cached) localCount = JSON.parse(cached).length;
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) localProducts = parsed;
+        }
       } catch (e) {}
 
-      if (localCount > fetchedData.length && lastLocalEditRef.current > 0) {
-        console.log(`[OMOVE SYNC] Skipping remote overwrite — local has ${localCount} products vs remote ${fetchedData.length}. Local edits pending.`);
-        return;
+      if (localProducts.length > 0) {
+        const fetchedIds = new Set(fetchedData.map((p) => p.id));
+        const localOnly = localProducts.filter((p) => !fetchedIds.has(p.id));
+        if (localOnly.length > 0) {
+          console.log(`[OMOVE SYNC] Preserving ${localOnly.length} locally created product(s) alongside remote catalog.`);
+          fetchedData = [...localOnly, ...fetchedData];
+        }
       }
 
       console.log(`[OMOVE SYNC] 8. Store fetch result received from ${source}:`, fetchedData.length, 'items');
@@ -208,17 +214,17 @@ export default function App() {
           const ghProducts = await ghRes.json();
           if (Array.isArray(ghProducts) && ghProducts.length > 0) {
             setProducts((current) => {
-              // Never downgrade: don't overwrite if local has more products (admin added cards pending sync)
-              if (current.length > ghProducts.length && lastLocalEditRef.current > 0) {
-                console.log(`[OMOVE SYNC] CDN poll skipped overwrite — local has ${current.length} vs remote ${ghProducts.length}`);
-                return current;
-              }
-              if (JSON.stringify(current) !== JSON.stringify(ghProducts)) {
+              // Preserve locally added products not in ghProducts
+              const ghIds = new Set(ghProducts.map((p) => p.id));
+              const localOnly = current.filter((p) => !ghIds.has(p.id));
+              const merged = localOnly.length > 0 ? [...localOnly, ...ghProducts] : ghProducts;
+
+              if (JSON.stringify(current) !== JSON.stringify(merged)) {
                 console.log('[OMOVE SYNC] GitHub Raw CDN updated catalog detected! Auto-updating UI...');
                 try {
-                  localStorage.setItem('omove_products', JSON.stringify(ghProducts));
+                  localStorage.setItem('omove_products', JSON.stringify(merged));
                 } catch (e) {}
-                return ghProducts;
+                return merged;
               }
               return current;
             });
@@ -234,8 +240,27 @@ export default function App() {
     };
   }, [loadLatestProductsFromServer]);
 
-  const [services, setServices] = useState<RemoteService[]>(MOCK_SERVICES);
-  const [blogs, setBlogs] = useState<BlogPost[]>(MOCK_BLOGS);
+  const [services, setServices] = useState<RemoteService[]>(() => {
+    try {
+      const cached = localStorage.getItem('omove_services');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return MOCK_SERVICES;
+  });
+
+  const [blogs, setBlogs] = useState<BlogPost[]>(() => {
+    try {
+      const cached = localStorage.getItem('omove_blogs');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return MOCK_BLOGS;
+  });
 
   // Customer Auth & Profile state - default to false for new visitors!
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -657,11 +682,19 @@ export default function App() {
 
 
   const handleAddService = (newSrv: RemoteService) => {
-    setServices((prev) => [newSrv, ...prev]);
+    setServices((prev) => {
+      const updated = [newSrv, ...prev];
+      try { localStorage.setItem('omove_services', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
   };
 
   const handleDeleteService = (srvId: string) => {
-    setServices((prev) => prev.filter((s) => s.id !== srvId));
+    setServices((prev) => {
+      const updated = prev.filter((s) => s.id !== srvId);
+      try { localStorage.setItem('omove_services', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
   };
 
   const handleUpdateBooking = (updatedBooking: RemoteBooking) => {
@@ -673,11 +706,19 @@ export default function App() {
   };
 
   const handleAddBlog = (newBlog: BlogPost) => {
-    setBlogs((prev) => [newBlog, ...prev]);
+    setBlogs((prev) => {
+      const updated = [newBlog, ...prev];
+      try { localStorage.setItem('omove_blogs', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
   };
 
   const handleDeleteBlog = (blogId: string) => {
-    setBlogs((prev) => prev.filter((b) => b.id !== blogId));
+    setBlogs((prev) => {
+      const updated = prev.filter((b) => b.id !== blogId);
+      try { localStorage.setItem('omove_blogs', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
   };
 
   const wishlistProducts = products.filter((p) => wishlist.includes(p.id));
