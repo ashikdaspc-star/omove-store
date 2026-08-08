@@ -322,59 +322,27 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
   // Orders & Bookings persistent client state
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: 'ord-1001',
-      orderNumber: 'OMV-ORD-2026-9812',
-      customerName: 'Ashik Das',
-      customerEmail: 'ashikdaspc@gmail.com',
-      customerPhone: '+91 9876543210',
-      items: [
-        {
-          productId: 'prod-001',
-          productName: 'OMOVE WinMaster Pro 2026',
-          price: 1499,
-          licenseKey: 'OMV-WMP-8821-X992-K011',
-          downloadLimit: 5,
-          downloadsCount: 1,
-          fileSize: '42.5 MB',
-          fileUrl: '/api/downloads/ord-1001/prod-001'
-        }
-      ],
-      subtotal: 1499,
-      discount: 0,
-      tax: 269.82,
-      total: 1768.82,
-      paymentMethod: 'Razorpay UPI',
-      paymentStatus: 'SUCCESS',
-      razorpayPaymentId: 'pay_P8912384729381',
-      createdAt: new Date().toISOString()
-    }
-  ]);
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      const stored = localStorage.getItem('omove_orders');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
 
-  const [bookings, setBookings] = useState<RemoteBooking[]>([
-    {
-      id: 'bk-5001',
-      bookingNumber: 'OMV-BOOK-4421',
-      customerName: 'Ashik Das',
-      email: 'ashikdaspc@gmail.com',
-      phone: '+91 9876543210',
-      serviceId: 'srv-001',
-      serviceTitle: 'Complete Windows OS Installation & Activation',
-      issueCategory: 'Windows Fix',
-      problemDescription: 'Windows 11 activation failed after motherboard upgrade. Need clean activation and telemetry cleanup.',
-      preferredDate: '2026-08-07',
-      preferredTime: '14:00 PM',
-      remoteTool: 'AnyDesk',
-      remoteId: '982 110 449',
-      remotePassword: 'pass-9912-demo',
-      amount: 1499,
-      paymentStatus: 'Paid',
-      status: 'Technician Assigned',
-      technicianName: 'David Chen (Cert #8821)',
-      createdAt: new Date().toISOString()
-    }
-  ]);
+  const [bookings, setBookings] = useState<RemoteBooking[]>(() => {
+    try {
+      const stored = localStorage.getItem('omove_bookings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
 
   const handleNavigateView = (view: string) => {
     switch (view) {
@@ -521,11 +489,19 @@ export default function App() {
   };
 
   const handleOrderSuccess = (newOrder: Order) => {
-    setOrders((prev) => [newOrder, ...prev]);
+    setOrders((prev) => {
+      const updated = [newOrder, ...prev];
+      try { localStorage.setItem('omove_orders', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
   };
 
   const handleBookingSuccess = (newBooking: RemoteBooking) => {
-    setBookings((prev) => [newBooking, ...prev]);
+    setBookings((prev) => {
+      const updated = [newBooking, ...prev];
+      try { localStorage.setItem('omove_bookings', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
   };
 
   const DEFAULT_GITHUB_TOKEN = ['ghp_If8rf15PeznQaAPql', 'TFlIIrnbg87vE4T77EF'].join('');

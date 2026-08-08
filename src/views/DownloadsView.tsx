@@ -39,9 +39,15 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
-  // Extract all purchased items from completed orders
+  // Extract purchased items matching the currently logged-in customer
   const purchasedItems = orders
     .filter((o) => o.paymentStatus === 'SUCCESS')
+    .filter((o) => {
+      if (customerProfile && customerProfile.email) {
+        return o.customerEmail && o.customerEmail.toLowerCase() === customerProfile.email.toLowerCase();
+      }
+      return false;
+    })
     .flatMap((o) =>
       o.items.map((item) => ({
         ...item,

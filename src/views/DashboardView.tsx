@@ -92,8 +92,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setTimeout(() => setCopiedKey(null), 3000);
   };
 
+  // Filter orders & bookings for current customer profile
+  const userOrders = orders.filter((o) => {
+    if (customerProfile && customerProfile.email) {
+      return o.customerEmail && o.customerEmail.toLowerCase() === customerProfile.email.toLowerCase();
+    }
+    return true;
+  });
+
+  const userBookings = bookings.filter((b) => {
+    if (customerProfile && customerProfile.email) {
+      return b.email && b.email.toLowerCase() === customerProfile.email.toLowerCase();
+    }
+    return true;
+  });
+
   // Flatten orders for license downloads vault
-  const allDownloadableItems = orders.flatMap((ord) =>
+  const allDownloadableItems = userOrders.flatMap((ord) =>
     ord.items.map((it) => ({
       orderId: ord.id,
       orderNumber: ord.orderNumber,
@@ -168,7 +183,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }`}
         >
           <Headphones className="w-4 h-4" />
-          <span>Remote Repairs Log ({bookings.length})</span>
+          <span>Remote Repairs Log ({userBookings.length})</span>
         </button>
 
         <button
@@ -200,7 +215,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {activeTab === 'bookings' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-lg text-slate-900 font-mono">Live AnyDesk Repair Sessions ({bookings.length})</h3>
+            <h3 className="font-bold text-lg text-slate-900 font-mono">Live AnyDesk Repair Sessions ({userBookings.length})</h3>
             {setCurrentView && (
               <button
                 onClick={() => {
@@ -214,7 +229,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
           </div>
 
-          {bookings.length === 0 ? (
+          {userBookings.length === 0 ? (
             <div className="p-12 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
               <Headphones className="w-12 h-12 text-slate-400 mx-auto" />
               <h4 className="font-bold text-slate-900 text-base">No remote repair sessions requested yet</h4>
@@ -224,7 +239,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              {bookings.map((bk) => (
+              {userBookings.map((bk) => (
                 <div key={bk.id} className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-md space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
                     <div>
