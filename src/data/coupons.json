@@ -28,15 +28,5 @@
     "description": "VIP 20% OFF Special Code",
     "isActive": true,
     "usageCount": 9
-  },
-  {
-    "id": "cpn-4",
-    "code": "WELCOME10",
-    "discountType": "percentage",
-    "discountValue": 10,
-    "minOrderAmount": 0,
-    "description": "Welcome 10% Instant Discount for new customers",
-    "isActive": true,
-    "usageCount": 12
   }
 ]

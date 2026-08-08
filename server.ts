@@ -452,8 +452,144 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   }
 
+  const COUPONS_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'coupons.json');
+
+  function loadCouponsFromDisk(): Coupon[] {
+    try {
+      if (fs.existsSync(COUPONS_FILE_PATH)) {
+        const raw = fs.readFileSync(COUPONS_FILE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to load coupons.json from disk:', e);
+    }
+    return [
+      { id: 'cpn-1', code: 'OMOVE15', discountType: 'percentage', discountValue: 15, minOrderAmount: 0, description: '15% OFF on all orders & services', isActive: true, usageCount: 42 },
+      { id: 'cpn-2', code: 'PROMO50', discountType: 'fixed', discountValue: 50, minOrderAmount: 99, description: 'Flat ₹50 Instant Discount', isActive: true, usageCount: 18 },
+      { id: 'cpn-3', code: 'ASHIK20', discountType: 'percentage', discountValue: 20, minOrderAmount: 199, description: 'VIP 20% OFF Special Code', isActive: true, usageCount: 9 }
+    ];
+  }
+
+  let dynamicCouponsStore: Coupon[] = loadCouponsFromDisk();
+
+  function saveCouponsToDisk() {
+    try {
+      fs.writeFileSync(COUPONS_FILE_PATH, JSON.stringify(dynamicCouponsStore, null, 2));
+    } catch (e) {
+      console.warn('Failed to save coupons.json to disk:', e);
+    }
+  }
+
   let dynamicProductsStore: any[] = [...MOCK_PRODUCTS];
   let currentCatalogVersion: number = Date.now();
+
+  // COUPON API ENDPOINTS
+  app.get('/api/coupons', (_req: Request, res: Response) => {
+    res.json(dynamicCouponsStore);
+  });
+
+  app.post('/api/coupons', (req: Request, res: Response) => {
+    try {
+      const { code, discountType, discountValue, minOrderAmount = 0, description, isActive = true } = req.body || {};
+
+      if (!code || !code.trim()) {
+        return res.status(400).json({ error: 'Coupon code is required.' });
+      }
+
+      const cleanCode = code.trim().toUpperCase();
+      const existing = dynamicCouponsStore.find(c => c.code.toUpperCase() === cleanCode);
+      if (existing) {
+        return res.status(400).json({ error: `Coupon code '${cleanCode}' already exists.` });
+      }
+
+      const newCoupon: Coupon = {
+        id: `cpn-${Date.now()}`,
+        code: cleanCode,
+        discountType: discountType === 'fixed' ? 'fixed' : 'percentage',
+        discountValue: Number(discountValue) || 10,
+        minOrderAmount: Number(minOrderAmount) || 0,
+        description: description || `Discount Code ${cleanCode}`,
+        isActive: Boolean(isActive),
+        usageCount: 0
+      };
+
+      dynamicCouponsStore.unshift(newCoupon);
+      saveCouponsToDisk();
+
+      res.json({ success: true, coupon: newCoupon });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to create coupon' });
+    }
+  });
+
+  app.patch('/api/coupons/:id/toggle', (req: Request, res: Response) => {
+    try {
+      const cpn = dynamicCouponsStore.find(c => c.id === req.params.id || c.code.toUpperCase() === req.params.id.toUpperCase());
+      if (!cpn) return res.status(404).json({ error: 'Coupon not found' });
+
+      cpn.isActive = !cpn.isActive;
+      saveCouponsToDisk();
+
+      res.json({ success: true, coupon: cpn });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/coupons/:id', (req: Request, res: Response) => {
+    try {
+      const idx = dynamicCouponsStore.findIndex(c => c.id === req.params.id || c.code.toUpperCase() === req.params.id.toUpperCase());
+      if (idx === -1) return res.status(404).json({ error: 'Coupon not found' });
+
+      dynamicCouponsStore.splice(idx, 1);
+      saveCouponsToDisk();
+
+      res.json({ success: true, deleted: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/coupons/validate', (req: Request, res: Response) => {
+    try {
+      const { code, orderTotal = 0 } = req.body || {};
+      if (!code || !code.trim()) {
+        return res.status(400).json({ valid: false, message: 'Please enter a coupon code.', discountAmount: 0 });
+      }
+
+      const cleanCode = code.trim().toUpperCase();
+      const found = dynamicCouponsStore.find(c => c.code.toUpperCase() === cleanCode);
+
+      if (!found) {
+        return res.status(404).json({ valid: false, message: `Coupon '${cleanCode}' is invalid or expired.`, discountAmount: 0 });
+      }
+
+      if (!found.isActive) {
+        return res.status(400).json({ valid: false, message: `Coupon '${cleanCode}' is currently disabled.`, discountAmount: 0 });
+      }
+
+      if (Number(orderTotal) < found.minOrderAmount) {
+        return res.status(400).json({ valid: false, message: `Coupon requires a minimum order of ₹${found.minOrderAmount}.`, discountAmount: 0 });
+      }
+
+      let calculatedDiscount = 0;
+      if (found.discountType === 'percentage') {
+        calculatedDiscount = Math.round((Number(orderTotal) * found.discountValue) / 100);
+      } else {
+        calculatedDiscount = Math.min(Number(orderTotal), found.discountValue);
+      }
+
+      res.json({
+        valid: true,
+        message: `🎉 Coupon '${found.code}' applied! Saved ₹${calculatedDiscount}`,
+        coupon: found,
+        discountAmount: calculatedDiscount
+      });
+    } catch (err: any) {
+      res.status(500).json({ valid: false, message: err.message || 'Validation error', discountAmount: 0 });
+    }
+  });
 
   // Public & Admin Services Endpoints
   app.get('/api/services', (_req: Request, res: Response) => {
@@ -1351,118 +1487,6 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     const post = MOCK_BLOGS.find(b => b.slug === req.params.slug || b.id === req.params.slug);
     if (!post) return res.status(404).json({ error: 'Post not found' });
     res.json(post);
-  });
-
-  let dynamicCouponsStore: Coupon[] = [...MOCK_COUPONS];
-  try {
-    const cpnPath = path.join(process.cwd(), 'src', 'data', 'coupons.json');
-    if (fs.existsSync(cpnPath)) {
-      const raw = fs.readFileSync(cpnPath, 'utf8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        dynamicCouponsStore = parsed;
-      }
-    }
-  } catch (err) {
-    console.warn('Coupons load note:', err);
-  }
-
-  const saveCouponsToDisk = (coupons: Coupon[]) => {
-    try {
-      const cpnPath = path.join(process.cwd(), 'src', 'data', 'coupons.json');
-      fs.writeFileSync(cpnPath, JSON.stringify(coupons, null, 2));
-    } catch (err) {
-      console.warn('Coupons save note:', err);
-    }
-  };
-
-  // Get all coupons
-  app.get('/api/coupons', (_req: Request, res: Response) => {
-    res.json(dynamicCouponsStore);
-  });
-
-  // Create Coupon
-  app.post('/api/coupons', (req: Request, res: Response) => {
-    const { code, discountType, discountValue, minOrderAmount, description, isActive } = req.body || {};
-    if (!code) {
-      return res.status(400).json({ error: 'Coupon code is required.' });
-    }
-
-    const cleanCode = code.trim().toUpperCase();
-    if (dynamicCouponsStore.some(c => c.code.toUpperCase() === cleanCode)) {
-      return res.status(400).json({ error: `Coupon code '${cleanCode}' already exists.` });
-    }
-
-    const newCoupon: Coupon = {
-      id: `cpn-${Date.now()}`,
-      code: cleanCode,
-      discountType: discountType === 'fixed' ? 'fixed' : 'percentage',
-      discountValue: Number(discountValue) || 10,
-      minOrderAmount: Number(minOrderAmount) || 0,
-      description: description || `Discount Coupon Code ${cleanCode}`,
-      isActive: Boolean(isActive ?? true),
-      usageCount: 0
-    };
-
-    dynamicCouponsStore.unshift(newCoupon);
-    saveCouponsToDisk(dynamicCouponsStore);
-
-    res.json({ success: true, coupon: newCoupon });
-  });
-
-  // Toggle Coupon Active Status
-  app.patch('/api/coupons/:id/toggle', (req: Request, res: Response) => {
-    const cpn = dynamicCouponsStore.find(c => c.id === req.params.id);
-    if (!cpn) return res.status(404).json({ error: 'Coupon not found.' });
-
-    cpn.isActive = !cpn.isActive;
-    saveCouponsToDisk(dynamicCouponsStore);
-    res.json({ success: true, coupon: cpn });
-  });
-
-  // Delete Coupon
-  app.delete('/api/coupons/:id', (req: Request, res: Response) => {
-    const idx = dynamicCouponsStore.findIndex(c => c.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Coupon not found.' });
-
-    dynamicCouponsStore.splice(idx, 1);
-    saveCouponsToDisk(dynamicCouponsStore);
-    res.json({ success: true, message: 'Coupon deleted successfully.' });
-  });
-
-  // Validate Coupons (Server Validation)
-  app.post('/api/coupons/validate', (req: Request, res: Response) => {
-    const { code, cartSubtotal } = req.body || {};
-    const cleanCode = (code || '').toString().trim().toUpperCase();
-
-    const coupon = dynamicCouponsStore.find(c => c.code.toUpperCase() === cleanCode);
-    if (!coupon) {
-      return res.status(400).json({ valid: false, error: `Coupon '${cleanCode}' is invalid or expired.` });
-    }
-
-    if (!coupon.isActive) {
-      return res.status(400).json({ valid: false, error: `Coupon '${cleanCode}' is currently disabled.` });
-    }
-
-    const subtotalNum = Number(cartSubtotal) || 0;
-    if (subtotalNum < coupon.minOrderAmount) {
-      return res.status(400).json({ valid: false, error: `Minimum order amount of ₹${coupon.minOrderAmount} required for coupon '${cleanCode}'.` });
-    }
-
-    let calculatedDiscount = 0;
-    if (coupon.discountType === 'percentage') {
-      calculatedDiscount = Math.round((subtotalNum * coupon.discountValue) / 100);
-    } else {
-      calculatedDiscount = Math.min(subtotalNum, coupon.discountValue);
-    }
-
-    res.json({
-      valid: true,
-      code: coupon.code,
-      discountAmount: calculatedDiscount,
-      coupon,
-      message: `Coupon '${coupon.code}' applied! Saved ₹${calculatedDiscount}`
-    });
   });
 
   const processedPaymentIds: Set<string> = new Set();
