@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Product } from '../../../types';
 import { ConfirmDeleteModal } from '../modals/ConfirmDeleteModal';
 import {
@@ -41,8 +42,23 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+
+  // Portal dropdown menu state
+  const [menuAnchor, setMenuAnchor] = useState<{ id: string; rect: DOMRect } | null>(null);
+
+  useEffect(() => {
+    if (!menuAnchor) return;
+    const handleClose = () => setMenuAnchor(null);
+    window.addEventListener('click', handleClose);
+    window.addEventListener('scroll', handleClose, true);
+    window.addEventListener('resize', handleClose);
+    return () => {
+      window.removeEventListener('click', handleClose);
+      window.removeEventListener('scroll', handleClose, true);
+      window.removeEventListener('resize', handleClose);
+    };
+  }, [menuAnchor]);
 
   // Filter EXCLUSIVELY Digital Products (productType === 'DIGITAL')
   const digitalProductsOnly = products.filter(
@@ -58,6 +74,15 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
       p.id.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
   });
+
+  const handleOpenMenu = (e: React.MouseEvent<HTMLButtonElement>, prodId: string) => {
+    e.stopPropagation();
+    if (menuAnchor && menuAnchor.id === prodId) {
+      setMenuAnchor(null);
+    } else {
+      setMenuAnchor({ id: prodId, rect: e.currentTarget.getBoundingClientRect() });
+    }
+  };
 
   return (
     <div className="space-y-6 font-sans">
@@ -146,7 +171,7 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
         </div>
       </div>
 
-      {/* CATALOG BODY — Directly on Admin Background (No outer card container wrapper) */}
+      {/* CATALOG BODY — Natural Height, Directly on Admin Background */}
       {filtered.length === 0 ? (
         <div className="py-12 text-center text-slate-400 font-sans space-y-3 bg-white rounded-2xl border border-dashed border-slate-200 shadow-2xs">
           <Sparkles className="w-10 h-10 mx-auto text-emerald-600/60" />
@@ -160,8 +185,8 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
           </button>
         </div>
       ) : viewMode === 'table' ? (
-        /* Digital Product Table — Unclipped Dropdown Popup Support */
-        <div className="overflow-x-auto pb-24">
+        /* Digital Product Table — Natural Height with No Clipping & No Extra Padding */
+        <div className="w-full">
           <table className="w-full text-left text-xs font-mono border-collapse">
             <thead>
               <tr className="border-b-2 border-slate-200 text-slate-500 uppercase tracking-wider">
@@ -201,7 +226,7 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
                       {prod.status || 'PUBLISHED'}
                     </span>
                   </td>
-                  <td className="py-3.5 px-2 text-right relative">
+                  <td className="py-3.5 px-2 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         onClick={() => onSelectProductPreview(prod)}
@@ -228,52 +253,16 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
                       </button>
 
                       <button
-                        onClick={() => setOpenMenuId(openMenuId === prod.id ? null : prod.id)}
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600"
+                        onClick={(e) => handleOpenMenu(e, prod.id)}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          menuAnchor?.id === prod.id
+                            ? 'bg-slate-800 text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        }`}
                         title="More Actions"
                       >
                         <MoreVertical className="w-4 h-4" />
                       </button>
-
-                      {/* Actions Popup Dropdown */}
-                      {openMenuId === prod.id && (
-                        <div
-                          className="absolute right-0 top-10 w-48 rounded-2xl bg-white border border-slate-200 shadow-2xl py-2 z-50 animate-fadeIn text-left font-sans text-xs text-slate-800"
-                          onClick={() => setOpenMenuId(null)}
-                        >
-                          <button
-                            onClick={() => onDuplicateProduct(prod.id)}
-                            className="w-full px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-medium"
-                          >
-                            <Copy className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>Duplicate</span>
-                          </button>
-
-                          <button
-                            onClick={() => onTogglePublishStatus(prod.id, (prod.status || 'PUBLISHED') === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED')}
-                            className="w-full px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-medium"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>{(prod.status || 'PUBLISHED') === 'PUBLISHED' ? 'Unpublish (Draft)' : 'Publish'}</span>
-                          </button>
-
-                          <button
-                            onClick={() => onDeleteProduct(prod.id, false)}
-                            className="w-full px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-amber-700 font-medium"
-                          >
-                            <Archive className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Archive Product</span>
-                          </button>
-
-                          <button
-                            onClick={() => setDeletingProduct(prod)}
-                            className="w-full px-3.5 py-2 hover:bg-rose-50 flex items-center gap-2 text-rose-600 font-medium border-t border-slate-100"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                            <span>Delete Permanently</span>
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -389,6 +378,75 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
           ))}
         </div>
       )}
+
+      {/* REACT PORTAL ACTIONS POPUP DROPDOWN (Renders at document.body with z-[9999], completely unclipped & auto-flipped) */}
+      {menuAnchor && (() => {
+        const prod = filtered.find((p) => p.id === menuAnchor.id);
+        if (!prod) return null;
+        const { rect } = menuAnchor;
+        const popupHeight = 180;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const openUpward = spaceBelow < popupHeight && rect.top > popupHeight;
+
+        const top = openUpward ? rect.top - popupHeight - 6 : rect.bottom + 6;
+        const right = Math.max(12, window.innerWidth - rect.right);
+
+        return createPortal(
+          <div
+            style={{ top: `${top}px`, right: `${right}px` }}
+            className="fixed w-52 rounded-2xl bg-white border border-slate-200 shadow-2xl py-2 z-[9999] animate-fadeIn text-left font-sans text-xs text-slate-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                onDuplicateProduct(prod.id);
+                setMenuAnchor(null);
+              }}
+              className="w-full px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
+            >
+              <Copy className="w-4 h-4 text-indigo-600" />
+              <span>Duplicate Product</span>
+            </button>
+
+            <button
+              onClick={() => {
+                onTogglePublishStatus(
+                  prod.id,
+                  (prod.status || 'PUBLISHED') === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED'
+                );
+                setMenuAnchor(null);
+              }}
+              className="w-full px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700 font-medium transition-colors"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>{(prod.status || 'PUBLISHED') === 'PUBLISHED' ? 'Unpublish (Draft)' : 'Publish'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                onDeleteProduct(prod.id, false);
+                setMenuAnchor(null);
+              }}
+              className="w-full px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-amber-700 font-medium transition-colors"
+            >
+              <Archive className="w-4 h-4 text-amber-600" />
+              <span>Archive Product</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setDeletingProduct(prod);
+                setMenuAnchor(null);
+              }}
+              className="w-full px-3.5 py-2 hover:bg-rose-50 flex items-center gap-2.5 text-rose-600 font-semibold transition-colors border-t border-slate-100"
+            >
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>Delete Permanently</span>
+            </button>
+          </div>,
+          document.body
+        );
+      })()}
 
       {/* Delete Confirmation Modal */}
       <ConfirmDeleteModal
