@@ -42,24 +42,41 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
-  // Extract purchased items matching the currently logged-in customer
-  const purchasedItems = orders
-    .filter((o) => o.paymentStatus === 'SUCCESS')
-    .filter((o) => {
-      if (customerProfile && customerProfile.email) {
-        return o.customerEmail && o.customerEmail.toLowerCase() === customerProfile.email.toLowerCase();
-      }
-      return false;
+  const [serverDownloads, setServerDownloads] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    fetch('/api/account/downloads', {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
     })
-    .flatMap((o) =>
-      o.items.map((item) => ({
-        ...item,
-        orderId: o.id,
-        orderNumber: o.orderNumber,
-        createdAt: o.createdAt,
-        customerEmail: o.customerEmail
-      }))
-    );
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setServerDownloads(data);
+      })
+      .catch((err) => console.warn('Account downloads fetch note:', err));
+  }, []);
+
+  // Extract purchased items matching the currently logged-in customer
+  const purchasedItems =
+    serverDownloads.length > 0
+      ? serverDownloads
+      : orders
+          .filter((o) => o.paymentStatus === 'SUCCESS')
+          .filter((o) => {
+            if (customerProfile && customerProfile.email) {
+              return o.customerEmail && o.customerEmail.toLowerCase() === customerProfile.email.toLowerCase();
+            }
+            return false;
+          })
+          .flatMap((o) =>
+            o.items.map((item) => ({
+              ...item,
+              orderId: o.id,
+              orderNumber: o.orderNumber,
+              createdAt: o.createdAt,
+              customerEmail: o.customerEmail
+            }))
+          );
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === 'All' || p.category.toLowerCase() === selectedCategory.toLowerCase();

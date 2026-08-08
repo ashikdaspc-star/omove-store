@@ -144,26 +144,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setShowEditProfileModal(false);
   };
 
+  const [serverOrders, setServerOrders] = useState<Order[]>([]);
+  const [serverBookings, setServerBookings] = useState<RemoteBooking[]>([]);
+
+  useEffect(() => {
+    // Fetch server-authoritative orders for authenticated session
+    fetch('/api/account/orders', {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
+    })
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => {
+        if (Array.isArray(data)) setServerOrders(data);
+      })
+      .catch((err) => console.warn('Account orders fetch note:', err));
+
+    // Fetch server-authoritative bookings for authenticated session
+    fetch('/api/account/bookings', {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
+    })
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => {
+        if (Array.isArray(data)) setServerBookings(data);
+      })
+      .catch((err) => console.warn('Account bookings fetch note:', err));
+  }, []);
+
   const handleCopyKey = (key: string) => {
     navigator.clipboard.writeText(key);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 3000);
   };
 
-  // Filter orders & bookings for current customer profile
-  const userOrders = orders.filter((o) => {
-    if (customerProfile && customerProfile.email) {
-      return o.customerEmail && o.customerEmail.toLowerCase() === customerProfile.email.toLowerCase();
-    }
-    return true;
-  });
+  // Combine server-authoritative orders with prop fallback
+  const userOrders = serverOrders.length > 0
+    ? serverOrders
+    : orders.filter((o) => {
+        if (customerProfile && customerProfile.email) {
+          return o.customerEmail && o.customerEmail.toLowerCase() === customerProfile.email.toLowerCase();
+        }
+        return false;
+      });
 
-  const userBookings = bookings.filter((b) => {
-    if (customerProfile && customerProfile.email) {
-      return b.email && b.email.toLowerCase() === customerProfile.email.toLowerCase();
-    }
-    return true;
-  });
+  const userBookings = serverBookings.length > 0
+    ? serverBookings
+    : bookings.filter((b) => {
+        if (customerProfile && customerProfile.email) {
+          return b.email && b.email.toLowerCase() === customerProfile.email.toLowerCase();
+        }
+        return false;
+      });
 
   // Flatten orders for license downloads vault
   const allDownloadableItems = userOrders.flatMap((ord) =>

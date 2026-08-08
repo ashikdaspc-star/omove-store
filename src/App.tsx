@@ -31,6 +31,7 @@ import { DeliveryPolicyView } from './views/DeliveryPolicyView';
 import { CookiePolicyView } from './views/CookiePolicyView';
 import { AboutView } from './views/AboutView';
 import { ResetPasswordView } from './pages/ResetPasswordView';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import { OfflineBanner } from './components/OfflineBanner';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
 
@@ -412,7 +413,10 @@ export default function App() {
 
   // Check server-authoritative session on mount
   useEffect(() => {
-    fetch('/api/auth/me')
+    fetch('/api/auth/me', {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data && data.authenticated && data.user) {
@@ -420,6 +424,17 @@ export default function App() {
           setCustomerProfile(data.user);
           try {
             localStorage.setItem('omove_active_session', JSON.stringify(data.user));
+          } catch (e) {}
+        } else {
+          setIsLoggedIn(false);
+          setCustomerProfile({
+            name: '',
+            email: '',
+            phone: '',
+            location: ''
+          });
+          try {
+            localStorage.removeItem('omove_active_session');
           } catch (e) {}
         }
       })
@@ -446,12 +461,21 @@ export default function App() {
 
   const handleSignOut = async () => {
     setIsLoggedIn(false);
+    setCustomerProfile({
+      name: '',
+      email: '',
+      phone: '',
+      location: ''
+    });
     try {
       localStorage.removeItem('omove_active_session');
+      localStorage.removeItem('omove_orders');
+      sessionStorage.clear();
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (e) {
       console.error(e);
     }
+    navigate('/');
   };
 
   const handleToggleAdminMode = (flag?: boolean) => {
@@ -862,14 +886,16 @@ export default function App() {
           <Route
             path="/downloads"
             element={
-              <DownloadsView
-                products={products}
-                orders={orders}
-                customerProfile={customerProfile}
-                onSelectProduct={setSelectedProductForDetail}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
-              />
+              <ProtectedRoute isLoggedIn={isLoggedIn} onOpenAuthModal={() => setIsAuthModalOpen(true)}>
+                <DownloadsView
+                  products={products}
+                  orders={orders}
+                  customerProfile={customerProfile}
+                  onSelectProduct={setSelectedProductForDetail}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                />
+              </ProtectedRoute>
             }
           />
 
@@ -891,23 +917,48 @@ export default function App() {
             element={<ResetPasswordView onOpenAuthModal={() => setIsAuthModalOpen(true)} />}
           />
 
+          {/* Protected Customer Account Routes */}
+          <Route
+            path="/my-account"
+            element={
+              <ProtectedRoute isLoggedIn={isLoggedIn} onOpenAuthModal={() => setIsAuthModalOpen(true)}>
+                <DashboardView
+                  orders={orders}
+                  bookings={bookings}
+                  wishlistProducts={wishlistProducts}
+                  customerProfile={customerProfile}
+                  onUpdateCustomerProfile={setCustomerProfile}
+                  onSelectProduct={setSelectedProductForDetail}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  onToggleWishlist={handleToggleWishlist}
+                  onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
+                  setCurrentView={handleNavigateView}
+                  onSignOut={handleSignOut}
+                />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/dashboard"
             element={
-              <DashboardView
-                orders={orders}
-                bookings={bookings}
-                wishlistProducts={wishlistProducts}
-                customerProfile={customerProfile}
-                onUpdateCustomerProfile={setCustomerProfile}
-                onSelectProduct={setSelectedProductForDetail}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
-                onToggleWishlist={handleToggleWishlist}
-                onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
-                setCurrentView={handleNavigateView}
-                onSignOut={handleSignOut}
-              />
+              <ProtectedRoute isLoggedIn={isLoggedIn} onOpenAuthModal={() => setIsAuthModalOpen(true)}>
+                <DashboardView
+                  orders={orders}
+                  bookings={bookings}
+                  wishlistProducts={wishlistProducts}
+                  customerProfile={customerProfile}
+                  onUpdateCustomerProfile={setCustomerProfile}
+                  onSelectProduct={setSelectedProductForDetail}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  onToggleWishlist={handleToggleWishlist}
+                  onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
+                  setCurrentView={handleNavigateView}
+                  onSignOut={handleSignOut}
+                />
+              </ProtectedRoute>
             }
           />
 

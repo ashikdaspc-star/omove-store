@@ -223,7 +223,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
 
                   <Link
-                    to="/dashboard?tab=account"
+                    to="/my-account?tab=account"
                     onClick={handleNavClick}
                     className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 font-medium transition-colors"
                   >
@@ -232,7 +232,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </Link>
 
                   <Link
-                    to="/dashboard?tab=orders"
+                    to="/my-account?tab=orders"
                     onClick={handleNavClick}
                     className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 font-medium transition-colors"
                   >
@@ -250,7 +250,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </Link>
 
                   <Link
-                    to="/dashboard?tab=settings"
+                    to="/my-account?tab=settings"
                     onClick={handleNavClick}
                     className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 font-medium transition-colors border-b border-slate-100"
                   >

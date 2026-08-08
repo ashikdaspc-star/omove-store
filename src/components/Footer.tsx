@@ -175,17 +175,17 @@ export const Footer: React.FC<FooterProps> = () => {
                   </Link>
                 </li>
                 <li>
-                  <Link to="/dashboard?tab=orders" className="hover:text-emerald-400 transition-colors duration-200 block">
+                  <Link to="/my-account?tab=orders" className="hover:text-emerald-400 transition-colors duration-200 block">
                     Track Order
                   </Link>
                 </li>
                 <li>
-                  <Link to="/dashboard?tab=account" className="hover:text-emerald-400 transition-colors duration-200 block">
+                  <Link to="/my-account?tab=account" className="hover:text-emerald-400 transition-colors duration-200 block">
                     My Account
                   </Link>
                 </li>
                 <li>
-                  <Link to="/dashboard?tab=orders" className="hover:text-emerald-400 transition-colors duration-200 block">
+                  <Link to="/my-account?tab=orders" className="hover:text-emerald-400 transition-colors duration-200 block">
                     Download Center
                   </Link>
                 </li>

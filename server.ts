@@ -205,6 +205,37 @@ function parseCookies(cookieHeader?: string): Record<string, string> {
   return list;
 }
 
+function getAuthenticatedSession(req: Request): ServerSession | null {
+  const cookies = parseCookies(req.headers.cookie);
+  const authHeader = req.headers.authorization;
+  let token = cookies['omove_session_token'];
+
+  if (!token && authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  }
+
+  if (!token) return null;
+
+  const session = sessionsStore.get(token);
+  if (!session || session.expiresAt < Date.now()) {
+    if (session) {
+      sessionsStore.delete(token);
+      saveSessionsToDisk(sessionsStore);
+    }
+    return null;
+  }
+  return session;
+}
+
+function requireAuth(req: Request, res: Response, next: any) {
+  const session = getAuthenticatedSession(req);
+  if (!session) {
+    return res.status(401).json({ error: 'Authentication required. Please sign in to access your account data.' });
+  }
+  (req as any).session = session;
+  next();
+}
+
 const authRateLimitMap: Map<string, { count: number; resetTime: number }> = new Map();
 
 function authRateLimiter(req: Request, res: Response, next: any) {
@@ -1121,14 +1152,115 @@ app.get('/api/health', (req: Request, res: Response) => {
     });
   });
 
-  // Get Order Details / Invoice
+  // Get Order Details / Invoice (With Ownership Check)
   app.get('/api/orders/:id', (req: Request, res: Response) => {
     const order = ordersStore.get(req.params.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const session = getAuthenticatedSession(req);
+    if (session && !session.isAdmin) {
+      if (order.customerEmail.trim().toLowerCase() !== session.userEmail.trim().toLowerCase()) {
+        return res.status(403).json({ error: 'Access denied. Order details belong to another customer.' });
+      }
+    }
+
     res.json(order);
   });
 
-  // Download digital file with strict server-side payment verification
+  // PROTECTED CUSTOMER ACCOUNT ENDPOINTS (Require Server Authentication)
+  app.get('/api/account/profile', requireAuth, (req: Request, res: Response) => {
+    const session = (req as any).session as ServerSession;
+    const user = usersStore.get(session.userEmail.toLowerCase());
+    if (!user) {
+      return res.status(404).json({ error: 'User profile not found.' });
+    }
+    res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      location: user.location,
+      picture: user.picture || '',
+      authProvider: user.authProvider,
+      createdAt: user.createdAt
+    });
+  });
+
+  app.put('/api/account/profile', requireAuth, (req: Request, res: Response) => {
+    const session = (req as any).session as ServerSession;
+    const user = usersStore.get(session.userEmail.toLowerCase());
+    if (!user) {
+      return res.status(404).json({ error: 'User profile not found.' });
+    }
+    const { name, phone, location } = req.body || {};
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    if (location) user.location = location;
+    user.updatedAt = new Date().toISOString();
+    saveUsersToDisk(usersStore);
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        location: user.location,
+        picture: user.picture || '',
+        authProvider: user.authProvider
+      }
+    });
+  });
+
+  app.get('/api/account/orders', requireAuth, (req: Request, res: Response) => {
+    const session = (req as any).session as ServerSession;
+    const userEmail = session.userEmail.toLowerCase();
+    const myOrders = Array.from(ordersStore.values()).filter(
+      o => o.customerEmail && o.customerEmail.trim().toLowerCase() === userEmail
+    );
+    myOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    res.json(myOrders);
+  });
+
+  app.get('/api/account/downloads', requireAuth, (req: Request, res: Response) => {
+    const session = (req as any).session as ServerSession;
+    const userEmail = session.userEmail.toLowerCase();
+    const myPaidOrders = Array.from(ordersStore.values()).filter(
+      o => o.paymentStatus === 'SUCCESS' && o.customerEmail && o.customerEmail.trim().toLowerCase() === userEmail
+    );
+    const downloads = myPaidOrders.flatMap(o =>
+      o.items.map(item => ({
+        ...item,
+        orderId: o.id,
+        orderNumber: o.orderNumber,
+        createdAt: o.createdAt,
+        customerEmail: o.customerEmail
+      }))
+    );
+    res.json(downloads);
+  });
+
+  app.get('/api/account/bookings', requireAuth, (req: Request, res: Response) => {
+    const session = (req as any).session as ServerSession;
+    const userEmail = session.userEmail.toLowerCase();
+    const myBookings = Array.from(bookingsStore.values()).filter(
+      b => b.email && b.email.trim().toLowerCase() === userEmail
+    );
+    myBookings.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    res.json(myBookings);
+  });
+
+  app.get('/api/account/tickets', requireAuth, (req: Request, res: Response) => {
+    const session = (req as any).session as ServerSession;
+    const userEmail = session.userEmail.toLowerCase();
+    const myTickets = Array.from(ticketsStore.values()).filter(
+      t => t.userEmail && t.userEmail.trim().toLowerCase() === userEmail
+    );
+    res.json(myTickets);
+  });
+
+  // Download digital file with strict server-side payment & ownership verification
   app.get('/api/downloads/:orderId/:productId', (req: Request, res: Response) => {
     const { orderId, productId } = req.params;
     const order = ordersStore.get(orderId);
@@ -1139,6 +1271,14 @@ app.get('/api/health', (req: Request, res: Response) => {
 
     if (order.paymentStatus !== 'SUCCESS') {
       return res.status(403).json({ error: 'Download access denied. Server-verified payment is required for this product.' });
+    }
+
+    // Ownership Check
+    const session = getAuthenticatedSession(req);
+    if (session && !session.isAdmin) {
+      if (order.customerEmail.trim().toLowerCase() !== session.userEmail.trim().toLowerCase()) {
+        return res.status(403).json({ error: 'Download access denied. Order belongs to another customer account.' });
+      }
     }
 
     const item = order.items.find(i => i.productId === productId);
