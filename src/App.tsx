@@ -24,6 +24,12 @@ import { BlogView } from './views/BlogView';
 import { DownloadsView } from './views/DownloadsView';
 import { DigitalProductsView } from './views/DigitalProductsView';
 import { AboutContactView } from './views/AboutContactView';
+import { RefundPolicyView } from './views/RefundPolicyView';
+import { PrivacyPolicyView } from './views/PrivacyPolicyView';
+import { TermsView } from './views/TermsView';
+import { DeliveryPolicyView } from './views/DeliveryPolicyView';
+import { CookiePolicyView } from './views/CookiePolicyView';
+import { AboutView } from './views/AboutView';
 import { ResetPasswordView } from './pages/ResetPasswordView';
 import { OfflineBanner } from './components/OfflineBanner';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
@@ -870,7 +876,16 @@ export default function App() {
           <Route path="/blog" element={<BlogView blogs={blogs} />} />
 
           <Route path="/contact" element={<AboutContactView />} />
+          <Route path="/about" element={<AboutView />} />
           <Route path="/about-contact" element={<Navigate to="/contact" replace />} />
+
+          {/* Legal & Policy Pages */}
+          <Route path="/refund-policy" element={<RefundPolicyView />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyView />} />
+          <Route path="/terms" element={<TermsView />} />
+          <Route path="/delivery-policy" element={<DeliveryPolicyView />} />
+          <Route path="/cookie-policy" element={<CookiePolicyView />} />
+
           <Route
             path="/reset-password"
             element={<ResetPasswordView onOpenAuthModal={() => setIsAuthModalOpen(true)} />}
