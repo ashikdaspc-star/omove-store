@@ -50,7 +50,7 @@
     "id": "prod-1723046000000",
     "name": "Autodesk AutoCAD 2010-2026",
     "slug": "autodesk-autocad-2010-2026",
-    "category": "Software",
+    "category": "Windows Tools",
     "shortDescription": "3D CAD software for drafting, design, and modeling.",
     "fullDescription": "Autodesk AutoCAD 2026 is the leading computer-aided design software used by architects, engineers, and construction professionals to create precise 2D and 3D drawings.",
     "price": 399,
@@ -89,8 +89,8 @@
     "isNew": true,
     "tags": [
       "AutoCAD",
-      "Software",
-      "3D Design"
+      "Windows Tools",
+      "Store Card"
     ],
     "salesCount": 1
   }
