@@ -54,10 +54,16 @@ export default function App() {
 
   const catalogVersionRef = React.useRef<number>(0);
   const lastLocalEditRef = React.useRef<number>(0);
-  const SYNC_COOLDOWN_MS = 15000; // Skip background polling for 15s after local admin edits
+  const SYNC_COOLDOWN_MS = 30000; // Skip background polling for 30s after local admin edits (GitHub CDN cache needs time)
 
   // Helper to fetch latest products directly from server or GitHub Raw CDN without caching
   const loadLatestProductsFromServer = React.useCallback(async () => {
+    // Respect edit cooldown — don't overwrite fresh local edits with stale remote data
+    if (lastLocalEditRef.current > 0 && Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) {
+      console.log('[OMOVE SYNC] loadLatestProductsFromServer skipped — sync cooldown active after admin edit');
+      return;
+    }
+
     console.log('[OMOVE SYNC] 7. Store fetch started...');
     let fetchedData: Product[] | null = null;
     let source = '';
@@ -105,7 +111,20 @@ export default function App() {
       }
     }
 
+    // Don't overwrite if local has more products (admin added cards that haven't synced to GitHub yet)
     if (Array.isArray(fetchedData) && fetchedData.length > 0) {
+      const localVersion = catalogVersionRef.current;
+      let localCount = 0;
+      try {
+        const cached = localStorage.getItem('omove_products');
+        if (cached) localCount = JSON.parse(cached).length;
+      } catch (e) {}
+
+      if (localCount > fetchedData.length && lastLocalEditRef.current > 0) {
+        console.log(`[OMOVE SYNC] Skipping remote overwrite — local has ${localCount} products vs remote ${fetchedData.length}. Local edits pending.`);
+        return;
+      }
+
       console.log(`[OMOVE SYNC] 8. Store fetch result received from ${source}:`, fetchedData.length, 'items');
       setProducts(fetchedData);
       try {
@@ -189,6 +208,11 @@ export default function App() {
           const ghProducts = await ghRes.json();
           if (Array.isArray(ghProducts) && ghProducts.length > 0) {
             setProducts((current) => {
+              // Never downgrade: don't overwrite if local has more products (admin added cards pending sync)
+              if (current.length > ghProducts.length && lastLocalEditRef.current > 0) {
+                console.log(`[OMOVE SYNC] CDN poll skipped overwrite — local has ${current.length} vs remote ${ghProducts.length}`);
+                return current;
+              }
               if (JSON.stringify(current) !== JSON.stringify(ghProducts)) {
                 console.log('[OMOVE SYNC] GitHub Raw CDN updated catalog detected! Auto-updating UI...');
                 try {
@@ -475,61 +499,6 @@ export default function App() {
     setBookings((prev) => [newBooking, ...prev]);
   };
 
-  const broadcastCatalogUpdate = (newProducts: Product[]) => {
-    console.log('[OMOVE SYNC] 1. Save started:', newProducts.length, 'products');
-    const newVer = Date.now();
-    catalogVersionRef.current = newVer;
-    try {
-      localStorage.setItem('omove_products', JSON.stringify(newProducts));
-      localStorage.setItem('omove_catalog_version', String(newVer));
-    } catch (e) {}
-
-    try {
-      const bc = new BroadcastChannel('omove_catalog_sync_channel');
-      bc.postMessage({ type: 'CATALOG_UPDATED', version: newVer });
-      bc.close();
-      console.log('[OMOVE SYNC] 6. BroadcastChannel event posted to all open tabs');
-    } catch (e) {}
-  };
-
-  const syncProducts = (updated: Product[]) => {
-    broadcastCatalogUpdate(updated);
-    console.log('[OMOVE SYNC] 2. React state updated locally');
-    fetch('/api/products/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products: updated, autoPush: true })
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log('[OMOVE SYNC] 4. Server API sync response:', data);
-      })
-      .catch((e) => {
-        console.log('[OMOVE SYNC] Local server sync note:', e.message);
-      });
-  };
-
-  const handleAddProduct = (newProd: Product) => {
-    lastLocalEditRef.current = Date.now();
-    const updated = [newProd, ...products];
-    setProducts(updated);
-    syncProducts(updated);
-  };
-
-  const handleUpdateProduct = (updatedProd: Product) => {
-    lastLocalEditRef.current = Date.now();
-    const updated = products.map((p) => (p.id === updatedProd.id ? updatedProd : p));
-    setProducts(updated);
-    syncProducts(updated);
-  };
-
-  const handleDeleteProduct = (prodId: string) => {
-    lastLocalEditRef.current = Date.now();
-    const updated = products.filter((p) => p.id !== prodId);
-    setProducts(updated);
-    syncProducts(updated);
-  };
-
   const DEFAULT_GITHUB_TOKEN = ['ghp_If8rf15PeznQaAPql', 'TFlIIrnbg87vE4T77EF'].join('');
 
   const pushDirectToGitHubApi = async (newProducts: Product[]): Promise<{ success: boolean; message: string }> => {
@@ -584,6 +553,70 @@ export default function App() {
       return { success: false, message: e.message };
     }
   };
+
+  const broadcastCatalogUpdate = (newProducts: Product[]) => {
+    console.log('[OMOVE SYNC] 1. Save started:', newProducts.length, 'products');
+    const newVer = Date.now();
+    catalogVersionRef.current = newVer;
+    try {
+      localStorage.setItem('omove_products', JSON.stringify(newProducts));
+      localStorage.setItem('omove_catalog_version', String(newVer));
+    } catch (e) {}
+
+    try {
+      const bc = new BroadcastChannel('omove_catalog_sync_channel');
+      bc.postMessage({ type: 'CATALOG_UPDATED', version: newVer });
+      bc.close();
+      console.log('[OMOVE SYNC] 6. BroadcastChannel event posted to all open tabs');
+    } catch (e) {}
+  };
+
+  const syncProducts = (updated: Product[]) => {
+    broadcastCatalogUpdate(updated);
+    console.log('[OMOVE SYNC] 2. React state updated locally');
+    fetch('/api/products/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products: updated, autoPush: true })
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log('[OMOVE SYNC] 4. Server API sync response:', data);
+      })
+      .catch((e) => {
+        console.log('[OMOVE SYNC] Local server sync failed, auto-pushing to GitHub API:', e.message);
+        // On Vercel (no backend), auto-push directly to GitHub so the product persists
+        pushDirectToGitHubApi(updated).then((result) => {
+          if (result.success) {
+            console.log('[OMOVE SYNC] Auto GitHub push successful! Product persisted to repository.');
+          } else {
+            console.warn('[OMOVE SYNC] Auto GitHub push note:', result.message);
+          }
+        }).catch(() => {});
+      });
+  };
+
+  const handleAddProduct = (newProd: Product) => {
+    lastLocalEditRef.current = Date.now();
+    const updated = [newProd, ...products];
+    setProducts(updated);
+    syncProducts(updated);
+  };
+
+  const handleUpdateProduct = (updatedProd: Product) => {
+    lastLocalEditRef.current = Date.now();
+    const updated = products.map((p) => (p.id === updatedProd.id ? updatedProd : p));
+    setProducts(updated);
+    syncProducts(updated);
+  };
+
+  const handleDeleteProduct = (prodId: string) => {
+    lastLocalEditRef.current = Date.now();
+    const updated = products.filter((p) => p.id !== prodId);
+    setProducts(updated);
+    syncProducts(updated);
+  };
+
 
   const handlePublishCatalog = async (): Promise<{ success: boolean; message?: string }> => {
     console.log('[OMOVE SYNC] 3. Publish started...');
