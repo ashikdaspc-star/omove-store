@@ -23,14 +23,20 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
+  // Filter EXCLUSIVELY Digital Products (Software & License Keys, excluding Windows Tools/store items)
   const digitalProducts = products.filter((p) => {
-    const matchesCategory = selectedCategory === 'All' || p.category.toLowerCase() === selectedCategory.toLowerCase();
+    const isDigitalProduct = p.category === 'Software' || p.category.toLowerCase().includes('software') || p.instantKeyAvailable;
+    const matchesCategory =
+      selectedCategory === 'All' ||
+      selectedCategory === 'Software Keys' ||
+      selectedCategory === 'Lifetime Licenses' ||
+      p.category.toLowerCase() === selectedCategory.toLowerCase();
     const matchesSearch =
       !searchQuery ||
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.tags && p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
-    return matchesCategory && matchesSearch;
+    return isDigitalProduct && matchesCategory && matchesSearch;
   });
 
   return (
@@ -41,13 +47,13 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-xs font-mono font-bold">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-              <span>PREMIUM DIGITAL PRODUCT STORE</span>
+              <span>DIGITAL PRODUCTS & LICENSE KEYS ONLY</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight font-sans">
-              Digital Product Sell & Licenses
+              Digital Product Sell & Keys
             </h1>
             <p className="text-sm sm:text-base text-emerald-100/90 leading-relaxed font-sans">
-              Explore our curated store of genuine software activation keys, Windows OS utilities, PC debloaters, and lifetime digital licenses with instant email delivery.
+              Exclusive store section dedicated strictly to genuine software activation keys, digital licenses, and premium application suites with 100% instant key delivery.
             </p>
           </div>
 
@@ -68,7 +74,7 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search digital products, keys, utilities..."
+              placeholder="Search digital software, keys, activation licenses..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-900/90 border border-emerald-500/30 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-400 font-sans"
@@ -76,12 +82,12 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 font-mono text-xs">
-            {['All', 'Windows Tools', 'Software'].map((cat) => (
+            {['All Digital Products', 'Software Keys', 'Lifetime Licenses'].map((cat) => (
               <button
                 key={cat}
-                onClick={() => setSelectedCategory(cat)}
+                onClick={() => setSelectedCategory(cat === 'All Digital Products' ? 'All' : cat)}
                 className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-all ${
-                  selectedCategory === cat
+                  (selectedCategory === 'All' && cat === 'All Digital Products') || selectedCategory === cat
                     ? 'bg-emerald-500 text-slate-950 shadow-md'
                     : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
                 }`}
