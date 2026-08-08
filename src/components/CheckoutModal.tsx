@@ -19,8 +19,11 @@ import {
   Zap,
   Printer,
   Phone,
-  Tag
+  Tag,
+  WifiOff,
+  AlertTriangle
 } from 'lucide-react';
+import { useOnlineStatus } from './OfflineBanner';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -102,8 +105,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setTimeout(() => setCouponStatus(null), 3000);
   };
 
+  const isOnline = useOnlineStatus();
+
   const handleProcessPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+      setPaymentFailedNotice('You are currently offline. Please reconnect to the internet to purchase this product.');
+      return;
+    }
+
     setIsProcessing(true);
     setPaymentFailedNotice('');
 
@@ -117,80 +127,63 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         discountAmount: appliedDiscount
       };
 
-      let orderObj: Order | null = null;
-      let rzpKey = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G';
+      const res = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      try {
-        const res = await fetch('/api/orders/create', {
+      if (!res.ok) {
+        let errData: any = {};
+        try { errData = await res.json(); } catch (e) {}
+        setPaymentFailedNotice(errData.error || 'Server payment initialization failed. Check your network connection.');
+        setIsProcessing(false);
+        return;
+      }
+
+      const data = await res.json();
+      if (!data.success || !data.order) {
+        setPaymentFailedNotice(data.error || 'Failed to initialize server order.');
+        setIsProcessing(false);
+        return;
+      }
+
+      const orderObj: Order = data.order;
+      const rzpKey = data.razorpayKeyId || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G';
+
+      // Zero-total 100% coupon order verification
+      if (orderObj.total <= 0) {
+        const verifyRes = await fetch('/api/orders/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ orderId: orderObj.id })
         });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.order) {
-            orderObj = data.order;
-            if (data.razorpayKeyId && !data.razorpayKeyId.includes('DEMO')) {
-              rzpKey = data.razorpayKeyId;
-            }
-          }
+        const verifyData = await verifyRes.json();
+        if (verifyRes.ok && verifyData.success && verifyData.verified) {
+          const verifiedOrder = verifyData.order;
+          setCreatedOrder(verifiedOrder);
+          onOrderSuccess(verifiedOrder);
+          onClearCart();
+          sendAdminOrderNotificationEmail({
+            type: 'PRODUCT_PURCHASE',
+            customerName: verifiedOrder.customerName,
+            email: verifiedOrder.customerEmail,
+            phone: verifiedOrder.customerPhone,
+            title: verifiedOrder.items.map((i: any) => i.productName).join(', '),
+            amount: 0,
+            paymentId: 'FREE (100% Coupon Discount)',
+            orderOrBookingId: verifiedOrder.orderNumber
+          });
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+        } else {
+          setPaymentFailedNotice(verifyData.error || 'Coupon order verification failed.');
         }
-      } catch (err) {
-        console.warn('Backend API unavailable, constructing order locally:', err);
+        setIsProcessing(false);
+        return;
       }
 
-      if (!orderObj) {
-        orderObj = {
-          id: 'ord-' + Date.now(),
-          orderNumber: 'OMV-ORD-' + Math.floor(1000 + Math.random() * 9000),
-          customerName,
-          customerEmail,
-          customerPhone,
-          items: cart.map((it, idx) => ({
-            productId: it.product.id,
-            productName: it.product.name,
-            price: it.product.price,
-            licenseKey: 'OMV-' + Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase() + '-2026',
-            downloadLimit: 5,
-            downloadsCount: 0,
-            fileSize: it.product.downloadSize || '45 MB',
-            fileUrl: it.product.fileUrl || '/api/downloads/demo'
-          })),
-          subtotal,
-          discount: discountAmount,
-          tax: taxAmount,
-          total: finalTotal,
-          paymentMethod: 'Razorpay UPI',
-          paymentStatus: 'SUCCESS',
-          razorpayPaymentId: 'pay_' + Date.now(),
-          createdAt: new Date().toISOString()
-        };
-      }
-
-    if (finalTotal <= 0) {
-      if (orderObj) {
-        orderObj.razorpayPaymentId = 'FREE_COUPON_' + Date.now();
-        setCreatedOrder(orderObj);
-        onOrderSuccess(orderObj);
-        onClearCart();
-        sendAdminOrderNotificationEmail({
-          type: 'PRODUCT_PURCHASE',
-          customerName: orderObj.customerName,
-          email: orderObj.customerEmail,
-          phone: orderObj.customerPhone,
-          title: orderObj.items.map((i) => i.productName).join(', '),
-          amount: 0,
-          paymentId: 'FREE (100% Coupon Discount)',
-          orderOrBookingId: orderObj.orderNumber
-        });
-        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-      }
-      setIsProcessing(false);
-      return;
-    }
-
-    if (typeof (window as any).Razorpay === 'undefined') {
+      // Paid Order via Razorpay Checkout Modal
+      if (typeof (window as any).Razorpay === 'undefined') {
         await new Promise<void>((resolve) => {
           const script = document.createElement('script');
           script.src = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -203,7 +196,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       if (typeof (window as any).Razorpay !== 'undefined') {
         const options = {
           key: rzpKey,
-          amount: Math.round(finalTotal * 100),
+          amount: Math.round(orderObj.total * 100),
           currency: 'INR',
           name: 'OMOVE TECH',
           description: `Order ${orderObj.orderNumber} - Digital Products`,
@@ -214,28 +207,48 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             contact: customerPhone
           },
           theme: { color: '#059669' },
-          handler: function (response: any) {
-            if (orderObj) {
-              orderObj.razorpayPaymentId = response.razorpay_payment_id || orderObj.razorpayPaymentId;
-              setCreatedOrder(orderObj);
-              onOrderSuccess(orderObj);
-              onClearCart();
-              sendAdminOrderNotificationEmail({
-                type: 'PRODUCT_PURCHASE',
-                customerName: orderObj.customerName,
-                email: orderObj.customerEmail,
-                phone: orderObj.customerPhone,
-                title: orderObj.items.map((i) => i.productName).join(', '),
-                amount: orderObj.total,
-                paymentId: orderObj.razorpayPaymentId,
-                orderOrBookingId: orderObj.orderNumber
+          handler: async function (response: any) {
+            setIsProcessing(true);
+            try {
+              const verifyRes = await fetch('/api/orders/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  orderId: orderObj.id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpaySignature: response.razorpay_signature
+                })
               });
-              confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok && verifyData.success && verifyData.verified) {
+                const verifiedOrder = verifyData.order;
+                setCreatedOrder(verifiedOrder);
+                onOrderSuccess(verifiedOrder);
+                onClearCart();
+                sendAdminOrderNotificationEmail({
+                  type: 'PRODUCT_PURCHASE',
+                  customerName: verifiedOrder.customerName,
+                  email: verifiedOrder.customerEmail,
+                  phone: verifiedOrder.customerPhone,
+                  title: verifiedOrder.items.map((i: any) => i.productName).join(', '),
+                  amount: verifiedOrder.total,
+                  paymentId: verifiedOrder.razorpayPaymentId,
+                  orderOrBookingId: verifiedOrder.orderNumber
+                });
+                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+              } else {
+                setPaymentFailedNotice(verifyData.error || 'Server payment verification failed. Access denied.');
+              }
+            } catch (vErr) {
+              setPaymentFailedNotice('Payment verification network error. Access denied.');
+            } finally {
+              setIsProcessing(false);
             }
           },
           modal: {
             ondismiss: function () {
-              console.log('Razorpay payment modal closed by user');
+              setIsProcessing(false);
             }
           }
         };
@@ -243,11 +256,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         const rzp1 = new (window as any).Razorpay(options);
         rzp1.open();
       } else {
-        setPendingOrder(orderObj);
-        setShowTestGateway(true);
+        setPaymentFailedNotice('Razorpay payment gateway SDK unavailable. Please check your internet connection.');
+        setIsProcessing(false);
       }
     } catch (err) {
       console.error('Razorpay process error:', err);
+      setPaymentFailedNotice('Failed to process payment. Please check your internet connection.');
     } finally {
       setIsProcessing(false);
     }
@@ -461,6 +475,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         ) : (
           /* Checkout Form */
           <form onSubmit={handleProcessPayment} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+            {!isOnline && (
+              <div className="p-4 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-center gap-2.5 shadow-lg animate-fadeIn">
+                <WifiOff className="w-5 h-5 text-rose-400 shrink-0 animate-pulse" />
+                <div>
+                  <strong className="block text-rose-300 font-bold">You are currently offline</strong>
+                  <span className="text-[11px] text-rose-200">Please reconnect to the internet to purchase this product.</span>
+                </div>
+              </div>
+            )}
+
+            {paymentFailedNotice && (
+              <div className="p-4 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-center gap-2.5 shadow-lg animate-fadeIn">
+                <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+                <span>{paymentFailedNotice}</span>
+              </div>
+            )}
+
             {/* Customer Details */}
             <div className="space-y-3">
               <h4 className="font-bold text-xs uppercase tracking-wider text-slate-400 font-mono">
@@ -622,10 +653,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             {/* Submit CTA */}
             <button
               type="submit"
-              disabled={isProcessing}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-extrabold text-sm font-mono tracking-wider shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+              disabled={isProcessing || !isOnline}
+              className={`w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all ${
+                !isOnline
+                  ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
+                  : 'bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white shadow-indigo-600/30 hover:scale-[1.01] disabled:opacity-50'
+              }`}
             >
-              {isProcessing ? (
+              {!isOnline ? (
+                <>
+                  <WifiOff className="w-4 h-4 text-rose-400" />
+                  <span>YOU ARE OFFLINE — PURCHASES DISABLED</span>
+                </>
+              ) : isProcessing ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   <span>VERIFYING RAZORPAY TRANSACTION...</span>

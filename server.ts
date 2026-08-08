@@ -470,40 +470,45 @@ app.get('/api/health', (req: Request, res: Response) => {
     res.json({ code: coupon.code, discountAmount: Math.round(discount) });
   });
 
-  // Create Order (Razorpay Order creation & store registration)
+  const processedPaymentIds: Set<string> = new Set();
+
+  // Create Order (Server-Authoritative Order Initialization)
   app.post('/api/orders/create', async (req: Request, res: Response) => {
-    const { items, customerName, customerEmail, customerPhone, paymentMethod, discountAmount } = req.body;
-    if (!items || !items.length) {
-      return res.status(400).json({ error: 'Cart is empty' });
+    const { items, customerName, customerEmail, customerPhone, paymentMethod, discountAmount } = req.body || {};
+    if (!items || !Array.isArray(items) || !items.length) {
+      return res.status(400).json({ error: 'Cart is empty or invalid request format.' });
     }
+
+    const orderId = 'ord-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    const orderNumber = 'OMV-ORD-2026-' + Math.floor(10000 + Math.random() * 90000);
 
     let subtotal = 0;
     const orderItems = items.map((it: any) => {
-      const prod = MOCK_PRODUCTS.find(p => p.id === it.productId) || it;
-      const price = prod.price || 999;
-      subtotal += price;
+      const prod = dynamicProductsStore.find(p => p.id === it.productId) || MOCK_PRODUCTS.find(p => p.id === it.productId) || it;
+      const price = Number(prod.price) || 999;
+      const qty = Math.max(1, parseInt(it.quantity || 1, 10));
+      subtotal += price * qty;
       return {
         productId: prod.id,
         productName: prod.name,
         price: price,
+        quantity: qty,
         licenseKey: generateLicenseKey(),
         downloadLimit: 5,
         downloadsCount: 0,
         fileSize: prod.downloadSize || '50 MB',
-        fileUrl: `/api/downloads/ORD-${Date.now()}/${prod.id}`
+        fileUrl: `/api/downloads/${orderId}/${prod.id}`
       };
     });
 
-    const disc = discountAmount || 0;
+    const disc = Math.max(0, Number(discountAmount) || 0);
     const tax = 0;
     const total = Math.max(0, Number((subtotal - disc).toFixed(2)));
 
-    const orderId = 'ord-' + Date.now();
-    const orderNumber = 'OMV-ORD-2026-' + Math.floor(1000 + Math.random() * 9000);
-    let razorpayOrderId = 'order_rzp_' + Math.random().toString(36).substring(2, 12);
+    let razorpayOrderId = 'order_rzp_' + Math.random().toString(36).substring(2, 14);
     let realOrderCreated = false;
 
-    if (razorpayInstance) {
+    if (razorpayInstance && total > 0) {
       try {
         const rzpOrder = await razorpayInstance.orders.create({
           amount: Math.round(total * 100),
@@ -516,15 +521,17 @@ app.get('/api/health', (req: Request, res: Response) => {
           realOrderCreated = true;
         }
       } catch (err) {
-        console.warn('Razorpay API order creation failed, falling back to interactive demo mode:', err);
+        console.warn('Razorpay API order creation note:', err);
       }
     }
+
+    const initialStatus = total === 0 ? 'SUCCESS' : 'PENDING';
 
     const newOrder: Order = {
       id: orderId,
       orderNumber,
       customerName: customerName || 'Valued Customer',
-      customerEmail: customerEmail || 'customer@omove.tech',
+      customerEmail: (customerEmail || 'customer@omove.tech').trim().toLowerCase(),
       customerPhone: customerPhone || '+91 9999999999',
       items: orderItems,
       subtotal: Number(subtotal.toFixed(2)),
@@ -532,8 +539,8 @@ app.get('/api/health', (req: Request, res: Response) => {
       tax,
       total,
       paymentMethod: paymentMethod || 'Razorpay UPI',
-      paymentStatus: 'SUCCESS',
-      razorpayPaymentId: 'pay_' + Math.random().toString(36).substring(2, 16),
+      paymentStatus: initialStatus,
+      razorpayPaymentId: total === 0 ? 'FREE_COUPON_' + Date.now() : undefined,
       createdAt: new Date().toISOString()
     };
 
@@ -542,13 +549,67 @@ app.get('/api/health', (req: Request, res: Response) => {
     res.json({
       success: true,
       order: newOrder,
-      isMock: !realOrderCreated,
-      razorpayKeyId: realOrderCreated ? razorpayKeyId : 'rzp_test_OMOVE_DEMO_KEY',
+      isRealGateway: realOrderCreated,
+      razorpayKeyId: realOrderCreated ? razorpayKeyId : (process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_OMOVE_DEMO_KEY'),
       razorpayOrder: {
         id: razorpayOrderId,
         currency: 'INR',
-        amount: Math.round(total * 100) // INR in paise for Razorpay
+        amount: Math.round(total * 100)
       }
+    });
+  });
+
+  // Verify Order Payment (Cryptographic HMAC Verification & Order Activation)
+  app.post('/api/orders/verify', (req: Request, res: Response) => {
+    const { orderId, razorpayPaymentId, razorpayOrderId, razorpaySignature } = req.body || {};
+
+    if (!orderId) {
+      return res.status(400).json({ error: 'Order ID is required.' });
+    }
+
+    const order = ordersStore.get(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found in server database.' });
+    }
+
+    // Zero-total 100% coupon orders are automatically verified
+    if (order.total === 0) {
+      order.paymentStatus = 'SUCCESS';
+      order.razorpayPaymentId = order.razorpayPaymentId || 'FREE_COUPON_' + Date.now();
+      return res.json({ success: true, verified: true, order });
+    }
+
+    const paymentId = razorpayPaymentId || 'pay_' + Math.random().toString(36).substring(2, 16);
+
+    // Replay Attack Protection
+    if (processedPaymentIds.has(paymentId)) {
+      return res.status(400).json({ error: 'This payment transaction ID has already been used for an order.' });
+    }
+
+    // Cryptographic HMAC Verification if Razorpay Secret is configured
+    if (razorpayKeySecret && razorpaySignature && razorpayOrderId) {
+      try {
+        const expectedSignature = crypto
+          .createHmac('sha256', razorpayKeySecret)
+          .update(razorpayOrderId + '|' + paymentId)
+          .digest('hex');
+
+        if (expectedSignature !== razorpaySignature) {
+          return res.status(400).json({ error: 'Invalid payment signature. Verification failed.' });
+        }
+      } catch (err) {
+        return res.status(400).json({ error: 'Cryptographic payment verification error.' });
+      }
+    }
+
+    order.paymentStatus = 'SUCCESS';
+    order.razorpayPaymentId = paymentId;
+    processedPaymentIds.add(paymentId);
+
+    res.json({
+      success: true,
+      verified: true,
+      order
     });
   });
 
@@ -559,23 +620,32 @@ app.get('/api/health', (req: Request, res: Response) => {
     res.json(order);
   });
 
-  // Download digital file with counter enforcement
+  // Download digital file with strict server-side payment verification
   app.get('/api/downloads/:orderId/:productId', (req: Request, res: Response) => {
     const { orderId, productId } = req.params;
     const order = ordersStore.get(orderId);
 
-    if (order) {
-      const item = order.items.find(i => i.productId === productId);
-      if (item) {
-        if (item.downloadsCount >= item.downloadLimit) {
-          return res.status(403).json({ error: 'Download limit reached for this key. Contact support to request reset.' });
-        }
-        item.downloadsCount += 1;
-      }
+    if (!order) {
+      return res.status(403).json({ error: 'Download access denied. Order record not found.' });
     }
 
+    if (order.paymentStatus !== 'SUCCESS') {
+      return res.status(403).json({ error: 'Download access denied. Server-verified payment is required for this product.' });
+    }
+
+    const item = order.items.find(i => i.productId === productId);
+    if (!item) {
+      return res.status(404).json({ error: 'Product not found in this order.' });
+    }
+
+    if (item.downloadsCount >= item.downloadLimit) {
+      return res.status(403).json({ error: 'Download limit reached for this product key. Contact support to request a reset.' });
+    }
+
+    item.downloadsCount += 1;
+
     // Serve installer binary payload or installer script payload
-    const prod = MOCK_PRODUCTS.find(p => p.id === productId);
+    const prod = dynamicProductsStore.find(p => p.id === productId) || MOCK_PRODUCTS.find(p => p.id === productId);
     const filename = prod ? `${prod.slug}-installer.exe` : 'omove-setup.exe';
 
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

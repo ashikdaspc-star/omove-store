@@ -24,6 +24,7 @@ import { DownloadsView } from './views/DownloadsView';
 import { DigitalProductsView } from './views/DigitalProductsView';
 import { AboutContactView } from './views/AboutContactView';
 import { ResetPasswordView } from './pages/ResetPasswordView';
+import { OfflineBanner } from './components/OfflineBanner';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
 
 export default function App() {
@@ -747,6 +748,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white font-sans">
+      <OfflineBanner />
       {/* Header */}
       <Header
         currentView={location.pathname === '/' ? 'home' : location.pathname.substring(1)}
