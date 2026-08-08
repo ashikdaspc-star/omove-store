@@ -5,6 +5,7 @@ import { X, Check, ArrowRight, ArrowLeft, Sparkles, Image, Tag, DollarSign, Shie
 
 interface ProductEditorModalProps {
   product?: Product | null;
+  targetProductType?: 'STORE' | 'DIGITAL';
   isOpen: boolean;
   onClose: () => void;
   onSave: (product: Partial<Product>) => Promise<void>;
@@ -12,6 +13,7 @@ interface ProductEditorModalProps {
 
 export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
   product,
+  targetProductType = 'STORE',
   isOpen,
   onClose,
   onSave
@@ -80,10 +82,13 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
       .map((f) => f.trim())
       .filter(Boolean);
 
+    const activeType = product?.productType || targetProductType;
+
     const finalProductData: Partial<Product> = {
       id: product?.id,
       name,
       slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      productType: activeType,
       category,
       tags,
       shortDescription,
@@ -112,6 +117,8 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
     }
   };
 
+  const activeType = product?.productType || targetProductType;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
       <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -119,9 +126,11 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
           <div>
             <span className="text-[10px] font-bold font-mono uppercase tracking-wider text-emerald-400">
-              {isEdit ? 'EDIT PRODUCT RECORD' : 'NEW PRODUCT WIZARD'}
+              {isEdit ? `EDIT ${activeType} PRODUCT` : `NEW ${activeType} PRODUCT WIZARD`}
             </span>
-            <h2 className="text-lg font-extrabold text-white">{isEdit ? `Edit ${product?.name}` : 'Add New Product'}</h2>
+            <h2 className="text-lg font-extrabold text-white">
+              {isEdit ? `Edit ${product?.name}` : `Add New ${activeType === 'DIGITAL' ? 'Digital Product' : 'Store Product'}`}
+            </h2>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">
             <X className="w-5 h-5" />

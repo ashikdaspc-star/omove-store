@@ -36,8 +36,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const pendingOrders = orders.filter((o) => o.paymentStatus !== 'SUCCESS');
 
   const totalRevenue = paidOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-  const digitalProductsCount = products.filter((p) => p.category === 'Software' || p.instantKeyAvailable).length;
-  const storeProductsCount = products.length;
+  const digitalProductsCount = products.filter((p) => p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))).length;
+  const storeProductsCount = products.filter((p) => p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card'))).length;
 
   return (
     <div className="space-y-6">

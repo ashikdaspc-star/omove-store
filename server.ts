@@ -371,6 +371,282 @@ app.get('/api/health', (req: Request, res: Response) => {
     res.json(filtered);
   });
 
+  // Public Store Products API (productType === 'STORE')
+  app.get('/api/store-products', (req: Request, res: Response) => {
+    res.setHeader('X-Catalog-Version', String(currentCatalogVersion));
+    const search = (req.query.q as string || '').toLowerCase();
+    const category = req.query.category as string;
+    const sort = req.query.sort as string;
+
+    let storeItems = dynamicProductsStore.filter(
+      p => (p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card'))) &&
+           (p.status || 'PUBLISHED') === 'PUBLISHED'
+    );
+
+    if (category && category !== 'All') {
+      storeItems = storeItems.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
+    }
+
+    if (search) {
+      storeItems = storeItems.filter(p =>
+        (p.name || '').toLowerCase().includes(search) ||
+        (p.shortDescription || '').toLowerCase().includes(search)
+      );
+    }
+
+    if (sort === 'price-low') {
+      storeItems.sort((a, b) => a.price - b.price);
+    } else if (sort === 'price-high') {
+      storeItems.sort((a, b) => b.price - a.price);
+    }
+
+    res.json(storeItems);
+  });
+
+  // Public Digital Products API (productType === 'DIGITAL')
+  app.get('/api/digital-products', (req: Request, res: Response) => {
+    res.setHeader('X-Catalog-Version', String(currentCatalogVersion));
+    const search = (req.query.q as string || '').toLowerCase();
+    const category = req.query.category as string;
+    const sort = req.query.sort as string;
+
+    let digitalItems = dynamicProductsStore.filter(
+      p => (p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))) &&
+           (p.status || 'PUBLISHED') === 'PUBLISHED'
+    );
+
+    if (category && category !== 'All') {
+      digitalItems = digitalItems.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
+    }
+
+    if (search) {
+      digitalItems = digitalItems.filter(p =>
+        (p.name || '').toLowerCase().includes(search) ||
+        (p.shortDescription || '').toLowerCase().includes(search)
+      );
+    }
+
+    if (sort === 'price-low') {
+      digitalItems.sort((a, b) => a.price - b.price);
+    } else if (sort === 'price-high') {
+      digitalItems.sort((a, b) => b.price - a.price);
+    }
+
+    res.json(digitalItems);
+  });
+
+  // Admin Store Products List
+  app.get('/api/admin/store-products', (_req: Request, res: Response) => {
+    const storeItems = dynamicProductsStore.filter(
+      p => p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card'))
+    );
+    res.json(storeItems);
+  });
+
+  // Admin Digital Products List
+  app.get('/api/admin/digital-products', (_req: Request, res: Response) => {
+    const digitalItems = dynamicProductsStore.filter(
+      p => p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))
+    );
+    res.json(digitalItems);
+  });
+
+  // Create Store Product
+  app.post('/api/admin/store-products', (req: Request, res: Response) => {
+    try {
+      const prodData = req.body || {};
+      const newStoreProduct: Product = {
+        id: prodData.id || `prod_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: prodData.name || 'Untitled Store Product',
+        slug: prodData.slug || (prodData.name ? prodData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'untitled-store-product'),
+        productType: 'STORE',
+        category: prodData.category || 'Software',
+        tags: Array.isArray(prodData.tags) ? prodData.tags : ['Software', 'Store Card'],
+        shortDescription: prodData.shortDescription || '',
+        fullDescription: prodData.fullDescription || '',
+        image: prodData.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+        price: Number(prodData.price) || 499,
+        originalPrice: Number(prodData.originalPrice) || Number(prodData.price) || 999,
+        discountPercent: Number(prodData.discountPercent) || 0,
+        licenseType: prodData.licenseType || 'Lifetime License',
+        version: prodData.version || 'v2026.1',
+        downloadSize: prodData.downloadSize || '50 MB',
+        compatibility: Array.isArray(prodData.compatibility) ? prodData.compatibility : ['Windows 11', 'Windows 10'],
+        features: Array.isArray(prodData.features) ? prodData.features : ['Instant Access Key', 'Official Setup'],
+        screenshots: Array.isArray(prodData.screenshots) ? prodData.screenshots : [],
+        requirements: Array.isArray(prodData.requirements) ? prodData.requirements : ['Windows 10/11'],
+        versionHistory: Array.isArray(prodData.versionHistory) ? prodData.versionHistory : [],
+        fileUrl: prodData.fileUrl || '/api/downloads/setup',
+        instantKeyAvailable: Boolean(prodData.instantKeyAvailable ?? true),
+        rating: Number(prodData.rating) || 4.9,
+        reviewCount: Number(prodData.reviewCount) || 1,
+        salesCount: Number(prodData.salesCount) || 0,
+        isBestSeller: Boolean(prodData.isBestSeller),
+        status: prodData.status || 'PUBLISHED',
+        createdAt: new Date().toISOString()
+      };
+
+      dynamicProductsStore.unshift(newStoreProduct);
+      currentCatalogVersion = Date.now();
+      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+
+      res.json({ success: true, product: newStoreProduct, version: currentCatalogVersion });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Create Digital Product
+  app.post('/api/admin/digital-products', (req: Request, res: Response) => {
+    try {
+      const prodData = req.body || {};
+      const newDigitalProduct: Product = {
+        id: prodData.id || `prod_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: prodData.name || 'Untitled Digital Product',
+        slug: prodData.slug || (prodData.name ? prodData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'untitled-digital-product'),
+        productType: 'DIGITAL',
+        category: prodData.category || 'Software',
+        tags: Array.isArray(prodData.tags) ? prodData.tags : ['Software', 'Digital Key'],
+        shortDescription: prodData.shortDescription || '',
+        fullDescription: prodData.fullDescription || '',
+        image: prodData.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+        price: Number(prodData.price) || 499,
+        originalPrice: Number(prodData.originalPrice) || Number(prodData.price) || 999,
+        discountPercent: Number(prodData.discountPercent) || 0,
+        licenseType: prodData.licenseType || 'Lifetime License',
+        version: prodData.version || 'v2026.1',
+        downloadSize: prodData.downloadSize || '50 MB',
+        compatibility: Array.isArray(prodData.compatibility) ? prodData.compatibility : ['Windows 11', 'Windows 10'],
+        features: Array.isArray(prodData.features) ? prodData.features : ['Instant Access Key', 'Official Setup'],
+        screenshots: Array.isArray(prodData.screenshots) ? prodData.screenshots : [],
+        requirements: Array.isArray(prodData.requirements) ? prodData.requirements : ['Windows 10/11'],
+        versionHistory: Array.isArray(prodData.versionHistory) ? prodData.versionHistory : [],
+        fileUrl: prodData.fileUrl || '/api/downloads/setup',
+        instantKeyAvailable: Boolean(prodData.instantKeyAvailable ?? true),
+        rating: Number(prodData.rating) || 4.9,
+        reviewCount: Number(prodData.reviewCount) || 1,
+        salesCount: Number(prodData.salesCount) || 0,
+        isBestSeller: Boolean(prodData.isBestSeller),
+        status: prodData.status || 'PUBLISHED',
+        createdAt: new Date().toISOString()
+      };
+
+      dynamicProductsStore.unshift(newDigitalProduct);
+      currentCatalogVersion = Date.now();
+      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+
+      res.json({ success: true, product: newDigitalProduct, version: currentCatalogVersion });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Edit Store Product
+  app.put('/api/admin/store-products/:id', (req: Request, res: Response) => {
+    try {
+      const idx = dynamicProductsStore.findIndex(p => p.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Store product not found' });
+
+      dynamicProductsStore[idx] = {
+        ...dynamicProductsStore[idx],
+        ...req.body,
+        productType: 'STORE',
+        updatedAt: new Date().toISOString()
+      };
+
+      currentCatalogVersion = Date.now();
+      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+
+      res.json({ success: true, product: dynamicProductsStore[idx], version: currentCatalogVersion });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Edit Digital Product
+  app.put('/api/admin/digital-products/:id', (req: Request, res: Response) => {
+    try {
+      const idx = dynamicProductsStore.findIndex(p => p.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Digital product not found' });
+
+      dynamicProductsStore[idx] = {
+        ...dynamicProductsStore[idx],
+        ...req.body,
+        productType: 'DIGITAL',
+        updatedAt: new Date().toISOString()
+      };
+
+      currentCatalogVersion = Date.now();
+      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+
+      res.json({ success: true, product: dynamicProductsStore[idx], version: currentCatalogVersion });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete / Archive Store Product
+  app.delete('/api/admin/store-products/:id', (req: Request, res: Response) => {
+    try {
+      const isPermanent = req.query.permanent === 'true';
+      const idx = dynamicProductsStore.findIndex(p => p.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Store product not found' });
+
+      const prod = dynamicProductsStore[idx];
+      const hasPurchases = Array.from(ordersStore.values()).some(o => o.items && o.items.some((i: any) => i.productId === prod.id));
+
+      if (hasPurchases || !isPermanent) {
+        prod.status = 'ARCHIVED';
+        currentCatalogVersion = Date.now();
+        const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+        fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+        return res.json({ success: true, archived: true, message: 'Store product archived to preserve customer order history.' });
+      }
+
+      dynamicProductsStore.splice(idx, 1);
+      currentCatalogVersion = Date.now();
+      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+
+      res.json({ success: true, deleted: true, message: 'Store product permanently deleted.' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete / Archive Digital Product
+  app.delete('/api/admin/digital-products/:id', (req: Request, res: Response) => {
+    try {
+      const isPermanent = req.query.permanent === 'true';
+      const idx = dynamicProductsStore.findIndex(p => p.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Digital product not found' });
+
+      const prod = dynamicProductsStore[idx];
+      const hasPurchases = Array.from(ordersStore.values()).some(o => o.items && o.items.some((i: any) => i.productId === prod.id));
+
+      if (hasPurchases || !isPermanent) {
+        prod.status = 'ARCHIVED';
+        currentCatalogVersion = Date.now();
+        const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+        fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+        return res.json({ success: true, archived: true, message: 'Digital product archived to preserve customer order history.' });
+      }
+
+      dynamicProductsStore.splice(idx, 1);
+      currentCatalogVersion = Date.now();
+      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+
+      res.json({ success: true, deleted: true, message: 'Digital product permanently deleted.' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   const pushProductsToGitHub = (): Promise<{ success: boolean; message: string }> => {
     return new Promise((resolve) => {
       const cwd = process.cwd();
@@ -448,6 +724,7 @@ app.get('/api/health', (req: Request, res: Response) => {
         id: prodData.id || `prod_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         name: prodData.name || 'Untitled Product',
         slug: prodData.slug || (prodData.name ? prodData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'untitled-product'),
+        productType: prodData.productType || 'STORE',
         category: prodData.category || 'Software',
         tags: Array.isArray(prodData.tags) ? prodData.tags : ['Software'],
         shortDescription: prodData.shortDescription || '',

@@ -43,15 +43,23 @@ export const StoreView: React.FC<StoreViewProps> = ({
   const [maxPrice, setMaxPrice] = useState<number>(5000);
   const [selectedLicense, setSelectedLicense] = useState<string>('All');
 
+  // Filter EXCLUSIVELY Store Products for /store route
+  const storeProductsOnly = useMemo(() => {
+    return products.filter(
+      (p) => (p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card'))) &&
+             (p.status || 'PUBLISHED') === 'PUBLISHED'
+    );
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
-    return products
+    return storeProductsOnly
       .filter((p) => {
         const matchesCategory = selectedCategory === 'All' || p.category.toLowerCase() === selectedCategory.toLowerCase();
         const matchesQuery =
           !searchQuery ||
           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+          (p.tags || []).some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
         const matchesPrice = p.price <= maxPrice;
         const matchesLicense = selectedLicense === 'All' || p.licenseType === selectedLicense;
 
@@ -61,20 +69,20 @@ export const StoreView: React.FC<StoreViewProps> = ({
         if (sortOption === 'price-low') return a.price - b.price;
         if (sortOption === 'price-high') return b.price - a.price;
         if (sortOption === 'rating') return b.rating - a.rating;
-        return b.salesCount - a.salesCount;
+        return (b.salesCount || 0) - (a.salesCount || 0);
       });
-  }, [products, selectedCategory, searchQuery, maxPrice, selectedLicense, sortOption]);
+  }, [storeProductsOnly, selectedCategory, searchQuery, maxPrice, selectedLicense, sortOption]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    products.forEach((p) => {
+    storeProductsOnly.forEach((p) => {
       if (p.category) {
         const catName = CATEGORIES.find((c) => c.name.toLowerCase() === p.category.toLowerCase())?.name || p.category;
         counts[catName] = (counts[catName] || 0) + 1;
       }
     });
     return counts;
-  }, [products]);
+  }, [storeProductsOnly]);
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-8">

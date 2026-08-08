@@ -67,6 +67,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   // Modal State for Product Editor
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [targetProductType, setTargetProductType] = useState<'STORE' | 'DIGITAL'>('STORE');
 
   // Keyboard shortcut Ctrl+K or / for Global Search
   useEffect(() => {
@@ -81,21 +82,27 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   }, []);
 
   // Product Actions Handlers with Real Server API Integration
-  const handleOpenAddProduct = () => {
+  const handleOpenAddProduct = (type: 'STORE' | 'DIGITAL' = 'STORE') => {
     setEditingProduct(null);
+    setTargetProductType(type);
     setShowProductModal(true);
   };
 
   const handleEditProduct = (prod: Product) => {
     setEditingProduct(prod);
+    setTargetProductType(prod.productType || 'STORE');
     setShowProductModal(true);
   };
 
   const handleSaveProduct = async (productData: Partial<Product>) => {
     try {
+      const type = productData.productType || targetProductType || 'STORE';
+      const isDigital = type === 'DIGITAL';
+      const endpoint = isDigital ? '/api/admin/digital-products' : '/api/admin/store-products';
+
       if (productData.id && editingProduct) {
         // Update product via server API
-        const res = await fetch(`/api/products/${productData.id}`, {
+        const res = await fetch(`${endpoint}/${productData.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(productData)
@@ -106,7 +113,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         }
       } else {
         // Create new product via server API
-        const res = await fetch('/api/products', {
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(productData)
@@ -151,8 +158,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const handleDeleteProduct = async (prodId: string, permanent: boolean) => {
     try {
-      await fetch(`/api/products/${prodId}?permanent=${permanent}`, { method: 'DELETE' });
-      if (onDeleteProduct) {
+      const prod = products.find(p => p.id === prodId);
+      const isDigital = prod?.productType === 'DIGITAL';
+      const endpoint = isDigital ? `/api/admin/digital-products/${prodId}` : `/api/admin/store-products/${prodId}`;
+
+      const res = await fetch(`${endpoint}?permanent=${permanent}`, { method: 'DELETE' });
+      const data = await res.json();
+
+      if (data.archived && onUpdateProduct && prod) {
+        onUpdateProduct({ ...prod, status: 'ARCHIVED' });
+      } else if (data.deleted && onDeleteProduct) {
+        onDeleteProduct(prodId);
+      } else if (onDeleteProduct) {
         onDeleteProduct(prodId);
       }
     } catch (err) {
@@ -196,7 +213,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {activeTab === 'store-products' && (
             <AdminStoreProductsView
               products={products}
-              onOpenAddModal={handleOpenAddProduct}
+              onOpenAddModal={() => handleOpenAddProduct('STORE')}
               onEditProduct={handleEditProduct}
               onDuplicateProduct={handleDuplicateProduct}
               onTogglePublishStatus={handleTogglePublishStatus}
@@ -208,7 +225,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {activeTab === 'digital-products' && (
             <AdminDigitalProductsView
               products={products}
-              onOpenAddModal={handleOpenAddProduct}
+              onOpenAddModal={() => handleOpenAddProduct('DIGITAL')}
               onEditProduct={handleEditProduct}
               onDuplicateProduct={handleDuplicateProduct}
               onTogglePublishStatus={handleTogglePublishStatus}
@@ -222,7 +239,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {activeTab === 'services' && <AdminServicesView services={services} onDeleteService={onDeleteService} />}
           {activeTab === 'remote-support' && <AdminRemoteSupportView bookings={bookings} onUpdateBooking={onUpdateBooking} />}
           {activeTab === 'blog' && <AdminBlogView blogs={blogs} onDeleteBlog={onDeleteBlog} />}
-          {activeTab === 'categories' && <AdminStoreProductsView products={products} onOpenAddModal={handleOpenAddProduct} onEditProduct={handleEditProduct} onDuplicateProduct={handleDuplicateProduct} onTogglePublishStatus={handleTogglePublishStatus} onDeleteProduct={handleDeleteProduct} onSelectProductPreview={onSelectProductPreview} />}
+          {activeTab === 'categories' && <AdminStoreProductsView products={products} onOpenAddModal={() => handleOpenAddProduct('STORE')} onEditProduct={handleEditProduct} onDuplicateProduct={handleDuplicateProduct} onTogglePublishStatus={handleTogglePublishStatus} onDeleteProduct={handleDeleteProduct} onSelectProductPreview={onSelectProductPreview} />}
           {activeTab === 'website-content' && <AdminWebsiteContentView />}
           {activeTab === 'announcements' && <AdminAnnouncementsView />}
           {activeTab === 'coupons' && <AdminCouponsView />}
@@ -238,6 +255,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       <ProductEditorModal
         isOpen={showProductModal}
         product={editingProduct}
+        targetProductType={targetProductType}
         onClose={() => setShowProductModal(false)}
         onSave={handleSaveProduct}
       />

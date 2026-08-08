@@ -23,12 +23,13 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
-  // Filter EXCLUSIVELY Digital Products
-  const digitalProducts = products.filter((p) => {
-    const isStoreCard = p.tags && p.tags.some((t) => t.toLowerCase().includes('store card'));
-    if (isStoreCard) return false;
+  // Filter EXCLUSIVELY Digital Products for /digital-products route
+  const digitalProductsOnly = products.filter(
+    (p) => (p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))) &&
+           (p.status || 'PUBLISHED') === 'PUBLISHED'
+  );
 
-    const isDigitalProduct = p.category === 'Software' || p.category.toLowerCase().includes('software') || p.instantKeyAvailable;
+  const digitalProducts = digitalProductsOnly.filter((p) => {
     const matchesCategory =
       selectedCategory === 'All' ||
       selectedCategory === 'Software Keys' ||
@@ -39,7 +40,7 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.tags && p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
-    return isDigitalProduct && matchesCategory && matchesSearch;
+    return matchesCategory && matchesSearch;
   });
 
   return (

@@ -3,11 +3,13 @@ export type ProductCategory =
   | 'Software';
 
 export type LicenseType = 'Lifetime License' | '1 Year License' | 'Perpetual' | 'Multi-PC License';
+export type ProductType = 'STORE' | 'DIGITAL';
 
 export interface Product {
   id: string;
   name: string;
   slug: string;
+  productType: ProductType;
   category: ProductCategory;
   shortDescription: string;
   fullDescription: string;
