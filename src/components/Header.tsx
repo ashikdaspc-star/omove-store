@@ -101,29 +101,29 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
-      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-2 xl:gap-3">
         {/* Left: Brand Logo & Title */}
         <Link
           to="/"
           onClick={handleNavClick}
-          className="flex items-center gap-3 cursor-pointer group select-none shrink-0"
+          className="flex items-center gap-2.5 cursor-pointer group select-none shrink-0"
         >
           <img
             src="/logo.png"
             alt="Omove Store Logo"
-            className="h-11 w-auto object-contain group-hover:scale-105 transition-transform"
+            className="h-10 sm:h-11 w-auto object-contain group-hover:scale-105 transition-transform"
           />
           <div className="hidden sm:block">
             <div className="flex items-center gap-1 leading-tight">
-              <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 font-sans">Omove</span>
-              <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-emerald-600 font-sans">Store</span>
+              <span className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900 font-sans">Omove</span>
+              <span className="text-lg sm:text-xl font-extrabold tracking-tight text-emerald-600 font-sans">Store</span>
             </div>
-            <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold font-mono">Digital • Software • PC Support</p>
+            <p className="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-500 font-semibold font-mono">Digital • Software • PC Support</p>
           </div>
         </Link>
 
         {/* Center: Main Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1.5">
+        <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
                 to={item.path}
                 onClick={handleNavClick}
                 className={({ isActive }) =>
-                  `relative px-2 py-1.5 xl:px-3 xl:py-2 rounded-xl text-[11px] xl:text-xs 2xl:text-sm font-bold transition-all flex items-center gap-1 whitespace-nowrap ${
+                  `relative px-2 py-1.5 xl:px-2.5 xl:py-2 rounded-xl text-[11px] xl:text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${
                     isActive
                       ? 'text-emerald-700 bg-emerald-50 border border-emerald-200/80 shadow-xs'
                       : 'text-slate-700 hover:text-emerald-700 hover:bg-slate-50'
