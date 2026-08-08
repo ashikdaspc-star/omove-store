@@ -1,5 +1,102 @@
 [
   {
+    "id": "prod-1786153044404",
+    "name": "Autocad 2026",
+    "slug": "autocad-2026",
+    "productType": "DIGITAL",
+    "category": "Windows Tools",
+    "shortDescription": "Digital software product and utility package.",
+    "fullDescription": "Complete digital product license with instant download access.",
+    "price": 60,
+    "originalPrice": 499,
+    "discountPercent": 88,
+    "downloadSize": "15.4 MB",
+    "version": "v1.0.0",
+    "licenseType": "Lifetime License",
+    "rating": 5,
+    "reviewCount": 1,
+    "image": "https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80",
+    "screenshots": [
+      "https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&auto=format&fit=crop&q=80"
+    ],
+    "features": [
+      "One-Click Installation",
+      "High Performance",
+      "Open Source"
+    ],
+    "requirements": [
+      "Windows 10 / 11 (64-bit)"
+    ],
+    "versionHistory": [
+      {
+        "version": "v1.0.0",
+        "date": "2026-08-08",
+        "changes": [
+          "Initial Store Release"
+        ]
+      }
+    ],
+    "fileUrl": "https://github.com",
+    "instantKeyAvailable": true,
+    "isBestSeller": true,
+    "isFeatured": true,
+    "isNew": true,
+    "tags": [
+      "Windows Tools",
+      "Store Card"
+    ],
+    "salesCount": 1
+  },
+  {
+    "id": "prod-1723046000000",
+    "name": "Autodesk AutoCAD 2010-2026",
+    "slug": "autodesk-autocad-2010-2026",
+    "productType": "DIGITAL",
+    "category": "Software",
+    "shortDescription": "3D CAD software for drafting, design, and modeling.",
+    "fullDescription": "Autodesk AutoCAD 2026 is the leading computer-aided design software used by architects, engineers, and construction professionals to create precise 2D and 3D drawings.",
+    "price": 399,
+    "originalPrice": 499,
+    "discountPercent": 20,
+    "downloadSize": "3.5 GB",
+    "version": "2010-2027",
+    "licenseType": "Lifetime License",
+    "rating": 5,
+    "reviewCount": 1,
+    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80",
+    "screenshots": [
+      "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80"
+    ],
+    "features": [
+      "2D and 3D Design",
+      "Lifetime License",
+      "Instant Download"
+    ],
+    "requirements": [
+      "Windows 10 / 11 (64-bit)"
+    ],
+    "versionHistory": [
+      {
+        "version": "2010-2027",
+        "date": "2026-08-07",
+        "changes": [
+          "Initial Store Release"
+        ]
+      }
+    ],
+    "fileUrl": "https://www.autodesk.com",
+    "instantKeyAvailable": true,
+    "isBestSeller": true,
+    "isFeatured": true,
+    "isNew": true,
+    "tags": [
+      "AutoCAD",
+      "Software",
+      "3D Design"
+    ],
+    "salesCount": 1
+  },
+  {
     "id": "prod-1786161845816",
     "name": "usb card",
     "slug": "usb-card",
