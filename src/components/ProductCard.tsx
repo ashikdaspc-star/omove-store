@@ -2,6 +2,8 @@ import React from 'react';
 import { Product } from '../types';
 import { Star, Download, ShieldCheck, Heart, ShoppingBag, Zap, Check } from 'lucide-react';
 
+import { useOnlineStatus } from './OfflineBanner';
+
 interface ProductCardProps {
   product: Product;
   onSelect: (product: Product) => void;
@@ -19,6 +21,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   isWishlisted,
   onToggleWishlist
 }) => {
+  const isOnline = useOnlineStatus();
+
   return (
     <div className="group bg-white rounded-2xl overflow-hidden border border-slate-200/90 hover:border-emerald-500/40 transition-all duration-300 shadow-xs hover:shadow-xl hover:shadow-emerald-500/5 flex flex-col justify-between">
       <div>
@@ -145,10 +149,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <ShoppingBag className="w-4 h-4" />
           </button>
           <button
-            onClick={() => onBuyNow(product)}
-            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-mono tracking-wide transition-all shadow-xs hover:scale-105 active:scale-95 min-h-[44px] flex items-center justify-center whitespace-nowrap"
+            disabled={!isOnline}
+            onClick={(e) => {
+              if (!isOnline) {
+                e.preventDefault();
+                e.stopPropagation();
+                alert("You’re offline. Please reconnect to the internet to purchase this product.");
+                return;
+              }
+              onBuyNow(product);
+            }}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono tracking-wide transition-all min-h-[44px] flex items-center justify-center whitespace-nowrap ${
+              !isOnline
+                ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs hover:scale-105 active:scale-95'
+            }`}
           >
-            BUY NOW
+            {isOnline ? 'BUY NOW' : 'OFFLINE — BUY UNAVAILABLE'}
           </button>
         </div>
       </div>

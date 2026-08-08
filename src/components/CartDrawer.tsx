@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { CartItem } from '../types';
-import { X, Trash2, Plus, Minus, Tag, ShieldCheck, ArrowRight, ShoppingBag } from 'lucide-react';
+import { X, Trash2, Plus, Minus, Tag, ShieldCheck, ArrowRight, ShoppingBag, WifiOff } from 'lucide-react';
 import { validateAndApplyCoupon } from '../utils/couponManager';
+import { useOnlineStatus } from './OfflineBanner';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onRemoveItem,
   onOpenCheckout
 }) => {
+  const isOnline = useOnlineStatus();
   if (!isOpen) return null;
 
   const [couponInput, setCouponInput] = useState('');
@@ -190,13 +192,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </div>
 
             <button
+              disabled={!isOnline}
               onClick={() => {
+                if (!isOnline) {
+                  alert("You’re offline. Please reconnect to the internet to purchase this product.");
+                  return;
+                }
                 onOpenCheckout(appliedCoupon?.code, discountAmount);
               }}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-xs font-mono tracking-wider shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-98"
+              className={`w-full py-3.5 rounded-xl font-bold text-xs font-mono tracking-wider flex items-center justify-center gap-2 transition-all ${
+                !isOnline
+                  ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
+                  : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white shadow-lg shadow-indigo-600/30 hover:scale-[1.02] active:scale-98'
+              }`}
             >
-              <span>PROCEED TO SECURE CHECKOUT</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>{isOnline ? 'PROCEED TO SECURE CHECKOUT' : 'OFFLINE — CHECKOUT UNAVAILABLE'}</span>
+              {isOnline ? <ArrowRight className="w-4 h-4" /> : <WifiOff className="w-4 h-4 text-rose-400" />}
             </button>
 
             <div className="flex items-center justify-center gap-2 text-[10px] text-slate-400 pt-1">

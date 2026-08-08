@@ -494,6 +494,10 @@ export default function App() {
   };
 
   const handleBuyNow = (product: Product) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      alert("You’re offline. Please reconnect to the internet to purchase this product.");
+      return;
+    }
     handleAddToCart(product);
     setIsCartOpen(false);
     if (!isLoggedIn) {

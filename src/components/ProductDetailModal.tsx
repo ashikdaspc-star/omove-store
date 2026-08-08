@@ -18,6 +18,8 @@ import {
   FileText
 } from 'lucide-react';
 
+import { useOnlineStatus } from './OfflineBanner';
+
 interface ProductDetailModalProps {
   product: Product | null;
   onClose: () => void;
@@ -31,6 +33,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onAddToCart,
   onBuyNow
 }) => {
+  const isOnline = useOnlineStatus();
   if (!product) return null;
 
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'history' | 'reviews'>('overview');
@@ -227,14 +230,23 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     <span>ADD TO CART</span>
                   </button>
                   <button
+                    disabled={!isOnline}
                     onClick={() => {
+                      if (!isOnline) {
+                        alert("You’re offline. Please reconnect to the internet to purchase this product.");
+                        return;
+                      }
                       onBuyNow(product);
                       onClose();
                     }}
-                    className="py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all hover:scale-105"
+                    className={`py-3 px-4 rounded-xl text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-2 transition-all ${
+                      !isOnline
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
+                        : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 hover:scale-105'
+                    }`}
                   >
-                    <Zap className="w-4 h-4" />
-                    <span>BUY NOW</span>
+                    <Zap className={`w-4 h-4 ${!isOnline ? 'text-slate-500' : ''}`} />
+                    <span>{isOnline ? 'BUY NOW' : 'OFFLINE — BUY UNAVAILABLE'}</span>
                   </button>
                 </div>
 

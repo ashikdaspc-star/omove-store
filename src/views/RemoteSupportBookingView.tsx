@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { RemoteService, RemoteBooking } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCoupon } from '../utils/couponManager';
+import { useOnlineStatus } from '../components/OfflineBanner';
 import {
   Headphones,
   CheckCircle2,
@@ -15,7 +16,8 @@ import {
   ExternalLink,
   MessageSquare,
   Wrench,
-  Tag
+  Tag,
+  WifiOff
 } from 'lucide-react';
 
 interface RemoteSupportBookingViewProps {
@@ -29,6 +31,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
   onBookingSuccess,
   setCurrentView
 }) => {
+  const isOnline = useOnlineStatus();
   const [selectedService, setSelectedService] = useState<RemoteService | null>(services[0] || null);
   const [customerName, setCustomerName] = useState('');
   const [email, setEmail] = useState('');
@@ -570,10 +573,19 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
 
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm font-mono tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                disabled={isSubmitting || !isOnline}
+                className={`w-full py-4 rounded-2xl font-black text-sm font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all ${
+                  !isOnline
+                    ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 hover:scale-[1.01]'
+                }`}
               >
-                {isSubmitting ? (
+                {!isOnline ? (
+                  <>
+                    <WifiOff className="w-4 h-4 text-rose-400" />
+                    <span>OFFLINE — CHECKOUT UNAVAILABLE</span>
+                  </>
+                ) : isSubmitting ? (
                   <>
                     <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
                     <span>CONFIRMING BOOKING...</span>
@@ -581,7 +593,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 ) : (
                   <>
                     <Lock className="w-4 h-4" />
-                    <span>PAY ₹{Math.max(0, (selectedService?.price || 39) - appliedDiscount)} & GET INSTANT REPAIR</span>
+                    <span>SECURE CONFIRM & PAY ₹{Math.max(0, (selectedService?.price || 39) - appliedDiscount)}</span>
                   </>
                 )}
               </button>

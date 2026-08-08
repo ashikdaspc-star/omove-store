@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { RemoteService, RemoteBooking } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCoupon } from '../utils/couponManager';
+import { useOnlineStatus } from '../components/OfflineBanner';
 import {
   Zap,
   Check,
@@ -17,7 +18,8 @@ import {
   X,
   CheckCircle2,
   DownloadCloud,
-  Tag
+  Tag,
+  WifiOff
 } from 'lucide-react';
 
 interface ServicesViewProps {
@@ -27,6 +29,7 @@ interface ServicesViewProps {
 }
 
 export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingSuccess, setCurrentView }) => {
+  const isOnline = useOnlineStatus();
   const [activeService, setActiveService] = useState<RemoteService | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [email, setEmail] = useState('');
@@ -572,10 +575,19 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
                 <div className="pt-2">
                   <button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm font-mono tracking-wider shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all"
+                    disabled={isSubmitting || !isOnline}
+                    className={`w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider shadow-md flex items-center justify-center gap-2 transition-all ${
+                      !isOnline
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                    }`}
                   >
-                    {isSubmitting ? (
+                    {!isOnline ? (
+                      <>
+                        <WifiOff className="w-4 h-4 text-rose-400" />
+                        <span>OFFLINE — CHECKOUT UNAVAILABLE</span>
+                      </>
+                    ) : isSubmitting ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         <span>PREPARING CHECKOUT...</span>

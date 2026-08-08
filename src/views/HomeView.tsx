@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { Product, RemoteService, RemoteBooking, BlogPost } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCoupon } from '../utils/couponManager';
+import { useOnlineStatus } from '../components/OfflineBanner';
 import { CATEGORIES } from '../data/mockData';
 import { ProductCard } from '../components/ProductCard';
 import {
@@ -24,7 +25,8 @@ import {
   DownloadCloud,
   ExternalLink,
   MessageSquare,
-  Tag
+  Tag,
+  WifiOff
 } from 'lucide-react';
 
 interface HomeViewProps {
@@ -54,6 +56,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   setCurrentView,
   setSelectedCategory
 }) => {
+  const isOnline = useOnlineStatus();
   const [diagnosticIssue, setDiagnosticIssue] = useState<string>('bsod');
 
   // Booking Modal State directly on Home Page
@@ -106,6 +109,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const handleProceedToPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeBookingService) return;
+    if (!isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+      alert("You’re offline. Please reconnect to the internet to purchase this product.");
+      return;
+    }
     setIsSubmitting(true);
 
     const finalPrice = Math.max(0, activeBookingService.price - appliedDiscount);
@@ -795,10 +802,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm font-mono tracking-wider shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all"
+                    disabled={isSubmitting || !isOnline}
+                    className={`w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider shadow-md flex items-center justify-center gap-2 transition-all ${
+                      !isOnline
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                    }`}
                   >
-                    {isSubmitting ? (
+                    {!isOnline ? (
+                      <>
+                        <WifiOff className="w-4 h-4 text-rose-400" />
+                        <span>OFFLINE — CHECKOUT UNAVAILABLE</span>
+                      </>
+                    ) : isSubmitting ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         <span>PREPARING CHECKOUT...</span>

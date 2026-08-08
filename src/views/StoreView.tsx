@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Product } from '../types';
 import { CATEGORIES } from '../data/mockData';
 import { ProductCard } from '../components/ProductCard';
+import { useOnlineStatus } from '../components/OfflineBanner';
 import {
   Search,
   Grid,
@@ -36,6 +37,7 @@ export const StoreView: React.FC<StoreViewProps> = ({
   selectedCategory,
   setSelectedCategory
 }) => {
+  const isOnline = useOnlineStatus();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortOption, setSortOption] = useState<'popular' | 'price-low' | 'price-high' | 'rating'>('popular');
   const [maxPrice, setMaxPrice] = useState<number>(5000);
@@ -251,10 +253,21 @@ export const StoreView: React.FC<StoreViewProps> = ({
                   <span className="block text-[10px] text-emerald-700 font-semibold">{product.licenseType}</span>
                 </div>
                 <button
-                  onClick={() => onBuyNow(product)}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm"
+                  disabled={!isOnline}
+                  onClick={() => {
+                    if (!isOnline) {
+                      alert("You’re offline. Please reconnect to the internet to purchase this product.");
+                      return;
+                    }
+                    onBuyNow(product);
+                  }}
+                  className={`px-5 py-2.5 rounded-xl font-mono text-xs font-bold shadow-sm transition-all ${
+                    !isOnline
+                      ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  }`}
                 >
-                  BUY NOW
+                  {isOnline ? 'BUY NOW' : 'OFFLINE — BUY UNAVAILABLE'}
                 </button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Product, Order } from '../types';
+import { Product, Order, UserProfile } from '../types';
 import {
   Download,
   Search,
@@ -15,8 +15,10 @@ import {
   Check,
   ShoppingBag,
   Clock,
-  Sparkles
+  Sparkles,
+  WifiOff
 } from 'lucide-react';
+import { useOnlineStatus } from '../components/OfflineBanner';
 
 interface DownloadsViewProps {
   products: Product[];
@@ -35,6 +37,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
   onAddToCart,
   onBuyNow
 }) => {
+  const isOnline = useOnlineStatus();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
@@ -353,11 +356,22 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                 <div className="pt-4 border-t border-slate-100 space-y-2">
                   {prod.price > 0 && onBuyNow ? (
                     <button
-                      onClick={() => onBuyNow(prod)}
-                      className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                      disabled={!isOnline}
+                      onClick={() => {
+                        if (!isOnline) {
+                          alert("You’re offline. Please reconnect to the internet to purchase this product.");
+                          return;
+                        }
+                        onBuyNow(prod);
+                      }}
+                      className={`w-full py-3 rounded-xl font-bold font-mono text-xs shadow-md flex items-center justify-center gap-2 transition-all ${
+                        !isOnline
+                          ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 hover:scale-[1.01]'
+                      }`}
                     >
-                      <ShoppingBag className="w-4 h-4" />
-                      <span>BUY NOW & GET DOWNLOAD KEY (₹{prod.price})</span>
+                      {isOnline ? <ShoppingBag className="w-4 h-4" /> : <WifiOff className="w-4 h-4 text-rose-400" />}
+                      <span>{isOnline ? `BUY NOW & GET DOWNLOAD KEY (₹${prod.price})` : 'OFFLINE — BUY UNAVAILABLE'}</span>
                     </button>
                   ) : (
                     <button
