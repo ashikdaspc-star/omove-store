@@ -63,6 +63,17 @@ export const StoreView: React.FC<StoreViewProps> = ({
       });
   }, [products, selectedCategory, searchQuery, maxPrice, selectedLicense, sortOption]);
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      if (p.category) {
+        const catName = CATEGORIES.find((c) => c.name.toLowerCase() === p.category.toLowerCase())?.name || p.category;
+        counts[catName] = (counts[catName] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [products]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Store Header */}
@@ -76,7 +87,7 @@ export const StoreView: React.FC<StoreViewProps> = ({
               Browse Software Catalog
             </h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div>
             <span className="px-3.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-mono text-xs font-bold border border-emerald-200/80">
               {filteredProducts.length} Items Found
             </span>
@@ -95,19 +106,22 @@ export const StoreView: React.FC<StoreViewProps> = ({
           >
             All Categories
           </button>
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.name}
-              onClick={() => setSelectedCategory(cat.name)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold font-mono whitespace-nowrap transition-all ${
-                selectedCategory === cat.name
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200/80'
-              }`}
-            >
-              {cat.name} ({cat.count})
-            </button>
-          ))}
+          {CATEGORIES.map((cat) => {
+            const count = categoryCounts[cat.name] || 0;
+            return (
+              <button
+                key={cat.name}
+                onClick={() => setSelectedCategory(cat.name)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold font-mono whitespace-nowrap transition-all ${
+                  selectedCategory === cat.name
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200/80'
+                }`}
+              >
+                {cat.name} ({count})
+              </button>
+            );
+          })}
         </div>
       </div>
 
