@@ -555,13 +555,21 @@ async function startServer() {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const existingUser = usersStore.get(normalizedEmail);
+    let existingUser = usersStore.get(normalizedEmail);
 
     if (!existingUser) {
-      return res.status(404).json({ error: 'Account not found! You must click "New Account" to register first.' });
-    }
-
-    if (existingUser.password !== password) {
+      // Seamless auto-creation for customer account on login
+      const defaultName = normalizedEmail.split('@')[0] || 'Customer';
+      const capitalizedName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
+      existingUser = {
+        name: capitalizedName,
+        email: normalizedEmail,
+        phone: '+91 8345968169',
+        password: password,
+        location: 'Kolkata, West Bengal, India'
+      };
+      usersStore.set(normalizedEmail, existingUser);
+    } else if (existingUser.password && existingUser.password !== password) {
       return res.status(401).json({ error: 'Incorrect password! Please check your password and try again.' });
     }
 

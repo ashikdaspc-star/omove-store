@@ -62,7 +62,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     try {
       const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
       const payload = mode === 'register'
-        ? { name: name || 'Customer', email: normEmail, phone: phone || '', password, location: 'Kolkata, West Bengal, India' }
+        ? { name: name || normEmail.split('@')[0] || 'Customer', email: normEmail, phone: phone || '', password, location: 'Kolkata, West Bengal, India' }
         : { email: normEmail, password };
 
       const res = await fetch(endpoint, {
@@ -71,20 +71,21 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        if (mode === 'register') {
-          saveRegisteredUser({ name: name || 'Customer', email: normEmail, phone: phone || '', password, location: 'Kolkata, West Bengal, India' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          saveRegisteredUser({
+            name: data.user.name || normEmail.split('@')[0],
+            email: normEmail,
+            phone: data.user.phone || phone || '',
+            password,
+            location: data.user.location || 'Kolkata, West Bengal, India'
+          });
+          onLoginSuccess(data.user);
+          onClose();
+          setIsSubmitting(false);
+          return;
         }
-        onLoginSuccess(data.user);
-        onClose();
-        setIsSubmitting(false);
-        return;
-      } else if (data && data.error) {
-        setErrorNotice(data.error);
-        setIsSubmitting(false);
-        return;
       }
     } catch (err) {
       console.warn('Backend notice, evaluating local registry:', err);
@@ -94,9 +95,20 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     const registered = getRegisteredUsers();
     const existing = registered[normEmail];
 
-    if (mode === 'register') {
+    if (existing) {
+      if (existing.password && existing.password !== password) {
+        setErrorNotice('Incorrect password! Please check your password and try again.');
+        setIsSubmitting(false);
+        return;
+      }
+      onLoginSuccess(existing);
+      onClose();
+    } else {
+      // Seamless auto-create & sign-in for customer email
+      const defaultName = normEmail.split('@')[0] || 'Customer';
+      const capitalizedName = name || (defaultName.charAt(0).toUpperCase() + defaultName.slice(1));
       const newUser = {
-        name: name || normEmail.split('@')[0] || 'Customer',
+        name: capitalizedName,
         email: normEmail,
         phone: phone || '',
         password,
@@ -105,29 +117,6 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       saveRegisteredUser(newUser);
       onLoginSuccess(newUser);
       onClose();
-    } else {
-      // Sign In mode
-      if (existing) {
-        if (existing.password && existing.password !== password) {
-          setErrorNotice('Incorrect password! Please check your password and try again.');
-          setIsSubmitting(false);
-          return;
-        }
-        onLoginSuccess(existing);
-        onClose();
-      } else {
-        // Seamless auto-create & sign-in for customer email
-        const newUser = {
-          name: normEmail.split('@')[0] || 'Customer',
-          email: normEmail,
-          phone: phone || '',
-          password,
-          location: 'Kolkata, West Bengal, India'
-        };
-        saveRegisteredUser(newUser);
-        onLoginSuccess(newUser);
-        onClose();
-      }
     }
 
     setIsSubmitting(false);
