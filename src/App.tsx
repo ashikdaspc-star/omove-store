@@ -180,6 +180,13 @@ export default function App() {
     loadLatestProductsFromServer();
     fetchAndCacheCoupons().catch(() => {});
 
+    // Google Analytics GA4 (G-ST07D2GYPK) Pageview Tracking
+    if (typeof window !== 'undefined' && (window as any).gtag) {
+      (window as any).gtag('config', 'G-ST07D2GYPK', {
+        page_path: location.pathname + location.search
+      });
+    }
+
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel('omove_catalog_sync_channel');
