@@ -12,8 +12,6 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   onClose,
   onLoginSuccess
 }) => {
-  if (!isOpen) return null;
-
   const [mode, setMode] = useState<'signin' | 'register' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +23,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const [errorNotice, setErrorNotice] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!isOpen) return null;
 
   const getRegisteredUsers = (): Record<string, { name: string; email: string; phone: string; password?: string; location: string }> => {
     try {

@@ -12,11 +12,11 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
   onClose,
   onSuccess
 }) => {
-  if (!isOpen) return null;
-
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  if (!isOpen) return null;
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product, ProductReview } from '../types';
 import {
   X,
@@ -34,35 +34,42 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onBuyNow
 }) => {
   const isOnline = useOnlineStatus();
-  if (!product) return null;
-
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'history' | 'reviews'>('overview');
-  const [selectedImage, setSelectedImage] = useState<string>(product.image);
+  const [selectedImage, setSelectedImage] = useState<string>('');
   const [newReviewAuthor, setNewReviewAuthor] = useState('');
   const [newReviewRating, setNewReviewRating] = useState(5);
   const [newReviewComment, setNewReviewComment] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
 
-  const [reviews, setReviews] = useState<ProductReview[]>([
-    {
-      id: 'rev-1',
-      productId: product.id,
-      author: 'Mark S. (IT System Admin)',
-      rating: 5,
-      date: '2 days ago',
-      comment: 'Absolutely essential software for IT repair. The debloat feature saved me 3 hours on 5 client laptops today!',
-      verifiedPurchase: true
-    },
-    {
-      id: 'rev-2',
-      productId: product.id,
-      author: 'Karan Patel',
-      rating: 5,
-      date: '1 week ago',
-      comment: 'License key was delivered instantly after Razorpay payment. Downloaded in under 1 minute.',
-      verifiedPurchase: true
+  useEffect(() => {
+    if (product) {
+      setSelectedImage(product.image || '');
+      setActiveTab('overview');
+      setReviews([
+        {
+          id: 'rev-1',
+          productId: product.id,
+          author: 'Mark S. (IT System Admin)',
+          rating: 5,
+          date: '2 days ago',
+          comment: 'Absolutely essential software for IT repair. The debloat feature saved me 3 hours on 5 client laptops today!',
+          verifiedPurchase: true
+        },
+        {
+          id: 'rev-2',
+          productId: product.id,
+          author: 'Karan Patel',
+          rating: 5,
+          date: '1 week ago',
+          comment: 'License key was delivered instantly after Razorpay payment. Downloaded in under 1 minute.',
+          verifiedPurchase: true
+        }
+      ]);
     }
-  ]);
+  }, [product]);
+
+  if (!product) return null;
 
   const handleAddReview = (e: React.FormEvent) => {
     e.preventDefault();

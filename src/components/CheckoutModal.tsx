@@ -46,7 +46,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onOrderSuccess,
   onOpenInvoiceModal
 }) => {
-  if (!isOpen) return null;
+  const isOnline = useOnlineStatus();
 
   const [paymentMethod, setPaymentMethod] = useState<'Razorpay UPI' | 'Credit / Debit Card' | 'NetBanking' | 'Wallet'>('Razorpay UPI');
   const [customerName, setCustomerName] = useState('');
@@ -105,7 +105,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setTimeout(() => setCouponStatus(null), 3000);
   };
 
-  const isOnline = useOnlineStatus();
+  if (!isOpen) return null;
 
   const handleProcessPayment = async (e: React.FormEvent) => {
     e.preventDefault();
