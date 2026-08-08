@@ -61,9 +61,19 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase() })
       });
-      const data = await res.json();
+
+      let data: any = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.warn('Non-JSON server response:', res.status, text);
+        data = { error: `Server response status ${res.status}. Please try again.` };
+      }
+
       if (res.ok && data.success) {
-        setSuccessNotice(data.message || 'Password reset link sent! Check your email or enter reset token below.');
+        setSuccessNotice(data.message || 'If an account exists for this email address, password reset instructions have been sent.');
         if (data.resetToken) {
           setResetTokenInput(data.resetToken);
           setIsResetTokenGenerated(true);
@@ -71,8 +81,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       } else {
         setErrorNotice(data.error || 'Failed to process password reset request.');
       }
-    } catch (err) {
-      setErrorNotice('Network error while requesting password reset.');
+    } catch (err: any) {
+      console.error('Forgot password fetch exception:', err);
+      setErrorNotice('Unable to connect to authentication server. Please check your network connection and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -93,7 +104,15 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: resetTokenInput.trim(), newPassword: password })
       });
-      const data = await res.json();
+
+      let data: any = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        data = { error: `Server response status ${res.status}.` };
+      }
+
       if (res.ok && data.success) {
         setSuccessNotice('Password reset successfully! Please sign in with your new password.');
         setMode('signin');
@@ -103,7 +122,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         setErrorNotice(data.error || 'Failed to reset password. Invalid or expired token.');
       }
     } catch (err) {
-      setErrorNotice('Network error while resetting password.');
+      setErrorNotice('Unable to connect to authentication server. Please check your network connection and try again.');
     } finally {
       setIsSubmitting(false);
     }

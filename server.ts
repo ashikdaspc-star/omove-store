@@ -288,34 +288,42 @@ bookingsStore.set(sampleBooking.id, sampleBooking);
 
 export const app = express();
 
-async function startServer() {
-  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// CORS Header Middleware
+app.use((_req: Request, res: Response, next: any) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  if (_req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
-  // JSON Error handler middleware
-  app.use((err: any, _req: Request, res: Response, next: any) => {
-    if (err) {
-      console.error('Express request parsing error:', err.message);
-      return res.status(400).json({ success: false, error: `Invalid request payload: ${err.message}` });
-    }
-    next();
-  });
+// JSON Error handler middleware
+app.use((err: any, _req: Request, res: Response, next: any) => {
+  if (err) {
+    console.error('Express request parsing error:', err.message);
+    return res.status(400).json({ success: false, error: `Invalid request payload: ${err.message}` });
+  }
+  next();
+});
 
-  // Anti-caching middleware for all dynamic API endpoints
-  app.use('/api', (_req: Request, res: Response, next: any) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.setHeader('Surrogate-Control', 'no-store');
-    next();
-  });
+// Anti-caching middleware for all dynamic API endpoints
+app.use('/api', (_req: Request, res: Response, next: any) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
 
-  // API ROUTES
-  app.get('/api/health', (req: Request, res: Response) => {
-    res.json({ status: 'ok', service: 'OMOVE TECH Engine', time: new Date().toISOString() });
-  });
+// API ROUTES
+app.get('/api/health', (req: Request, res: Response) => {
+  res.json({ status: 'ok', service: 'OMOVE TECH Engine', time: new Date().toISOString() });
+});
 
   let dynamicProductsStore: any[] = [...MOCK_PRODUCTS];
   let currentCatalogVersion: number = Date.now();
@@ -1070,6 +1078,9 @@ async function startServer() {
     res.json({ success: true, keysGenerated: keys.length, keys });
   });
 
+async function startServer() {
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
   // Vite development middleware or production static server
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -1090,6 +1101,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
 
 export default app;
