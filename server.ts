@@ -355,6 +355,65 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'OMOVE TECH Engine', time: new Date().toISOString() });
 });
 
+// Public SEO XML Sitemap & Robots.txt Routes
+app.get('/sitemap.xml', (_req: Request, res: Response) => {
+  const sitemapPath = path.join(process.cwd(), 'public', 'sitemap.xml');
+  if (fs.existsSync(sitemapPath)) {
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    return res.sendFile(sitemapPath);
+  }
+
+  const DOMAIN = 'https://www.omovestore.shop';
+  const TODAY = new Date().toISOString().split('T')[0];
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+  const staticPages = [
+    { url: '/', priority: '1.0', changefreq: 'daily' },
+    { url: '/digital-products', priority: '0.9', changefreq: 'daily' },
+    { url: '/store', priority: '0.9', changefreq: 'daily' },
+    { url: '/services', priority: '0.9', changefreq: 'weekly' },
+    { url: '/remote-support', priority: '0.8', changefreq: 'weekly' },
+    { url: '/downloads', priority: '0.7', changefreq: 'weekly' },
+    { url: '/blog', priority: '0.8', changefreq: 'weekly' },
+    { url: '/contact', priority: '0.7', changefreq: 'monthly' },
+    { url: '/about', priority: '0.7', changefreq: 'monthly' },
+    { url: '/refund-policy', priority: '0.5', changefreq: 'monthly' },
+    { url: '/privacy-policy', priority: '0.5', changefreq: 'monthly' },
+    { url: '/terms', priority: '0.5', changefreq: 'monthly' },
+    { url: '/delivery-policy', priority: '0.5', changefreq: 'monthly' },
+    { url: '/cookie-policy', priority: '0.5', changefreq: 'monthly' }
+  ];
+
+  staticPages.forEach((p) => {
+    xml += `  <url>\n    <loc>${DOMAIN}${p.url}</loc>\n    <lastmod>${TODAY}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>\n`;
+  });
+
+  if (Array.isArray(dynamicProductsStore)) {
+    dynamicProductsStore.forEach((prod: any) => {
+      const s = prod.slug || prod.id;
+      if (s) {
+        xml += `  <url>\n    <loc>${DOMAIN}/store?product=${encodeURIComponent(s)}</loc>\n    <lastmod>${TODAY}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
+      }
+    });
+  }
+
+  xml += `</urlset>\n`;
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.send(xml);
+});
+
+app.get('/robots.txt', (_req: Request, res: Response) => {
+  const robotsPath = path.join(process.cwd(), 'public', 'robots.txt');
+  if (fs.existsSync(robotsPath)) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.sendFile(robotsPath);
+  }
+
+  const content = `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /admin/\nDisallow: /api/\nDisallow: /my-account\nDisallow: /dashboard\nDisallow: /checkout\nDisallow: /reset-password\n\nSitemap: https://www.omovestore.shop/sitemap.xml\n`;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.send(content);
+});
+
   const SERVICES_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'services.json');
 
   function loadServicesFromDisk(): RemoteService[] {

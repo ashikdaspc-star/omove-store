@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /api/
+Disallow: /my-account
+Disallow: /dashboard
+Disallow: /checkout
+Disallow: /reset-password
+
+Sitemap: https://www.omovestore.shop/sitemap.xml
