@@ -6,7 +6,6 @@ import { exec } from 'child_process';
 import dotenv from 'dotenv';
 import Razorpay from 'razorpay';
 import nodemailer from 'nodemailer';
-import { createServer as createViteServer } from 'vite';
 import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS, MOCK_COUPONS } from './src/data/mockData';
 import { Order, RemoteBooking, SupportTicket } from './src/types';
 
@@ -1083,6 +1082,7 @@ async function startServer() {
 
   // Vite development middleware or production static server
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
