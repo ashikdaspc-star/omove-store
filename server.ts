@@ -939,6 +939,20 @@ app.get('/api/health', (req: Request, res: Response) => {
     });
   });
 
+  // Customer Account Deletion Endpoint
+  app.post('/api/auth/delete-account', (req: Request, res: Response) => {
+    const { email } = req.body || {};
+    const normalizedEmail = (email || '').trim().toLowerCase();
+
+    if (normalizedEmail) {
+      usersStore.delete(normalizedEmail);
+      saveUsersToDisk(usersStore);
+    }
+
+    res.clearCookie('omove_session_token');
+    res.json({ success: true, message: 'Account and associated profile data successfully deleted.' });
+  });
+
   // Customer Logout Endpoint
   app.post('/api/auth/logout', (req: Request, res: Response) => {
     const cookies = parseCookies(req.headers.cookie);

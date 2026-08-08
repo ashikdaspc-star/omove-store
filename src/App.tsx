@@ -889,6 +889,7 @@ export default function App() {
                 onToggleWishlist={handleToggleWishlist}
                 onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
                 setCurrentView={handleNavigateView}
+                onSignOut={handleSignOut}
               />
             }
           />
