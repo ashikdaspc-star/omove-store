@@ -25,7 +25,7 @@ export const AboutContactView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+    <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-12">
       {/* Hero */}
       <div className="p-8 sm:p-12 rounded-3xl bg-white border border-slate-200/90 shadow-sm text-center space-y-4">
         <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-700">

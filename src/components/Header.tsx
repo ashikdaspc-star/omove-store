@@ -11,7 +11,6 @@ import {
   Zap,
   BookOpen,
   Info,
-  LogIn,
   LogOut,
   ShieldCheck,
   MessageSquare,
@@ -101,7 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-2 xl:gap-3">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
         {/* Left: Brand Logo & Title */}
         <Link
           to="/"
@@ -115,15 +114,15 @@ export const Header: React.FC<HeaderProps> = ({
           />
           <div className="hidden sm:block">
             <div className="flex items-center gap-1 leading-tight">
-              <span className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900 font-sans">Omove</span>
-              <span className="text-lg sm:text-xl font-extrabold tracking-tight text-emerald-600 font-sans">Store</span>
+              <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 font-sans">Omove</span>
+              <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-emerald-600 font-sans">Store</span>
             </div>
-            <p className="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-500 font-semibold font-mono">Digital • Software • PC Support</p>
+            <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold font-mono">Digital • Software • PC Support</p>
           </div>
         </Link>
 
         {/* Center: Main Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1">
+        <nav className="hidden xl:flex items-center gap-1 2xl:gap-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -132,7 +131,7 @@ export const Header: React.FC<HeaderProps> = ({
                 to={item.path}
                 onClick={handleNavClick}
                 className={({ isActive }) =>
-                  `relative px-2 py-1.5 xl:px-2.5 xl:py-2 rounded-xl text-[11px] xl:text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${
+                  `relative px-3 py-2 rounded-xl text-xs 2xl:text-sm font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
                     isActive
                       ? 'text-emerald-700 bg-emerald-50 border border-emerald-200/80 shadow-xs'
                       : 'text-slate-700 hover:text-emerald-700 hover:bg-slate-50'
@@ -160,11 +159,11 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Quick Search Button */}
           <button
             onClick={() => setShowSearchModal(true)}
-            className="p-2.5 sm:px-3.5 sm:py-2 rounded-xl bg-slate-100/90 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 text-xs font-medium flex items-center gap-2 transition-all"
+            className="p-2.5 sm:px-3.5 sm:py-2 rounded-xl bg-slate-100/90 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 text-xs font-medium flex items-center gap-2 transition-all min-h-[44px]"
             title="Search software, drivers or services"
           >
             <Search className="w-4 h-4 text-slate-500" />
-            <span className="hidden xl:inline text-slate-500">Search...</span>
+            <span className="hidden sm:inline text-slate-500">Search...</span>
           </button>
 
           {/* WhatsApp Support Button */}
@@ -172,7 +171,7 @@ export const Header: React.FC<HeaderProps> = ({
             href="https://wa.me/918345968169"
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 font-semibold text-xs transition-all shadow-xs"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 font-semibold text-xs transition-all shadow-xs min-h-[44px]"
           >
             <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
             <span>WhatsApp</span>
@@ -181,7 +180,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Cart Trigger */}
           <button
             onClick={() => setIsCartOpen(true)}
-            className="relative px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs font-mono tracking-wide shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-95"
+            className="relative px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs font-mono tracking-wide shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-95 min-h-[44px]"
           >
             <ShoppingBag className="w-4 h-4" />
             <span className="hidden sm:inline font-sans">Cart</span>
@@ -194,11 +193,11 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* User Account / Sign In Pill */}
           {isLoggedIn ? (
-            <div className="flex items-center rounded-xl bg-slate-100 border border-slate-200/90 p-1">
+            <div className="flex items-center rounded-xl bg-slate-100 border border-slate-200/90 p-1 min-h-[44px]">
               <Link
                 to="/dashboard"
                 onClick={handleNavClick}
-                className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 ${
                   location.pathname === '/dashboard'
                     ? 'bg-white text-emerald-700 shadow-xs'
                     : 'text-slate-700 hover:text-slate-900'
@@ -212,7 +211,7 @@ export const Header: React.FC<HeaderProps> = ({
               {onSignOut && (
                 <button
                   onClick={onSignOut}
-                  className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                   title="Sign Out"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -221,18 +220,18 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           ) : (
             <button
-              onClick={onOpenAuthModal}
-              className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all hover:scale-105"
+              onClick={() => onOpenAuthModal && onOpenAuthModal()}
+              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm min-h-[44px]"
             >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>SIGN IN</span>
+              <User className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline font-sans">Sign In</span>
             </button>
           )}
 
           {/* Admin Panel Access Button */}
           <button
             onClick={handleAdminToggle}
-            className={`px-3 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm ${
+            className={`px-3 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm min-h-[44px] ${
               isAdminMode && location.pathname === '/admin'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-amber-500/20'
                 : 'bg-[#064E3B] hover:bg-[#04392b] text-white border border-emerald-700'
@@ -240,13 +239,13 @@ export const Header: React.FC<HeaderProps> = ({
             title="Admin Command Center"
           >
             <ShieldCheck className="w-4 h-4 text-emerald-300" />
-            <span className="hidden sm:inline font-mono">{isAdminMode ? 'ADMIN ACTIVE' : 'ADMIN PORTAL 🔐'}</span>
+            <span className="hidden md:inline font-mono">{isAdminMode ? 'ADMIN ACTIVE' : 'ADMIN PORTAL 🔐'}</span>
           </button>
 
           {/* Mobile Menu Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900"
+            className="xl:hidden p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900 min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -275,7 +274,7 @@ export const Header: React.FC<HeaderProps> = ({
                 placeholder="Search software, remote repairs, drivers..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all font-sans"
+                className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all font-sans min-h-[44px]"
               />
             </form>
 
@@ -298,7 +297,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-200 px-4 pt-4 pb-6 space-y-4 bg-white shadow-xl">
+        <div className="xl:hidden border-t border-slate-200 px-4 pt-4 pb-6 space-y-4 bg-white shadow-xl max-h-[85vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-2">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -307,32 +306,58 @@ export const Header: React.FC<HeaderProps> = ({
                   key={item.path}
                   to={item.path}
                   onClick={handleNavClick}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium ${
+                  className={`flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold min-h-[44px] ${
                     location.pathname === item.path
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'bg-slate-50 text-slate-700 border border-slate-200'
                   }`}
                 >
-                  <Icon className="w-4 h-4 text-emerald-600" />
-                  <span>{item.label}</span>
+                  <Icon className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="truncate">{item.label}</span>
                 </Link>
               );
             })}
           </div>
 
-          <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+            <a
+              href="https://wa.me/918345968169"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-xs min-h-[44px]"
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-600" />
+              <span>WhatsApp Support</span>
+            </a>
+
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (isLoggedIn) {
+                  navigate('/dashboard');
+                } else if (onOpenAuthModal) {
+                  onOpenAuthModal();
+                }
+              }}
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-slate-900 text-white font-semibold text-xs min-h-[44px]"
+            >
+              <User className="w-4 h-4 text-emerald-400" />
+              <span>{isLoggedIn ? 'Account Profile' : 'Sign In Account'}</span>
+            </button>
+          </div>
+
+          <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
             <button
               onClick={handleAdminToggle}
-              className="text-xs font-mono font-bold text-white bg-[#064E3B] px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-sm"
+              className="text-xs font-mono font-bold text-white bg-[#064E3B] px-4 py-3 rounded-xl flex items-center gap-2 shadow-sm flex-1 justify-center min-h-[44px]"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              <span>{isAdminMode ? 'Admin Active' : 'ADMIN PORTAL 🔐'}</span>
+              <span>{isAdminMode ? 'ADMIN ACTIVE' : 'ADMIN PORTAL 🔐'}</span>
             </button>
-            <span className="text-xs text-slate-500 font-mono">OMOVE TECH v2026</span>
+            <span className="text-xs text-slate-500 font-mono shrink-0">OMOVE v2026</span>
           </div>
         </div>
       )}
     </header>
   );
 };
-

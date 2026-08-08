@@ -261,7 +261,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+    <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-12">
       {/* Header Banner - Highlighted Dark Green Mesh */}
       <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-[#064E3B] via-[#04392b] to-[#0f172a] text-white shadow-xl border border-emerald-500/30 text-center space-y-4 relative overflow-hidden">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-xs font-mono font-bold shadow-md">

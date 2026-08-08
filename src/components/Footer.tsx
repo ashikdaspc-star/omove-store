@@ -31,21 +31,21 @@ export const Footer: React.FC<FooterProps> = ({ setSelectedCategory }) => {
   };
 
   return (
-    <footer className="bg-[#064E3B] pt-16 pb-12 text-emerald-100 text-sm">
-      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8">
+    <footer className="bg-[#064E3B] pt-12 sm:pt-16 pb-12 text-emerald-100 text-sm">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8">
         {/* Newsletter Section Card */}
-        <div className="mb-16 p-8 rounded-3xl bg-[#04392b] border border-emerald-700/60 shadow-xl relative overflow-hidden">
+        <div className="mb-12 sm:mb-16 p-6 sm:p-8 rounded-3xl bg-[#04392b] border border-emerald-700/60 shadow-xl relative overflow-hidden">
           <div className="absolute -right-20 -top-20 w-80 h-80 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="relative z-10 grid md:grid-cols-2 gap-8 items-center">
+          <div className="relative z-10 grid lg:grid-cols-2 gap-6 sm:gap-8 items-center">
             <div>
               <div className="flex items-center gap-2 text-emerald-300 font-semibold text-xs tracking-wider uppercase mb-2">
                 <Zap className="w-4 h-4" />
                 <span>Stay Ahead in Tech & PC Fixes</span>
               </div>
-              <h3 className="text-2xl font-bold text-white tracking-tight">
+              <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                 Get Weekly Windows Fixes, Driver Alerts & Exclusive Discounts
               </h3>
-              <p className="text-emerald-100/80 text-sm mt-2">
+              <p className="text-emerald-100/80 text-xs sm:text-sm mt-2">
                 Join 1,000+ happy customers and PC enthusiasts. Zero spam, unsubscribe anytime.
               </p>
             </div>
@@ -59,18 +59,18 @@ export const Footer: React.FC<FooterProps> = ({ setSelectedCategory }) => {
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3">
+                <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3 w-full">
                   <input
                     type="email"
                     required
                     placeholder="Enter your email address..."
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="flex-1 px-4 py-3 rounded-xl bg-[#032a1f] border border-emerald-600/60 text-white placeholder-emerald-300/50 focus:outline-none focus:border-emerald-300 text-sm"
+                    className="flex-1 px-4 py-3 rounded-xl bg-[#032a1f] border border-emerald-600/60 text-white placeholder-emerald-300/50 focus:outline-none focus:border-emerald-300 text-sm min-h-[44px]"
                   />
                   <button
                     type="submit"
-                    className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg"
+                    className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg min-h-[44px] shrink-0"
                   >
                     <span>Subscribe</span>
                     <ArrowRight className="w-4 h-4" />
@@ -82,7 +82,7 @@ export const Footer: React.FC<FooterProps> = ({ setSelectedCategory }) => {
         </div>
 
         {/* Footer Navigation Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 sm:gap-10 mb-12">
           {/* Brand Info */}
           <div className="lg:col-span-2 space-y-4">
             <Link to="/" onClick={scrollToTop} className="flex items-center gap-3 inline-flex">

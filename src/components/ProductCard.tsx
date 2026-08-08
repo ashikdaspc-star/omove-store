@@ -139,14 +139,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => onAddToCart(product)}
-            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Add to Cart"
           >
             <ShoppingBag className="w-4 h-4" />
           </button>
           <button
             onClick={() => onBuyNow(product)}
-            className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-mono tracking-wide transition-all shadow-xs hover:scale-105 active:scale-95"
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-mono tracking-wide transition-all shadow-xs hover:scale-105 active:scale-95 min-h-[44px] flex items-center justify-center whitespace-nowrap"
           >
             BUY NOW
           </button>

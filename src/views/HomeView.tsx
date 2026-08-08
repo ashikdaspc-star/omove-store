@@ -301,7 +301,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     <div className="space-y-8 sm:space-y-16 pb-12 sm:pb-16">
       {/* 1. HERO SECTION */}
       <section className="relative overflow-hidden bg-gradient-to-br from-[#064E3B] via-[#04392b] to-[#0f172a] text-white pt-8 sm:pt-16 pb-12 sm:pb-24 border-b border-emerald-500/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             
             {/* LEFT SIDE - HERO TEXT */}
@@ -497,7 +497,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 2. INTERACTIVE DIAGNOSIS TOOL */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8">
         <div className="p-8 sm:p-10 rounded-3xl bg-white border border-slate-200 shadow-md space-y-8 relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
@@ -523,7 +523,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 4. RECENT KNOWLEDGE BASE GUIDES */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      <section className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 space-y-8">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
