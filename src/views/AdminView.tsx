@@ -153,6 +153,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const handleOpenEditProduct = (prod: Product) => {
+    setShowAddProductModal(false);
     setEditingProduct(prod);
     setProdName(prod.name);
     setProdCategory(prod.category as any || 'Windows Tools');
@@ -551,7 +552,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           )}
 
           <button
-            onClick={() => setShowAddProductModal(true)}
+            onClick={handleOpenAddProduct}
             className="px-4 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black font-mono text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all hover:scale-105"
           >
             <ShoppingBag className="w-4 h-4 text-slate-950" />
@@ -665,7 +666,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <span>🔑 Set GitHub Token</span>
               </button>
               <button
-                onClick={() => setShowAddProductModal(true)}
+                onClick={handleOpenAddProduct}
                 className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-sm shrink-0"
               >
                 + Add Store Card

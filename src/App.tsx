@@ -53,6 +53,8 @@ export default function App() {
   });
 
   const catalogVersionRef = React.useRef<number>(0);
+  const lastLocalEditRef = React.useRef<number>(0);
+  const SYNC_COOLDOWN_MS = 15000; // Skip background polling for 15s after local admin edits
 
   // Helper to fetch latest products directly from server or GitHub Raw CDN without caching
   const loadLatestProductsFromServer = React.useCallback(async () => {
@@ -151,6 +153,13 @@ export default function App() {
 
     const pollInterval = setInterval(async () => {
       console.log('[OMOVE SYNC] 7. Background version check starting...');
+
+      // Skip polling if admin just made a local edit (sync cooldown)
+      if (Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) {
+        console.log('[OMOVE SYNC] Skipping background poll — sync cooldown active after admin edit');
+        return;
+      }
+
       try {
         const res = await fetch(`/api/catalog-version?t=${Date.now()}`, {
           cache: 'no-store',
@@ -168,6 +177,10 @@ export default function App() {
       } catch (e) {}
 
       // Fallback polling check directly from GitHub Raw CDN
+      // Also skip if sync cooldown is active
+      if (Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) {
+        return;
+      }
       try {
         const ghRes = await fetch(`https://raw.githubusercontent.com/ashikdaspc-star/omove-store/main/src/data/products.json?v=${Date.now()}`, {
           cache: 'no-store'
@@ -497,27 +510,24 @@ export default function App() {
   };
 
   const handleAddProduct = (newProd: Product) => {
-    setProducts((prev) => {
-      const updated = [newProd, ...prev];
-      syncProducts(updated);
-      return updated;
-    });
+    lastLocalEditRef.current = Date.now();
+    const updated = [newProd, ...products];
+    setProducts(updated);
+    syncProducts(updated);
   };
 
   const handleUpdateProduct = (updatedProd: Product) => {
-    setProducts((prev) => {
-      const updated = prev.map((p) => (p.id === updatedProd.id ? updatedProd : p));
-      syncProducts(updated);
-      return updated;
-    });
+    lastLocalEditRef.current = Date.now();
+    const updated = products.map((p) => (p.id === updatedProd.id ? updatedProd : p));
+    setProducts(updated);
+    syncProducts(updated);
   };
 
   const handleDeleteProduct = (prodId: string) => {
-    setProducts((prev) => {
-      const updated = prev.filter((p) => p.id !== prodId);
-      syncProducts(updated);
-      return updated;
-    });
+    lastLocalEditRef.current = Date.now();
+    const updated = products.filter((p) => p.id !== prodId);
+    setProducts(updated);
+    syncProducts(updated);
   };
 
   const DEFAULT_GITHUB_TOKEN = ['ghp_If8rf15PeznQaAPql', 'TFlIIrnbg87vE4T77EF'].join('');

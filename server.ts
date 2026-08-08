@@ -216,7 +216,7 @@ async function startServer() {
         fs.writeFileSync(filePath, JSON.stringify(products, null, 2));
       }
       if (autoPush) {
-        pushProductsToGitHub().catch(() => {});
+        pushProductsToGitHub().catch(() => { });
       }
       res.json({ success: true, count: dynamicProductsStore.length, version: currentCatalogVersion });
     } catch (err: any) {
@@ -278,8 +278,8 @@ async function startServer() {
     if (cartSubtotal < coupon.minOrderAmount) {
       return res.status(400).json({ error: `Minimum spend of ₹${coupon.minOrderAmount} required for this coupon` });
     }
-    const discount = coupon.discountType === 'percentage' 
-      ? (cartSubtotal * coupon.discountValue) / 100 
+    const discount = coupon.discountType === 'percentage'
+      ? (cartSubtotal * coupon.discountValue) / 100
       : Math.min(cartSubtotal, coupon.discountValue);
     res.json({ code: coupon.code, discountAmount: Math.round(discount) });
   });
