@@ -517,6 +517,49 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
+  // Admin Product DELETE endpoints (Store & Digital)
+  app.delete('/api/admin/digital-products/:id', (req: Request, res: Response) => {
+    try {
+      const prodId = req.params.id;
+      const permanent = req.query.permanent === 'true';
+      const idx = dynamicProductsStore.findIndex(p => p.id === prodId);
+      if (idx !== -1) {
+        if (permanent) {
+          dynamicProductsStore.splice(idx, 1);
+        } else {
+          dynamicProductsStore[idx].status = 'ARCHIVED';
+        }
+        try {
+          fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2));
+        } catch (e) {}
+      }
+      res.json({ success: true, deleted: true, permanent });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/admin/store-products/:id', (req: Request, res: Response) => {
+    try {
+      const prodId = req.params.id;
+      const permanent = req.query.permanent === 'true';
+      const idx = dynamicProductsStore.findIndex(p => p.id === prodId);
+      if (idx !== -1) {
+        if (permanent) {
+          dynamicProductsStore.splice(idx, 1);
+        } else {
+          dynamicProductsStore[idx].status = 'ARCHIVED';
+        }
+        try {
+          fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2));
+        } catch (e) {}
+      }
+      res.json({ success: true, deleted: true, permanent });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Server-Side Production Publish Endpoint (Direct GitHub REST API commit on main branch)
   app.post('/api/admin/publish', async (req: Request, res: Response) => {
     try {

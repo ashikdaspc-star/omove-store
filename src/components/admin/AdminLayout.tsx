@@ -214,21 +214,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const handleDeleteProduct = async (prodId: string, permanent: boolean) => {
     try {
       const prod = products.find(p => p.id === prodId);
-      const isDigital = prod?.productType === 'DIGITAL';
-      const endpoint = isDigital ? `/api/admin/digital-products/${prodId}` : `/api/admin/store-products/${prodId}`;
-
-      const res = await fetch(`${endpoint}?permanent=${permanent}`, { method: 'DELETE' });
-      const data = await res.json();
-
-      if (data.archived && onUpdateProduct && prod) {
+      if (!permanent && prod && onUpdateProduct) {
         onUpdateProduct({ ...prod, status: 'ARCHIVED' });
-      } else if (data.deleted && onDeleteProduct) {
-        onDeleteProduct(prodId);
       } else if (onDeleteProduct) {
         onDeleteProduct(prodId);
       }
+
+      const isDigital = prod?.productType === 'DIGITAL';
+      const endpoint = isDigital ? `/api/admin/digital-products/${prodId}` : `/api/admin/store-products/${prodId}`;
+      await fetch(`${endpoint}?permanent=${permanent}`, { method: 'DELETE' }).catch(() => {});
     } catch (err) {
-      console.error(err);
+      console.error('Error in handleDeleteProduct:', err);
     }
   };
 
