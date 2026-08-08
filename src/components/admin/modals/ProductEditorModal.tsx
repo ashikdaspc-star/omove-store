@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Product } from '../../../types';
 import { CATEGORIES } from '../../../data/mockData';
-import { X, Check, ArrowRight, ArrowLeft, Sparkles, Image, Tag, DollarSign, ShieldCheck, Globe, Lock } from 'lucide-react';
+import {
+  X, Check, ArrowRight, ArrowLeft, Sparkles, Image as ImageIcon, Tag, DollarSign,
+  ShieldCheck, Globe, Lock, UploadCloud, Link as LinkIcon, Trash2, Copy, RefreshCw, FileImage
+} from 'lucide-react';
 
 interface ProductEditorModalProps {
   product?: Product | null;
@@ -35,6 +38,65 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
   const [image, setImage] = useState(
     product?.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80'
   );
+
+  // Media Upload States
+  const [mediaMode, setMediaMode] = useState<'upload' | 'url'>('upload');
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadNotice, setUploadNotice] = useState<string>('');
+  const [copiedNotice, setCopiedNotice] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const STOCK_IMAGE_PRESETS = [
+    { label: 'AutoCAD / CAD', url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80' },
+    { label: 'Windows / OS', url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&auto=format&fit=crop&q=80' },
+    { label: 'Security Suite', url: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80' },
+    { label: 'Developer Code', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80' },
+    { label: 'PC Hardware', url: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800&auto=format&fit=crop&q=80' }
+  ];
+
+  const handleMediaFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 12 * 1024 * 1024) {
+      setUploadNotice('File size is larger than 12MB limit. Please choose a smaller image.');
+      return;
+    }
+
+    setIsUploadingMedia(true);
+    setUploadNotice('Reading & uploading media file...');
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64Data = reader.result as string;
+      try {
+        const res = await fetch('/api/admin/upload-media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file.name, fileData: base64Data })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.url) {
+            setImage(data.url);
+            setUploadNotice('Media uploaded successfully!');
+            setIsUploadingMedia(false);
+            setTimeout(() => setUploadNotice(''), 3000);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Server upload notice, fallback to data URI:', err);
+      }
+
+      // Fallback to Data URI directly
+      setImage(base64Data);
+      setUploadNotice('Image attached successfully!');
+      setIsUploadingMedia(false);
+      setTimeout(() => setUploadNotice(''), 3000);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const [price, setPrice] = useState<number>(product?.price || 499);
   const [originalPrice, setOriginalPrice] = useState<number>(product?.originalPrice || 999);
@@ -275,22 +337,157 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
           {/* STEP 2: Media */}
           {step === 2 && (
             <div className="space-y-4">
-              <div>
-                <label className="font-bold text-slate-900 block mb-1">Product Image URL *</label>
-                <input
-                  type="url"
-                  required
-                  value={image}
-                  onChange={(e) => setImage(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-600 text-xs font-mono"
-                />
+              {/* Media Input Mode Toggle */}
+              <div className="flex items-center gap-2 p-1 rounded-xl bg-slate-100 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setMediaMode('upload')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    mediaMode === 'upload'
+                      ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  Upload Image File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaMode('url')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    mediaMode === 'url'
+                      ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  Paste Image URL
+                </button>
               </div>
 
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                <span className="font-bold text-slate-900 block text-xs">Image Preview</span>
-                <div className="aspect-video w-full max-w-sm rounded-xl overflow-hidden bg-slate-200 border border-slate-300">
-                  <img src={image} alt="Preview" className="w-full h-full object-cover" />
+              {/* Upload File Mode */}
+              {mediaMode === 'upload' && (
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png, image/jpeg, image/jpg, image/webp, image/gif, image/svg+xml"
+                    onChange={handleMediaFileUpload}
+                    className="hidden"
+                  />
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50 rounded-2xl p-6 text-center cursor-pointer transition-all space-y-3 group"
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                      {isUploadingMedia ? (
+                        <RefreshCw className="w-6 h-6 animate-spin" />
+                      ) : (
+                        <UploadCloud className="w-6 h-6" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900 text-xs">
+                        {isUploadingMedia ? 'Uploading media file...' : 'Click to Upload Image from PC'}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Supports PNG, JPG, WEBP, GIF, SVG (Max 12MB)
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-sm"
+                    >
+                      <FileImage className="w-3.5 h-3.5" />
+                      Choose Image File
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Enter URL Mode */}
+              {mediaMode === 'url' && (
+                <div>
+                  <label className="font-bold text-slate-900 block mb-1 text-xs">Product Image Web URL *</label>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      required
+                      value={image}
+                      onChange={(e) => setImage(e.target.value)}
+                      placeholder="https://images.unsplash.com/..."
+                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-600 text-xs font-mono"
+                    />
+                    <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  </div>
+                </div>
+              )}
+
+              {uploadNotice && (
+                <div className={`p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                  uploadNotice.includes('successfully') || uploadNotice.includes('attached')
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    : 'bg-amber-100 text-amber-900 border border-amber-200'
+                }`}>
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{uploadNotice}</span>
+                </div>
+              )}
+
+              {/* Quick Image Presets */}
+              <div className="space-y-1.5">
+                <span className="font-bold text-slate-700 block text-[11px]">Stock Image Quick Presets</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {STOCK_IMAGE_PRESETS.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setImage(preset.url)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 text-slate-700 text-[11px] font-medium transition-colors"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Live Image Preview */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 block text-xs">Live Image Preview</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(image);
+                        setCopiedNotice(true);
+                        setTimeout(() => setCopiedNotice(false), 2000);
+                      }}
+                      className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-[11px] font-bold inline-flex items-center gap-1"
+                    >
+                      <Copy className="w-3 h-3" />
+                      {copiedNotice ? 'Copied!' : 'Copy URL'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImage('')}
+                      className="px-2 py-1 rounded-lg bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 text-[11px] font-bold inline-flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div className="aspect-video w-full max-w-md rounded-xl overflow-hidden bg-slate-200 border border-slate-300 relative group">
+                  {image ? (
+                    <img src={image} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-1.5 p-4 text-center">
+                      <ImageIcon className="w-8 h-8 text-slate-300" />
+                      <span className="text-xs font-semibold">No Image Selected</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

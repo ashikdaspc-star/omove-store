@@ -1268,6 +1268,36 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     res.json(list);
   });
 
+  // Admin Media Upload Endpoint
+  app.post('/api/admin/upload-media', (req: Request, res: Response) => {
+    try {
+      const { fileName, fileData } = req.body || {};
+      if (!fileData) {
+        return res.status(400).json({ success: false, error: 'No media file data provided.' });
+      }
+
+      const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const ext = matches[1].split('/')[1] || 'png';
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const safeName = (fileName || `media_${Date.now()}`).toLowerCase().replace(/[^a-z0-9_-]/g, '_') + `.${ext}`;
+        const buffer = Buffer.from(matches[2], 'base64');
+        const filePath = path.join(uploadsDir, safeName);
+        fs.writeFileSync(filePath, buffer);
+        const publicUrl = `/uploads/${safeName}`;
+        return res.json({ success: true, url: publicUrl, fileName: safeName });
+      }
+
+      res.json({ success: true, url: fileData });
+    } catch (err: any) {
+      console.error('[MEDIA UPLOAD ERROR]', err);
+      res.status(500).json({ success: false, error: err.message || 'Failed to upload media file' });
+    }
+  });
+
   // Admin Product Status Patch
   app.patch('/api/products/:id/status', (req: Request, res: Response) => {
     try {
