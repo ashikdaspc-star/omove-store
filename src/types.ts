@@ -28,6 +28,10 @@ export interface Product {
   instantKeyAvailable: boolean;
   isBestSeller?: boolean;
   isFeatured?: boolean;
+  compatibility?: string[];
+  status?: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+  createdAt?: string;
+  updatedAt?: string;
   isNew?: boolean;
   tags: string[];
   salesCount: number;
