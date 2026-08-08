@@ -400,6 +400,24 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Check server-authoritative session on mount
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.authenticated && data.user) {
+          setIsLoggedIn(true);
+          setCustomerProfile(data.user);
+          try {
+            localStorage.setItem('omove_active_session', JSON.stringify(data.user));
+          } catch (e) {}
+        }
+      })
+      .catch((err) => {
+        console.warn('Server auth verify note:', err);
+      });
+  }, []);
+
   const handleLoginSuccess = (user: { name: string; email: string; phone: string; location: string }) => {
     setIsLoggedIn(true);
     setCustomerProfile(user);
@@ -416,10 +434,11 @@ export default function App() {
     }
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     setIsLoggedIn(false);
     try {
       localStorage.removeItem('omove_active_session');
+      await fetch('/api/auth/logout', { method: 'POST' });
     } catch (e) {
       console.error(e);
     }

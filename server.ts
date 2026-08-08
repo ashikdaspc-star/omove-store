@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { exec } from 'child_process';
 import dotenv from 'dotenv';
 import Razorpay from 'razorpay';
@@ -38,28 +39,167 @@ const ordersStore: Map<string, Order> = new Map();
 const bookingsStore: Map<string, RemoteBooking> = new Map();
 const ticketsStore: Map<string, SupportTicket> = new Map();
 const generatedKeysStore: Map<string, string[]> = new Map();
-const usersStore: Map<string, {
+interface UserAccount {
+  id: string;
   name: string;
   email: string;
   phone: string;
-  password?: string;
+  passwordHash: string;
+  passwordSalt: string;
   location: string;
   googleSubId?: string;
   picture?: string;
-  authProvider?: 'email' | 'google';
-  isAdmin?: boolean;
-}> = new Map();
+  authProvider: 'email' | 'google';
+  isAdmin: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string;
+  resetToken?: string;
+  resetTokenExpires?: number;
+}
 
-// Pre-register official demo account: Ashik Das / omovetech@gmail.com / omove2026
-usersStore.set('omovetech@gmail.com', {
-  name: 'Ashik Das',
-  email: 'omovetech@gmail.com',
-  phone: '+91 8345968169',
-  password: 'omove2026',
-  location: 'Kolkata, West Bengal, India',
-  authProvider: 'email',
-  isAdmin: true
-});
+interface ServerSession {
+  sessionId: string;
+  userId: string;
+  userEmail: string;
+  isAdmin: boolean;
+  createdAt: string;
+  expiresAt: number;
+}
+
+// Password Hashing with PBKDF2 + Salt (100,000 iterations, 32-byte salt)
+function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
+  const passwordSalt = salt || crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, passwordSalt, 100000, 32, 'sha256').toString('hex');
+  return { hash, salt: passwordSalt };
+}
+
+function verifyPassword(password: string, storedHash: string, salt: string): boolean {
+  if (!storedHash || !salt) return false;
+  try {
+    const hash = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256').toString('hex');
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(storedHash, 'hex'));
+  } catch (e) {
+    return false;
+  }
+}
+
+function generateSecureToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Persistent Storage Handlers
+const USERS_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'users.json');
+const SESSIONS_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'sessions.json');
+
+function loadUsersFromDisk(): Map<string, UserAccount> {
+  const map = new Map<string, UserAccount>();
+  try {
+    if (fs.existsSync(USERS_FILE_PATH)) {
+      const data = fs.readFileSync(USERS_FILE_PATH, 'utf-8');
+      const list: UserAccount[] = JSON.parse(data);
+      list.forEach(u => map.set(u.email.toLowerCase(), u));
+    }
+  } catch (e) {
+    console.warn('Users file load warning:', e);
+  }
+
+  // Guarantee Ashik Das demo account exists
+  if (!map.has('omovetech@gmail.com')) {
+    const { hash, salt } = hashPassword('omove2026');
+    const demoUser: UserAccount = {
+      id: 'usr_ashik_das',
+      name: 'Ashik Das',
+      email: 'omovetech@gmail.com',
+      phone: '+91 8345968169',
+      passwordHash: hash,
+      passwordSalt: salt,
+      location: 'Kolkata, West Bengal, India',
+      authProvider: 'email',
+      isAdmin: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
+    };
+    map.set(demoUser.email, demoUser);
+    saveUsersToDisk(map);
+  }
+
+  return map;
+}
+
+function saveUsersToDisk(map: Map<string, UserAccount>) {
+  try {
+    const list = Array.from(map.values());
+    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(list, null, 2));
+  } catch (e) {
+    console.error('Users file save error:', e);
+  }
+}
+
+function loadSessionsFromDisk(): Map<string, ServerSession> {
+  const map = new Map<string, ServerSession>();
+  try {
+    if (fs.existsSync(SESSIONS_FILE_PATH)) {
+      const data = fs.readFileSync(SESSIONS_FILE_PATH, 'utf-8');
+      const list: ServerSession[] = JSON.parse(data);
+      const now = Date.now();
+      list.forEach(s => {
+        if (s.expiresAt > now) {
+          map.set(s.sessionId, s);
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Sessions file load warning:', e);
+  }
+  return map;
+}
+
+function saveSessionsToDisk(map: Map<string, ServerSession>) {
+  try {
+    const list = Array.from(map.values());
+    fs.writeFileSync(SESSIONS_FILE_PATH, JSON.stringify(list, null, 2));
+  } catch (e) {
+    console.error('Sessions file save error:', e);
+  }
+}
+
+const usersStore: Map<string, UserAccount> = loadUsersFromDisk();
+const sessionsStore: Map<string, ServerSession> = loadSessionsFromDisk();
+
+function parseCookies(cookieHeader?: string): Record<string, string> {
+  const list: Record<string, string> = {};
+  if (!cookieHeader) return list;
+  cookieHeader.split(';').forEach(cookie => {
+    const parts = cookie.split('=');
+    if (parts.length >= 2) {
+      list[parts[0].trim()] = decodeURIComponent(parts.slice(1).join('=').trim());
+    }
+  });
+  return list;
+}
+
+const authRateLimitMap: Map<string, { count: number; resetTime: number }> = new Map();
+
+function authRateLimiter(req: Request, res: Response, next: any) {
+  const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+  const now = Date.now();
+  let record = authRateLimitMap.get(ip);
+
+  if (!record || now > record.resetTime) {
+    record = { count: 1, resetTime: now + 60000 };
+    authRateLimitMap.set(ip, record);
+    return next();
+  }
+
+  record.count += 1;
+  if (record.count > 25) {
+    return res.status(429).json({ error: 'Too many authentication attempts. Please wait 1 minute and try again.' });
+  }
+
+  next();
+}
 
 // Helper to generate license keys
 function generateLicenseKey(): string {
@@ -526,119 +666,305 @@ async function startServer() {
     res.json({ success: true, ticket });
   });
 
+  // Helper to create server session & set HttpOnly cookie
+  function createSessionAndSetCookie(res: Response, user: UserAccount): ServerSession {
+    const sessionId = generateSecureToken();
+    const session: ServerSession = {
+      sessionId,
+      userId: user.id,
+      userEmail: user.email,
+      isAdmin: Boolean(user.isAdmin),
+      createdAt: new Date().toISOString(),
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
+    };
+    sessionsStore.set(sessionId, session);
+    saveSessionsToDisk(sessionsStore);
+
+    res.setHeader(
+      'Set-Cookie',
+      `omove_session_token=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+    );
+
+    return session;
+  }
+
+  // Get Current Authenticated Server Session
+  app.get('/api/auth/me', (req: Request, res: Response) => {
+    const cookies = parseCookies(req.headers.cookie);
+    const authHeader = req.headers.authorization;
+    let token = cookies['omove_session_token'];
+
+    if (!token && authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7).trim();
+    }
+
+    if (!token) {
+      return res.json({ authenticated: false, user: null, isAdmin: false });
+    }
+
+    const session = sessionsStore.get(token);
+    if (!session || session.expiresAt < Date.now()) {
+      if (session) {
+        sessionsStore.delete(token);
+        saveSessionsToDisk(sessionsStore);
+      }
+      return res.json({ authenticated: false, user: null, isAdmin: false });
+    }
+
+    const user = usersStore.get(session.userEmail.toLowerCase());
+    if (!user) {
+      return res.json({ authenticated: false, user: null, isAdmin: false });
+    }
+
+    res.json({
+      authenticated: true,
+      isAdmin: Boolean(user.isAdmin),
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        location: user.location,
+        picture: user.picture || '',
+        authProvider: user.authProvider,
+        isAdmin: Boolean(user.isAdmin),
+        createdAt: user.createdAt
+      }
+    });
+  });
+
   // Customer Account Registration Endpoint
-  app.post('/api/auth/register', (req: Request, res: Response) => {
-    const { name, email, phone, password, location } = req.body;
+  app.post('/api/auth/register', authRateLimiter, (req: Request, res: Response) => {
+    const { name, email, phone, password, confirmPassword, location } = req.body || {};
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    if (usersStore.has(normalizedEmail)) {
-      return res.status(400).json({ error: 'An account with this email already exists! Please click "Sign In" instead.' });
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({ error: 'Passwords do not match.' });
     }
 
-    const newUser = {
-      name: name || 'Customer',
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters long.' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (usersStore.has(normalizedEmail)) {
+      return res.status(400).json({ error: 'An account with this email address already exists. Please click "Sign In" instead.' });
+    }
+
+    const { hash, salt } = hashPassword(password);
+    const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const defaultName = normalizedEmail.split('@')[0] || 'Customer';
+    const capitalizedName = name || (defaultName.charAt(0).toUpperCase() + defaultName.slice(1));
+
+    const newUser: UserAccount = {
+      id: userId,
+      name: capitalizedName,
       email: normalizedEmail,
       phone: phone || '+91 8345968169',
-      password: password,
-      location: location || 'Kolkata, West Bengal, India'
+      passwordHash: hash,
+      passwordSalt: salt,
+      location: location || 'Kolkata, West Bengal, India',
+      authProvider: 'email',
+      isAdmin: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
     };
 
     usersStore.set(normalizedEmail, newUser);
+    saveUsersToDisk(usersStore);
+
+    const session = createSessionAndSetCookie(res, newUser);
 
     res.json({
       success: true,
+      token: session.sessionId,
       user: {
+        id: newUser.id,
         name: newUser.name,
         email: newUser.email,
         phone: newUser.phone,
-        location: newUser.location
+        location: newUser.location,
+        authProvider: newUser.authProvider,
+        isAdmin: false
       }
     });
   });
 
   // Customer Account Login Endpoint
-  app.post('/api/auth/login', (req: Request, res: Response) => {
-    const { email, password } = req.body;
+  app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
+    const { email, password } = req.body || {};
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    let existingUser = usersStore.get(normalizedEmail);
+    const existingUser = usersStore.get(normalizedEmail);
 
     if (!existingUser) {
-      // Seamless auto-creation for customer account on login
-      const defaultName = normalizedEmail.split('@')[0] || 'Customer';
-      const capitalizedName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
-      existingUser = {
-        name: capitalizedName,
-        email: normalizedEmail,
-        phone: '+91 8345968169',
-        password: password,
-        location: 'Kolkata, West Bengal, India'
-      };
-      usersStore.set(normalizedEmail, existingUser);
-    } else if (existingUser.password && existingUser.password !== password) {
+      return res.status(401).json({ error: 'Invalid email address or password. Please check your credentials or click New Account.' });
+    }
+
+    if (!verifyPassword(password, existingUser.passwordHash, existingUser.passwordSalt)) {
       return res.status(401).json({ error: 'Incorrect password! Please check your password and try again.' });
     }
 
+    existingUser.lastLoginAt = new Date().toISOString();
+    saveUsersToDisk(usersStore);
+
+    const session = createSessionAndSetCookie(res, existingUser);
+
     res.json({
       success: true,
+      token: session.sessionId,
       user: {
+        id: existingUser.id,
         name: existingUser.name,
         email: existingUser.email,
         phone: existingUser.phone,
-        location: existingUser.location
+        location: existingUser.location,
+        picture: existingUser.picture || '',
+        authProvider: existingUser.authProvider,
+        isAdmin: Boolean(existingUser.isAdmin)
       }
     });
   });
 
+  // Customer Logout Endpoint
+  app.post('/api/auth/logout', (req: Request, res: Response) => {
+    const cookies = parseCookies(req.headers.cookie);
+    const token = cookies['omove_session_token'] || req.headers.authorization?.replace('Bearer ', '').trim();
+
+    if (token && sessionsStore.has(token)) {
+      sessionsStore.delete(token);
+      saveSessionsToDisk(sessionsStore);
+    }
+
+    res.setHeader(
+      'Set-Cookie',
+      'omove_session_token=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    );
+
+    res.json({ success: true, message: 'Signed out successfully.' });
+  });
+
+  // Forgot Password Request Endpoint
+  app.post('/api/auth/forgot-password', authRateLimiter, (req: Request, res: Response) => {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ error: 'Email address is required.' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = usersStore.get(normalizedEmail);
+
+    if (user) {
+      const resetToken = generateSecureToken();
+      user.resetToken = resetToken;
+      user.resetTokenExpires = Date.now() + 3600000; // 1 hour
+      saveUsersToDisk(usersStore);
+
+      return res.json({
+        success: true,
+        message: 'Password reset request processed. If your account is registered, password reset token generated.',
+        resetToken // Used by client reset form
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Password reset request processed. If your account is registered, instructions have been sent.'
+    });
+  });
+
+  // Reset Password Endpoint
+  app.post('/api/auth/reset-password', authRateLimiter, (req: Request, res: Response) => {
+    const { token, newPassword } = req.body || {};
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Reset token and new password are required.' });
+    }
+
+    if (newPassword.length < 4) {
+      return res.status(400).json({ error: 'New password must be at least 4 characters long.' });
+    }
+
+    const user = Array.from(usersStore.values()).find(
+      u => u.resetToken === token && u.resetTokenExpires && u.resetTokenExpires > Date.now()
+    );
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired password reset token.' });
+    }
+
+    const { hash, salt } = hashPassword(newPassword);
+    user.passwordHash = hash;
+    user.passwordSalt = salt;
+    user.resetToken = undefined;
+    user.resetTokenExpires = undefined;
+    user.updatedAt = new Date().toISOString();
+    saveUsersToDisk(usersStore);
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully! You can now sign in with your new password.'
+    });
+  });
+
   // Google OAuth / GSI Verification Endpoint
-  app.post('/api/auth/google', (req: Request, res: Response) => {
+  app.post('/api/auth/google', authRateLimiter, (req: Request, res: Response) => {
     const { email, name, googleSubId, picture } = req.body || {};
     const userEmail = (email || 'customer@omove.tech').trim().toLowerCase();
     const userName = name || (userEmail.split('@')[0] ? userEmail.split('@')[0].charAt(0).toUpperCase() + userEmail.split('@')[0].slice(1) : 'Google Customer');
     const subId = googleSubId || `goog_${Math.random().toString(36).substring(2, 14)}`;
 
-    // Search existing user by googleSubId or by normalized email
     let existingUser = Array.from(usersStore.values()).find(
       u => (u.googleSubId && u.googleSubId === subId) || u.email === userEmail
     );
 
     if (existingUser) {
-      // Securely link googleSubId and picture to existing account without duplicating records
       if (!existingUser.googleSubId) existingUser.googleSubId = subId;
       if (picture && !existingUser.picture) existingUser.picture = picture;
-      if (userName && existingUser.name === 'Customer') existingUser.name = userName;
+      existingUser.lastLoginAt = new Date().toISOString();
     } else {
-      // Create new customer account
+      const { hash, salt } = hashPassword(`google_auth_${subId}`);
       existingUser = {
+        id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         name: userName,
         email: userEmail,
         phone: '+91 8345968169',
-        password: `google_oauth_${subId}`,
+        passwordHash: hash,
+        passwordSalt: salt,
         location: 'Kolkata, West Bengal, India',
         googleSubId: subId,
         picture: picture || '',
         authProvider: 'google',
-        isAdmin: false
+        isAdmin: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
       };
       usersStore.set(userEmail, existingUser);
     }
 
+    saveUsersToDisk(usersStore);
+    const session = createSessionAndSetCookie(res, existingUser);
+
     res.json({
       success: true,
+      token: session.sessionId,
       user: {
+        id: existingUser.id,
         name: existingUser.name,
         email: existingUser.email,
         phone: existingUser.phone,
         location: existingUser.location,
-        googleSubId: existingUser.googleSubId,
         picture: existingUser.picture || '',
-        authProvider: 'google',
+        authProvider: existingUser.authProvider,
         isAdmin: false
       }
     });

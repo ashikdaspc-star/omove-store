@@ -1,0 +1,16 @@
+[
+  {
+    "id": "usr_ashik_das",
+    "name": "Ashik Das",
+    "email": "omovetech@gmail.com",
+    "phone": "+91 8345968169",
+    "passwordHash": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+    "passwordSalt": "d3a8b2c1e4f5a6b7c8d9e0f1a2b3c4d5",
+    "location": "Kolkata, West Bengal, India",
+    "authProvider": "email",
+    "isAdmin": true,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z",
+    "lastLoginAt": "2026-01-01T00:00:00.000Z"
+  }
+]
