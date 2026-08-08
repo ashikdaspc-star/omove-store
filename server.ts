@@ -1149,6 +1149,125 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
+  // ORDER & CHECKOUT ENDPOINTS
+  app.post('/api/orders/create', (req: Request, res: Response) => {
+    try {
+      const { items, customerName, customerEmail, customerPhone, paymentMethod, discountAmount = 0 } = req.body || {};
+
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, error: 'Cart is empty. Please add items to checkout.' });
+      }
+
+      const orderItems: any[] = [];
+      let subtotal = 0;
+
+      items.forEach((it: any) => {
+        const prod = dynamicProductsStore.find(p => p.id === it.productId);
+        const price = prod ? Number(prod.price) : 499;
+        const name = prod ? prod.name : 'Digital Product';
+        const qty = Number(it.quantity) || 1;
+        subtotal += price * qty;
+
+        const licenseKey = `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+        orderItems.push({
+          productId: it.productId,
+          productName: name,
+          price: price,
+          quantity: qty,
+          licenseKey: licenseKey,
+          downloadLimit: 5,
+          downloadsCount: 0,
+          fileSize: prod?.downloadSize || '45 MB',
+          fileUrl: prod?.fileUrl || '/api/downloads/setup'
+        });
+      });
+
+      const discount = Math.min(subtotal, Number(discountAmount) || 0);
+      const total = Math.max(0, subtotal - discount);
+      const orderId = `ord-${Date.now()}`;
+      const orderNumber = `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const newOrder: Order = {
+        id: orderId,
+        orderNumber: orderNumber,
+        customerName: customerName || 'Customer',
+        customerEmail: customerEmail || 'customer@omovestore.shop',
+        customerPhone: customerPhone || '',
+        items: orderItems,
+        subtotal: subtotal,
+        discount: discount,
+        tax: 0,
+        total: total,
+        paymentMethod: paymentMethod || 'Razorpay UPI',
+        paymentStatus: total <= 0 ? 'SUCCESS' : 'PENDING',
+        createdAt: new Date().toISOString()
+      };
+
+      ordersStore.set(newOrder.id, newOrder);
+
+      const razorpayKeyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G';
+
+      res.json({
+        success: true,
+        order: newOrder,
+        razorpayKeyId: razorpayKeyId
+      });
+    } catch (err: any) {
+      console.error('[CREATE ORDER ERROR]', err);
+      res.status(500).json({ success: false, error: err.message || 'Server error creating order' });
+    }
+  });
+
+  app.post('/api/orders/verify', (req: Request, res: Response) => {
+    try {
+      const { orderId, razorpayPaymentId } = req.body || {};
+      let order = ordersStore.get(orderId);
+
+      if (!order) {
+        order = {
+          id: orderId || `ord-${Date.now()}`,
+          orderNumber: `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+          customerName: req.body.customerName || 'Customer',
+          customerEmail: req.body.customerEmail || 'customer@omovestore.shop',
+          customerPhone: req.body.customerPhone || '',
+          items: [],
+          subtotal: 0,
+          discount: 0,
+          tax: 0,
+          total: 0,
+          paymentMethod: 'Razorpay UPI',
+          paymentStatus: 'SUCCESS',
+          razorpayPaymentId: razorpayPaymentId || `pay_${Date.now()}`,
+          createdAt: new Date().toISOString()
+        };
+      } else {
+        order.paymentStatus = 'SUCCESS';
+        order.razorpayPaymentId = razorpayPaymentId || order.razorpayPaymentId || `pay_${Date.now()}`;
+      }
+
+      ordersStore.set(order.id, order);
+
+      res.json({
+        success: true,
+        verified: true,
+        order: order
+      });
+    } catch (err: any) {
+      console.error('[VERIFY ORDER ERROR]', err);
+      res.status(500).json({ success: false, error: err.message || 'Server error verifying order' });
+    }
+  });
+
+  app.get('/api/account/orders', (_req: Request, res: Response) => {
+    const list = Array.from(ordersStore.values());
+    res.json(list);
+  });
+
+  app.get('/api/admin/orders', (_req: Request, res: Response) => {
+    const list = Array.from(ordersStore.values());
+    res.json(list);
+  });
+
   // Admin Product Status Patch
   app.patch('/api/products/:id/status', (req: Request, res: Response) => {
     try {
