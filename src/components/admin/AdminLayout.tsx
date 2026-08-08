@@ -17,6 +17,7 @@ import { AdminBlogView } from './views/AdminBlogView';
 import { AdminAnnouncementsView } from './views/AdminAnnouncementsView';
 import { AdminCouponsView } from './views/AdminCouponsView';
 import { AdminWebsiteContentView } from './views/AdminWebsiteContentView';
+import { AdminCategoriesView } from './views/AdminCategoriesView';
 import { AdminAnalyticsView } from './views/AdminAnalyticsView';
 import { AdminActivityLogView } from './views/AdminActivityLogView';
 import { AdminSettingsView } from './views/AdminSettingsView';
@@ -239,7 +240,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {activeTab === 'services' && <AdminServicesView services={services} onDeleteService={onDeleteService} />}
           {activeTab === 'remote-support' && <AdminRemoteSupportView bookings={bookings} onUpdateBooking={onUpdateBooking} />}
           {activeTab === 'blog' && <AdminBlogView blogs={blogs} onDeleteBlog={onDeleteBlog} />}
-          {activeTab === 'categories' && <AdminStoreProductsView products={products} onOpenAddModal={() => handleOpenAddProduct('STORE')} onEditProduct={handleEditProduct} onDuplicateProduct={handleDuplicateProduct} onTogglePublishStatus={handleTogglePublishStatus} onDeleteProduct={handleDeleteProduct} onSelectProductPreview={onSelectProductPreview} />}
+          {activeTab === 'categories' && (
+            <AdminCategoriesView
+              products={products}
+              onSelectCategory={() => setActiveTab('store-products')}
+            />
+          )}
           {activeTab === 'website-content' && <AdminWebsiteContentView />}
           {activeTab === 'announcements' && <AdminAnnouncementsView />}
           {activeTab === 'coupons' && <AdminCouponsView />}
