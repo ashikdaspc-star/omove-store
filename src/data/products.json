@@ -1,5 +1,53 @@
 [
   {
+    "id": "prod-1786161845816",
+    "name": "usb card",
+    "slug": "usb-card",
+    "category": "Software",
+    "shortDescription": "Digital software activation key.",
+    "fullDescription": "Complete digital product license key with instant download access.",
+    "price": 399,
+    "originalPrice": 499,
+    "discountPercent": 20,
+    "downloadSize": "3.5 GB",
+    "version": "2026",
+    "licenseType": "Lifetime License",
+    "rating": 5,
+    "reviewCount": 1,
+    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80",
+    "screenshots": [
+      "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80"
+    ],
+    "features": [
+      "Lifetime License Key",
+      "1-Click Installer",
+      "24/7 Digital Support"
+    ],
+    "requirements": [
+      "Windows 10 / 11 (64-bit)"
+    ],
+    "versionHistory": [
+      {
+        "version": "2026",
+        "date": "2026-08-08",
+        "changes": [
+          "Initial Release"
+        ]
+      }
+    ],
+    "fileUrl": "https://www.autodesk.com",
+    "instantKeyAvailable": true,
+    "isBestSeller": true,
+    "isFeatured": true,
+    "isNew": true,
+    "tags": [
+      "Software",
+      "Digital Product",
+      "License Key"
+    ],
+    "salesCount": 1
+  },
+  {
     "id": "prod-1786153044404",
     "name": "Autocad 2026",
     "slug": "autocad-2026",
