@@ -23,6 +23,7 @@ import { BlogView } from './views/BlogView';
 import { DownloadsView } from './views/DownloadsView';
 import { DigitalProductsView } from './views/DigitalProductsView';
 import { AboutContactView } from './views/AboutContactView';
+import { ResetPasswordView } from './pages/ResetPasswordView';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
 
 export default function App() {
@@ -862,6 +863,10 @@ export default function App() {
 
           <Route path="/contact" element={<AboutContactView />} />
           <Route path="/about-contact" element={<Navigate to="/contact" replace />} />
+          <Route
+            path="/reset-password"
+            element={<ResetPasswordView onOpenAuthModal={() => setIsAuthModalOpen(true)} />}
+          />
 
           <Route
             path="/dashboard"

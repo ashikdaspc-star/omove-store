@@ -5,11 +5,35 @@ import crypto from 'crypto';
 import { exec } from 'child_process';
 import dotenv from 'dotenv';
 import Razorpay from 'razorpay';
+import nodemailer from 'nodemailer';
 import { createServer as createViteServer } from 'vite';
 import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS, MOCK_COUPONS } from './src/data/mockData';
 import { Order, RemoteBooking, SupportTicket } from './src/types';
 
 dotenv.config();
+
+const smtpHost = process.env.SMTP_HOST || '';
+const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+const smtpUser = process.env.SMTP_USER || '';
+const smtpPass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '';
+const emailFrom = process.env.EMAIL_FROM || 'Omove Store Support <noreply@omovestore.shop>';
+
+let mailTransporter: any = null;
+if (smtpHost && smtpUser && smtpPass) {
+  try {
+    mailTransporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass
+      }
+    });
+  } catch (err) {
+    console.warn('Failed to initialize SMTP mail transporter:', err);
+  }
+}
 
 const razorpayKeyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || '';
 const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
@@ -56,6 +80,8 @@ interface UserAccount {
   lastLoginAt: string;
   resetToken?: string;
   resetTokenExpires?: number;
+  resetTokenHash?: string;
+  resetTokenExpiresAt?: number;
 }
 
 interface ServerSession {
@@ -260,8 +286,9 @@ const sampleBooking: RemoteBooking = {
 };
 bookingsStore.set(sampleBooking.id, sampleBooking);
 
+export const app = express();
+
 async function startServer() {
-  const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   app.use(express.json({ limit: '50mb' }));
@@ -854,7 +881,7 @@ async function startServer() {
   });
 
   // Forgot Password Request Endpoint
-  app.post('/api/auth/forgot-password', authRateLimiter, (req: Request, res: Response) => {
+  app.post('/api/auth/forgot-password', authRateLimiter, async (req: Request, res: Response) => {
     const { email } = req.body || {};
     if (!email) {
       return res.status(400).json({ error: 'Email address is required.' });
@@ -865,20 +892,46 @@ async function startServer() {
 
     if (user) {
       const resetToken = generateSecureToken();
-      user.resetToken = resetToken;
-      user.resetTokenExpires = Date.now() + 3600000; // 1 hour
+      const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+      user.resetTokenHash = resetTokenHash;
+      user.resetTokenExpiresAt = Date.now() + 3600000; // 1 hour expiration
       saveUsersToDisk(usersStore);
 
-      return res.json({
-        success: true,
-        message: 'Password reset request processed. If your account is registered, password reset token generated.',
-        resetToken // Used by client reset form
-      });
+      const appUrl = (process.env.APP_URL || 'https://www.omovestore.shop').replace(/\/$/, '');
+      const resetLink = `${appUrl}/reset-password?token=${resetToken}`;
+
+      if (mailTransporter) {
+        try {
+          await mailTransporter.sendMail({
+            from: emailFrom,
+            to: normalizedEmail,
+            subject: 'Omove Store — Reset Your Account Password',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px;">
+                <h2 style="color: #059669; font-size: 20px; font-weight: bold; margin-bottom: 16px;">Omove Store Password Reset</h2>
+                <p style="color: #334155; font-size: 14px; line-height: 1.6;">Hello <strong>${user.name}</strong>,</p>
+                <p style="color: #334155; font-size: 14px; line-height: 1.6;">We received a request to reset your password for your Omove Store account. Click the button below to set a new password:</p>
+                <div style="margin: 28px 0; text-align: center;">
+                  <a href="${resetLink}" style="background-color: #059669; color: #ffffff; padding: 14px 28px; border-radius: 12px; font-weight: bold; text-decoration: none; display: inline-block; font-size: 14px;">Reset Account Password</a>
+                </div>
+                <p style="color: #64748b; font-size: 12px; line-height: 1.5;">This password reset link is valid for <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email.</p>
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+                <p style="color: #94a3b8; font-size: 11px;">Omove Store Security Team • <a href="${appUrl}" style="color: #059669;">www.omovestore.shop</a></p>
+              </div>
+            `
+          });
+        } catch (mailErr) {
+          console.warn('SMTP mail dispatch note:', mailErr);
+        }
+      } else {
+        console.log(`[PASS RESET LINK GENERATED]: ${resetLink}`);
+      }
     }
 
+    // Always return safe uniform response to prevent account enumeration
     res.json({
       success: true,
-      message: 'Password reset request processed. If your account is registered, instructions have been sent.'
+      message: 'If an account exists for this email address, password reset instructions have been sent.'
     });
   });
 
@@ -893,25 +946,35 @@ async function startServer() {
       return res.status(400).json({ error: 'New password must be at least 4 characters long.' });
     }
 
+    const providedHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+
     const user = Array.from(usersStore.values()).find(
-      u => u.resetToken === token && u.resetTokenExpires && u.resetTokenExpires > Date.now()
+      u => u.resetTokenHash === providedHash && u.resetTokenExpiresAt && u.resetTokenExpiresAt > Date.now()
     );
 
     if (!user) {
-      return res.status(400).json({ error: 'Invalid or expired password reset token.' });
+      return res.status(400).json({ error: 'Invalid or expired password reset token. Please request a new password reset link.' });
     }
 
     const { hash, salt } = hashPassword(newPassword);
     user.passwordHash = hash;
     user.passwordSalt = salt;
-    user.resetToken = undefined;
-    user.resetTokenExpires = undefined;
+    user.resetTokenHash = undefined;
+    user.resetTokenExpiresAt = undefined;
     user.updatedAt = new Date().toISOString();
     saveUsersToDisk(usersStore);
 
+    // Invalidate existing sessions for this user
+    for (const [sessionId, session] of sessionsStore.entries()) {
+      if (session.userEmail.toLowerCase() === user.email.toLowerCase()) {
+        sessionsStore.delete(sessionId);
+      }
+    }
+    saveSessionsToDisk(sessionsStore);
+
     res.json({
       success: true,
-      message: 'Password reset successfully! You can now sign in with your new password.'
+      message: 'Your password has been updated successfully! You can now sign in with your new password.'
     });
   });
 
@@ -1028,3 +1091,5 @@ async function startServer() {
 }
 
 startServer();
+
+export default app;
