@@ -15,6 +15,7 @@ import { AdminServicesView } from './views/AdminServicesView';
 import { AdminRemoteSupportView } from './views/AdminRemoteSupportView';
 import { AdminBlogView } from './views/AdminBlogView';
 import { AdminAnnouncementsView } from './views/AdminAnnouncementsView';
+import { AdminCouponsView } from './views/AdminCouponsView';
 import { AdminWebsiteContentView } from './views/AdminWebsiteContentView';
 import { AdminAnalyticsView } from './views/AdminAnalyticsView';
 import { AdminActivityLogView } from './views/AdminActivityLogView';
@@ -224,7 +225,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {activeTab === 'categories' && <AdminStoreProductsView products={products} onOpenAddModal={handleOpenAddProduct} onEditProduct={handleEditProduct} onDuplicateProduct={handleDuplicateProduct} onTogglePublishStatus={handleTogglePublishStatus} onDeleteProduct={handleDeleteProduct} onSelectProductPreview={onSelectProductPreview} />}
           {activeTab === 'website-content' && <AdminWebsiteContentView />}
           {activeTab === 'announcements' && <AdminAnnouncementsView />}
-          {activeTab === 'coupons' && <AdminAnnouncementsView />}
+          {activeTab === 'coupons' && <AdminCouponsView />}
           {activeTab === 'newsletter' && <AdminCustomersView orders={orders} />}
           {activeTab === 'analytics' && <AdminAnalyticsView />}
           {activeTab === 'activity-logs' && <AdminActivityLogView />}

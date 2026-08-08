@@ -14,6 +14,24 @@ export const getStoredCoupons = (): Coupon[] => {
   return MOCK_COUPONS;
 };
 
+export const fetchAndCacheCoupons = async (): Promise<Coupon[]> => {
+  try {
+    const res = await fetch('/api/coupons');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        try {
+          localStorage.setItem('omove_coupons', JSON.stringify(data));
+        } catch (e) {}
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Coupons fetch note:', err);
+  }
+  return getStoredCoupons();
+};
+
 export interface CouponValidationResult {
   valid: boolean;
   message: string;

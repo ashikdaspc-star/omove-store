@@ -13,6 +13,7 @@ import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 
 import { ShieldCheck, Lock } from 'lucide-react';
+import { fetchAndCacheCoupons } from './utils/couponManager';
 import { HomeView } from './views/HomeView';
 import { StoreView } from './views/StoreView';
 import { ServicesView } from './views/ServicesView';
@@ -170,6 +171,7 @@ export default function App() {
     }
 
     loadLatestProductsFromServer();
+    fetchAndCacheCoupons().catch(() => {});
 
     let bc: BroadcastChannel | null = null;
     try {
