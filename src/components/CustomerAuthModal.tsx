@@ -70,25 +70,23 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     let targetEmail = email.trim().toLowerCase();
 
     if (!targetEmail) {
-      setErrorNotice('Please enter your Email Address below to verify with Google.');
-      const inputElem = document.getElementById('customer-email-input');
-      if (inputElem) inputElem.focus();
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (!targetEmail.includes('@')) {
+      targetEmail = 'google.user@gmail.com';
+    } else if (!targetEmail.includes('@')) {
       targetEmail = `${targetEmail}@gmail.com`;
     }
 
-    const rawName = targetEmail.split('@')[0] || 'google';
+    const rawName = targetEmail === 'google.user@gmail.com' ? 'Google Account' : (targetEmail.split('@')[0] || 'google');
     const googleName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
-    // Open real Google Account chooser popup window for customer email
+    // Open real Google Account chooser popup window directly for customer device
     let popup: Window | null = null;
     try {
+      const googleAuthUrl = email.trim()
+        ? `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(targetEmail)}`
+        : `https://accounts.google.com/ServiceLogin?service=lso&passive=1209600&continue=https://accounts.google.com/`;
+
       popup = window.open(
-        `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(targetEmail)}`,
+        googleAuthUrl,
         'GoogleAuthPopup',
         'width=520,height=620,left=300,top=100'
       );
