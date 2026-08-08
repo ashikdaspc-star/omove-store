@@ -55,7 +55,7 @@
     "price": 130,
     "originalPrice": 500,
     "discountPercent": 74,
-    "licenseType": "Lifetime License",
+    "licenseType": "2 month access",
     "version": "v2027.1",
     "downloadSize": "3 GB",
     "compatibility": [
@@ -78,6 +78,6 @@
     "versionHistory": [],
     "fileUrl": "/api/downloads/setup",
     "salesCount": 0,
-    "createdAt": "2026-08-08T19:30:36.256Z"
+    "createdAt": "2026-08-08T19:31:24.269Z"
   }
 ]
