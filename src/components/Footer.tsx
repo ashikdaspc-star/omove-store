@@ -43,29 +43,30 @@ export const Footer: React.FC<FooterProps> = () => {
 
   return (
     <footer className="bg-gradient-to-b from-[#042F2C] via-[#052327] to-[#071426] text-slate-200 font-sans border-t border-emerald-500/20 relative">
-      {/* Top Support CTA Card Container */}
-      <div className="pt-10 max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8">
-        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-950/90 via-slate-900/90 to-emerald-900/90 border border-emerald-500/30 shadow-xl backdrop-blur-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-400 flex items-center justify-center shrink-0 shadow-xs">
-              <MessageSquare className="w-5 h-5" />
+      {/* Compact Support CTA Strip (Compact 64px horizontal strip directly above footer) */}
+      <div className="pt-6 pb-2 max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8">
+        <div className="py-3 px-4 sm:py-3.5 sm:px-6 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-emerald-900/80 border border-emerald-500/20 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 font-sans">
+          <div className="flex items-center gap-3 text-center sm:text-left">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-400 flex items-center justify-center shrink-0">
+              <MessageSquare className="w-4 h-4" />
             </div>
-            <div>
-              <h4 className="text-base sm:text-lg font-extrabold text-white font-sans tracking-tight">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
+              <h4 className="text-sm font-bold text-white tracking-tight">
                 Need help with your order?
               </h4>
-              <p className="text-xs sm:text-sm text-slate-300 font-sans">
-                Talk to Omove Store Support and we'll help you get it sorted.
+              <span className="hidden sm:inline text-slate-600">•</span>
+              <p className="text-xs text-slate-300">
+                Our support team is ready to help.
               </p>
             </div>
           </div>
 
           <Link
             to="/contact"
-            className="px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono text-xs font-extrabold shadow-md shadow-emerald-500/20 flex items-center gap-2 transition-all hover:scale-105 shrink-0"
+            className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 shrink-0"
           >
             <span>Contact Support</span>
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
