@@ -96,48 +96,100 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   };
 
   const handleSaveProduct = async (productData: Partial<Product>) => {
-    try {
-      const type = productData.productType || targetProductType || 'STORE';
-      const isDigital = type === 'DIGITAL';
-      const endpoint = isDigital ? '/api/admin/digital-products' : '/api/admin/store-products';
+    const activeType = productData.productType || targetProductType || 'STORE';
+    const isDigital = activeType === 'DIGITAL';
+    const endpoint = isDigital ? '/api/admin/digital-products' : '/api/admin/store-products';
 
-      if (productData.id && editingProduct) {
-        // Update product via server API
+    const newId = productData.id || `${isDigital ? 'dig' : 'prod'}-${Date.now()}`;
+    const fullProduct: Product = {
+      id: newId,
+      name: productData.name || (isDigital ? 'New Digital Product' : 'New Store Product'),
+      slug: productData.slug || (productData.name ? productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `product-${Date.now()}`),
+      productType: isDigital ? 'DIGITAL' : 'STORE',
+      category: productData.category || (isDigital ? 'Digital Software' : 'Software'),
+      tags: productData.tags || (isDigital ? ['Digital Key', 'Instant Download'] : ['Store Card', 'Software']),
+      shortDescription: productData.shortDescription || 'High performance digital software solution.',
+      fullDescription: productData.fullDescription || productData.shortDescription || 'Full digital product package.',
+      image: productData.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+      price: Number(productData.price) || 499,
+      originalPrice: Number(productData.originalPrice) || 999,
+      discountPercent: Number(productData.discountPercent) || 50,
+      licenseType: productData.licenseType || (isDigital ? 'Instant Digital Key' : 'Lifetime License'),
+      version: productData.version || 'v2026.1',
+      downloadSize: productData.downloadSize || '50 MB',
+      compatibility: productData.compatibility || ['Windows 11', 'Windows 10'],
+      features: productData.features || ['Instant Product Access Key', 'Official Setup Package'],
+      instantKeyAvailable: productData.instantKeyAvailable ?? true,
+      isBestSeller: productData.isBestSeller ?? false,
+      status: productData.status || 'PUBLISHED',
+      rating: productData.rating || 4.9,
+      reviewCount: productData.reviewCount || 1,
+      screenshots: productData.screenshots || [],
+      requirements: productData.requirements || ['Windows 10/11'],
+      versionHistory: productData.versionHistory || [],
+      fileUrl: productData.fileUrl || '/api/downloads/setup',
+      salesCount: productData.salesCount || 0,
+      createdAt: productData.createdAt || new Date().toISOString()
+    };
+
+    if (productData.id && editingProduct) {
+      if (onUpdateProduct) {
+        onUpdateProduct(fullProduct);
+      }
+      try {
         const res = await fetch(`${endpoint}/${productData.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(productData)
+          body: JSON.stringify(fullProduct)
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (data.product && onUpdateProduct) {
           onUpdateProduct(data.product);
         }
-      } else {
-        // Create new product via server API
+      } catch (err) {
+        console.warn('Server edit note:', err);
+      }
+    } else {
+      if (onAddProduct) {
+        onAddProduct(fullProduct);
+      }
+      try {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(productData)
+          body: JSON.stringify(fullProduct)
         });
-        const data = await res.json();
-        if (data.product) {
-          onAddProduct(data.product);
+        const data = await res.json().catch(() => ({}));
+        if (data.product && onUpdateProduct) {
+          onUpdateProduct(data.product);
         }
+      } catch (err) {
+        console.warn('Server add note:', err);
       }
-    } catch (err) {
-      console.error('Server save error note:', err);
     }
   };
 
   const handleDuplicateProduct = async (prodId: string) => {
+    const existing = products.find((p) => p.id === prodId);
+    if (!existing) return;
+
+    const isDigital = existing.productType === 'DIGITAL';
+    const duplicated: Product = {
+      ...existing,
+      id: `${isDigital ? 'dig' : 'prod'}-${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: `${existing.name} (Copy)`,
+      status: 'DRAFT',
+      createdAt: new Date().toISOString()
+    };
+
+    if (onAddProduct) {
+      onAddProduct(duplicated);
+    }
+
     try {
-      const res = await fetch(`/api/products/${prodId}/duplicate`, { method: 'POST' });
-      const data = await res.json();
-      if (data.product) {
-        onAddProduct(data.product);
-      }
+      await fetch(`/api/products/${prodId}/duplicate`, { method: 'POST' });
     } catch (err) {
-      console.error(err);
+      console.warn('Server duplicate note:', err);
     }
   };
 

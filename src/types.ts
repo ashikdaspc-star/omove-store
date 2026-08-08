@@ -1,8 +1,11 @@
 export type ProductCategory =
   | 'Windows Tools'
-  | 'Software';
+  | 'Software'
+  | 'Digital Software'
+  | 'Operating Systems'
+  | 'Utilities';
 
-export type LicenseType = 'Lifetime License' | '1 Year License' | 'Perpetual' | 'Multi-PC License';
+export type LicenseType = 'Lifetime License' | '1 Year License' | 'Perpetual' | 'Multi-PC License' | 'Instant Digital Key' | 'Digital License';
 export type ProductType = 'STORE' | 'DIGITAL';
 
 export interface Product {
