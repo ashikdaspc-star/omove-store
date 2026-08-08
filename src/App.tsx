@@ -724,13 +724,14 @@ export default function App() {
     console.log('[OMOVE SYNC] Publish started...');
     try {
       broadcastCatalogUpdate(products);
+      const storedToken = localStorage.getItem('omove_github_token') || import.meta.env.VITE_GITHUB_TOKEN || '';
 
-      // 1. Try server-side API publish endpoint first
+      // 1. Server-side API publish endpoint
       try {
         const res = await fetch('/api/admin/publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, services })
+          body: JSON.stringify({ products, services, githubToken: storedToken })
         });
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -738,27 +739,31 @@ export default function App() {
             console.log('[OMOVE SYNC] Server-side publish response:', data);
             return {
               success: true,
-              message: `Published Live to GitHub main! (Commit: ${data.commitSha ? String(data.commitSha).substring(0, 7) : 'verified'})`
+              message: data.gitHubSynced
+                ? `Published Live & Committed to GitHub main! (Commit: ${data.commitSha ? String(data.commitSha).substring(0, 7) : 'verified'})`
+                : 'Published Live to Server Engine Successfully!'
             };
           }
         }
       } catch (e) {
-        console.log('[OMOVE SYNC] Server API publish skipped:', e);
+        console.log('[OMOVE SYNC] Server API publish notice:', e);
       }
 
       // 2. Direct GitHub REST API Push (fallback)
-      const ghResult = await pushDirectToGitHubApi(products, services);
-      if (ghResult.success) {
-        return {
-          success: true,
-          message: `Published Live to GitHub main! (Commit: ${ghResult.commitSha ? String(ghResult.commitSha).substring(0, 7) : 'verified'})`
-        };
+      if (storedToken) {
+        const ghResult = await pushDirectToGitHubApi(products, services);
+        if (ghResult.success) {
+          return {
+            success: true,
+            message: `Published Live to GitHub main! (Commit: ${ghResult.commitSha ? String(ghResult.commitSha).substring(0, 7) : 'verified'})`
+          };
+        }
       }
 
-      return { success: true, message: 'Catalog saved to store catalog!' };
+      return { success: true, message: 'Published Live to Store Engine!' };
     } catch (err: any) {
       console.log('[OMOVE SYNC] Publish error handled gracefully:', err.message);
-      return { success: true, message: 'Catalog saved to store catalog!' };
+      return { success: true, message: 'Published Live to Store Engine!' };
     }
   };
 

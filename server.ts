@@ -563,81 +563,99 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   // Server-Side Production Publish Endpoint (Direct GitHub REST API commit on main branch)
   app.post('/api/admin/publish', async (req: Request, res: Response) => {
     try {
-      const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || '';
+      const nowStr = new Date().toISOString();
+      let publishedFiles: string[] = [];
+      let commitSha: string | null = null;
+      let gitHubSynced = false;
+
+      // 1. Always update server dynamic stores & refresh catalog version timestamp
+      if (Array.isArray(req.body.products)) {
+        dynamicProductsStore = req.body.products;
+        currentCatalogVersion = Date.now();
+        publishedFiles.push('products.json');
+        try {
+          fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2));
+        } catch (e) {}
+      }
+
+      if (Array.isArray(req.body.services)) {
+        dynamicServicesStore = req.body.services;
+        saveServicesToDisk();
+        publishedFiles.push('services.json');
+      }
+
+      // 2. Try GitHub REST API commit if secret token is configured
+      const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || req.body.githubToken || '';
       const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
       const repo = process.env.GITHUB_REPO || 'omove-store';
       const branch = process.env.GITHUB_BRANCH || 'main';
 
-      if (!token) {
-        return res.status(500).json({ success: false, error: 'Server secret GITHUB_TOKEN is not configured.' });
-      }
-
-      if (Array.isArray(req.body.products)) {
-        dynamicProductsStore = req.body.products;
-        try { fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2)); } catch (e) {}
-      }
-      if (Array.isArray(req.body.services)) {
-        dynamicServicesStore = req.body.services;
-        saveServicesToDisk();
-      }
-
-      const commitFileToGitHub = async (filePath: string, contentData: any, message: string) => {
-        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
-
-        let sha = '';
+      if (token) {
         try {
-          const getRes = await fetch(`${url}?ref=${branch}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/vnd.github.v3+json',
-              'User-Agent': 'OmoveStore-Publish/1.0'
+          const commitFileToGitHub = async (filePath: string, contentData: any, message: string) => {
+            const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+
+            let sha = '';
+            try {
+              const getRes = await fetch(`${url}?ref=${branch}`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Accept': 'application/vnd.github.v3+json',
+                  'User-Agent': 'OmoveStore-Publish/1.0'
+                }
+              });
+              if (getRes.ok) {
+                const fileData: any = await getRes.json();
+                sha = fileData.sha;
+              }
+            } catch (e) {}
+
+            const jsonText = JSON.stringify(contentData, null, 2);
+            const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
+
+            const putRes = await fetch(url, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'OmoveStore-Publish/1.0'
+              },
+              body: JSON.stringify({
+                message: message,
+                content: base64Content,
+                sha: sha || undefined,
+                branch: branch
+              })
+            });
+
+            if (!putRes.ok) {
+              const errBody: any = await putRes.json().catch(() => ({}));
+              throw new Error(errBody.message || `GitHub HTTP ${putRes.status} for ${filePath}`);
             }
-          });
-          if (getRes.ok) {
-            const fileData: any = await getRes.json();
-            sha = fileData.sha;
-          }
-        } catch (e) {}
 
-        const jsonText = JSON.stringify(contentData, null, 2);
-        const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
+            const resBody: any = await putRes.json();
+            return resBody.commit?.sha || 'committed';
+          };
 
-        const putRes = await fetch(url, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json',
-            'User-Agent': 'OmoveStore-Publish/1.0'
-          },
-          body: JSON.stringify({
-            message: message,
-            content: base64Content,
-            sha: sha || undefined,
-            branch: branch
-          })
-        });
-
-        if (!putRes.ok) {
-          const errBody: any = await putRes.json().catch(() => ({}));
-          throw new Error(errBody.message || `GitHub HTTP ${putRes.status} for ${filePath}`);
+          const commitMsg = `Live Production Catalog Sync via Admin Command Center [${nowStr}] [skip ci]`;
+          const productsSha = await commitFileToGitHub('src/data/products.json', dynamicProductsStore, commitMsg);
+          const servicesSha = await commitFileToGitHub('src/data/services.json', dynamicServicesStore, commitMsg);
+          commitSha = productsSha || servicesSha;
+          gitHubSynced = true;
+        } catch (ghErr: any) {
+          console.warn('[ADMIN PUBLISH GITHUB SYNC NOTICE]', ghErr.message);
         }
-
-        const resBody: any = await putRes.json();
-        return resBody.commit?.sha || 'committed';
-      };
-
-      const nowStr = new Date().toISOString();
-      const commitMsg = `Live Production Catalog Sync via Admin Command Center [${nowStr}] [skip ci]`;
-
-      const productsSha = await commitFileToGitHub('src/data/products.json', dynamicProductsStore, commitMsg);
-      const servicesSha = await commitFileToGitHub('src/data/services.json', dynamicServicesStore, commitMsg);
+      }
 
       res.json({
         success: true,
-        message: 'Published production data to GitHub main branch. Live site will deploy automatically.',
-        commitSha: productsSha || servicesSha,
-        publishedFiles: ['src/data/products.json', 'src/data/services.json'],
+        message: gitHubSynced
+          ? 'Published production data to server engine & committed to GitHub main!'
+          : 'Published production data to server engine successfully!',
+        commitSha: commitSha,
+        gitHubSynced: gitHubSynced,
+        publishedFiles: publishedFiles,
         timestamp: nowStr,
         productionUrl: 'https://www.omovestore.shop'
       });
