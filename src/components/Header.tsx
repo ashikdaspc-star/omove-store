@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const navItems = [
     { path: '/', label: 'Home', icon: Monitor },
-    { path: '/digital-products', label: 'Digital Product Sell', icon: Sparkles },
+    { path: '/digital-products', label: 'Digital Product', icon: Sparkles },
     { path: '/store', label: 'Store', icon: ShoppingBag },
     { path: '/services', label: 'Services', icon: Zap },
     { path: '/remote-support', label: 'Remote Support', icon: Headphones, badge: 'Live' },

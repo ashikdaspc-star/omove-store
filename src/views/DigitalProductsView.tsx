@@ -54,7 +54,7 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
               <span>DIGITAL PRODUCTS & LICENSE KEYS ONLY</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight font-sans">
-              Digital Product Sell & Keys
+              Digital Products & Keys
             </h1>
             <p className="text-sm sm:text-base text-emerald-100/90 leading-relaxed font-sans">
               Exclusive store section dedicated strictly to genuine software activation keys, digital licenses, and premium application suites with 100% instant key delivery.
