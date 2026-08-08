@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Order, RemoteBooking, Product } from '../types';
 import { ProductCard } from '../components/ProductCard';
 import {
@@ -20,7 +21,11 @@ import {
   X,
   MapPin,
   Mail,
-  Phone
+  Phone,
+  Settings,
+  Lock,
+  Package,
+  Key
 } from 'lucide-react';
 
 interface CustomerProfile {
@@ -62,7 +67,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenInvoiceModal,
   setCurrentView
 }) => {
-  const [activeTab, setActiveTab] = useState<'bookings' | 'orders' | 'wishlist'>('bookings');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+
+  const [activeTab, setActiveTab] = useState<'account' | 'orders' | 'bookings' | 'wishlist' | 'settings'>(
+    tabParam && ['account', 'orders', 'bookings', 'wishlist', 'settings'].includes(tabParam)
+      ? (tabParam as any)
+      : 'orders'
+  );
+
+  useEffect(() => {
+    if (tabParam && ['account', 'orders', 'bookings', 'wishlist', 'settings'].includes(tabParam)) {
+      setActiveTab(tabParam as any);
+    }
+  }, [tabParam]);
+
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Edit profile state
@@ -71,6 +90,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [email, setEmail] = useState(customerProfile.email || '');
   const [phone, setPhone] = useState(customerProfile.phone || '');
   const [location, setLocation] = useState(customerProfile.location || 'Kolkata, West Bengal, India');
+  const [passwordResetNotice, setPasswordResetNotice] = useState('');
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,7 +195,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
         <button
-          onClick={() => setActiveTab('bookings')}
+          onClick={() => {
+            setActiveTab('account');
+            setSearchParams({ tab: 'account' });
+          }}
+          className={`px-5 py-3 rounded-2xl text-xs font-bold font-mono whitespace-nowrap flex items-center gap-2 transition-all ${
+            activeTab === 'account'
+              ? 'bg-emerald-600 text-white shadow-md font-extrabold'
+              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <User className="w-4 h-4" />
+          <span>My Account</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('orders');
+            setSearchParams({ tab: 'orders' });
+          }}
+          className={`px-5 py-3 rounded-2xl text-xs font-bold font-mono whitespace-nowrap flex items-center gap-2 transition-all ${
+            activeTab === 'orders'
+              ? 'bg-emerald-600 text-white shadow-md font-extrabold'
+              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <ShoppingBag className="w-4 h-4" />
+          <span>My Orders & Keys ({allDownloadableItems.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('bookings');
+            setSearchParams({ tab: 'bookings' });
+          }}
           className={`px-5 py-3 rounded-2xl text-xs font-bold font-mono whitespace-nowrap flex items-center gap-2 transition-all ${
             activeTab === 'bookings'
               ? 'bg-emerald-600 text-white shadow-md font-extrabold'
@@ -187,19 +240,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveTab('orders')}
-          className={`px-5 py-3 rounded-2xl text-xs font-bold font-mono whitespace-nowrap flex items-center gap-2 transition-all ${
-            activeTab === 'orders'
-              ? 'bg-emerald-600 text-white shadow-md font-extrabold'
-              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <ShoppingBag className="w-4 h-4" />
-          <span>License Keys & Downloads ({allDownloadableItems.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('wishlist')}
+          onClick={() => {
+            setActiveTab('wishlist');
+            setSearchParams({ tab: 'wishlist' });
+          }}
           className={`px-5 py-3 rounded-2xl text-xs font-bold font-mono whitespace-nowrap flex items-center gap-2 transition-all ${
             activeTab === 'wishlist'
               ? 'bg-emerald-600 text-white shadow-md font-extrabold'
@@ -209,7 +253,179 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <Heart className="w-4 h-4" />
           <span>Saved Wishlist ({wishlistProducts.length})</span>
         </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('settings');
+            setSearchParams({ tab: 'settings' });
+          }}
+          className={`px-5 py-3 rounded-2xl text-xs font-bold font-mono whitespace-nowrap flex items-center gap-2 transition-all ${
+            activeTab === 'settings'
+              ? 'bg-emerald-600 text-white shadow-md font-extrabold'
+              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          <span>Account Settings</span>
+        </button>
       </div>
+
+      {/* TAB: MY ACCOUNT OVERVIEW */}
+      {activeTab === 'account' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <ShoppingBag className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-2xl font-bold font-mono text-slate-900">{userOrders.length}</span>
+                <span className="block text-xs text-slate-500 font-medium">Software Orders</span>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <Headphones className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-2xl font-bold font-mono text-slate-900">{userBookings.length}</span>
+                <span className="block text-xs text-slate-500 font-medium">Remote Support Logs</span>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+                <Download className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-2xl font-bold font-mono text-slate-900">{allDownloadableItems.length}</span>
+                <span className="block text-xs text-slate-500 font-medium">Download Licenses</span>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <Heart className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-2xl font-bold font-mono text-slate-900">{wishlistProducts.length}</span>
+                <span className="block text-xs text-slate-500 font-medium">Saved Items</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2">
+              <User className="w-5 h-5 text-emerald-600" />
+              <span>Customer Profile Summary</span>
+            </h3>
+
+            <div className="grid md:grid-cols-2 gap-4 text-xs font-mono">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <span className="text-slate-400 block text-[11px]">Registered Full Name</span>
+                <strong className="text-slate-900 text-sm block font-sans">{customerProfile.name || 'Customer'}</strong>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <span className="text-slate-400 block text-[11px]">Primary Email Address</span>
+                <strong className="text-emerald-700 text-sm block font-sans">{customerProfile.email || 'customer@omove.tech'}</strong>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <span className="text-slate-400 block text-[11px]">WhatsApp Contact Phone</span>
+                <strong className="text-slate-900 text-sm block font-sans">{customerProfile.phone || '+91 8345968169'}</strong>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <span className="text-slate-400 block text-[11px]">Billing Location</span>
+                <strong className="text-slate-900 text-sm block font-sans">{customerProfile.location || 'Kolkata, WB, India'}</strong>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setName(customerProfile.name || 'Customer');
+                  setEmail(customerProfile.email || '');
+                  setPhone(customerProfile.phone || '');
+                  setLocation(customerProfile.location || 'Kolkata, West Bengal, India');
+                  setShowEditProfileModal(true);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-mono shadow-sm flex items-center gap-2"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span>Update Account Information</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: ACCOUNT SETTINGS */}
+      {activeTab === 'settings' && (
+        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6 max-w-2xl">
+          <div className="border-b border-slate-100 pb-4">
+            <h3 className="font-bold text-lg text-slate-900 font-mono flex items-center gap-2">
+              <Settings className="w-5 h-5 text-emerald-600" />
+              <span>Account Security & Preferences</span>
+            </h3>
+            <p className="text-xs text-slate-500 font-mono mt-1">Manage your customer account credentials and communication options.</p>
+          </div>
+
+          {passwordResetNotice && (
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-bold">
+              {passwordResetNotice}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-4">
+              <div>
+                <strong className="text-slate-900 text-xs block font-mono">Password Security</strong>
+                <span className="text-[11px] text-slate-500 block">Request a server-verified password reset link to your registered email.</span>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!customerProfile.email) return;
+                  try {
+                    await fetch('/api/auth/forgot-password', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email: customerProfile.email })
+                    });
+                    setPasswordResetNotice(`Password reset link sent to ${customerProfile.email}. Check your inbox!`);
+                  } catch (e) {
+                    setPasswordResetNotice('Failed to send reset link. Try again.');
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold font-mono whitespace-nowrap"
+              >
+                Send Reset Link
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-4">
+              <div>
+                <strong className="text-slate-900 text-xs block font-mono">Edit Personal Details</strong>
+                <span className="text-[11px] text-slate-500 block">Update full name, phone number, or billing location address.</span>
+              </div>
+              <button
+                onClick={() => {
+                  setName(customerProfile.name || 'Customer');
+                  setEmail(customerProfile.email || '');
+                  setPhone(customerProfile.phone || '');
+                  setLocation(customerProfile.location || 'Kolkata, West Bengal, India');
+                  setShowEditProfileModal(true);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-mono whitespace-nowrap"
+              >
+                Edit Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: REMOTE REPAIRS LOG */}
       {activeTab === 'bookings' && (
