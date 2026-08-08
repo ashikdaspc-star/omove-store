@@ -81,7 +81,7 @@ export const StoreView: React.FC<StoreViewProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-700">
-              Digital Software & Keys Store
+              Digital Software & Products Store
             </span>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
               Browse Software Catalog

@@ -123,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
         </Link>
 
         {/* Center: Main Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
+        <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
                 to={item.path}
                 onClick={handleNavClick}
                 className={({ isActive }) =>
-                  `relative px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  `relative px-2 py-1.5 xl:px-3 xl:py-2 rounded-xl text-[11px] xl:text-xs 2xl:text-sm font-bold transition-all flex items-center gap-1 whitespace-nowrap ${
                     isActive
                       ? 'text-emerald-700 bg-emerald-50 border border-emerald-200/80 shadow-xs'
                       : 'text-slate-700 hover:text-emerald-700 hover:bg-slate-50'
