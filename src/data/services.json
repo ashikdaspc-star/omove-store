@@ -1,0 +1,19 @@
+[
+  {
+    "id": "srv-001",
+    "title": "Remote PC Support",
+    "description": "Get secure remote support from certified technicians. We connect to your PC using AnyDesk and stay in touch through WhatsApp to diagnose, troubleshoot, and resolve your Windows or software issues quickly and safely.\n\nIf we're unable to resolve your issue, your payment will be automatically refunded within 2–3 business days.",
+    "price": 39,
+    "originalPrice": 499,
+    "category": "Windows Fix",
+    "estimatedTime": "15 Mins",
+    "iconName": "Search",
+    "popular": true,
+    "features": [
+      "Direct Expert Support",
+      "PC & Software Solutions",
+      "Secure Remote Repair",
+      "WhatsApp Support"
+    ]
+  }
+]

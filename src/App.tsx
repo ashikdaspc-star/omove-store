@@ -576,31 +576,34 @@ export default function App() {
     });
   };
 
-  const DEFAULT_GITHUB_TOKEN = ['ghp_If8rf15PeznQaAPql', 'TFlIIrnbg87vE4T77EF'].join('');
+  const DEFAULT_GITHUB_TOKEN = '';
 
-  const pushDirectToGitHubApi = async (newProducts: Product[]): Promise<{ success: boolean; message: string }> => {
+  const pushDirectToGitHubApi = async (
+    newProducts: Product[],
+    newServices: RemoteService[]
+  ): Promise<{ success: boolean; message: string; commitSha?: string }> => {
     const storedToken = localStorage.getItem('omove_github_token') || import.meta.env.VITE_GITHUB_TOKEN || DEFAULT_GITHUB_TOKEN;
     if (!storedToken) {
       return { success: false, message: 'No GitHub PAT token configured' };
     }
 
-    try {
-      console.log('[OMOVE SYNC] Pushing catalog directly to GitHub REST API...');
-      const repoUrl = 'https://api.github.com/repos/ashikdaspc-star/omove-store/contents/src/data/products.json';
-
-      const getRes = await fetch(repoUrl, {
-        headers: {
-          'Authorization': `Bearer ${storedToken}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
-      });
+    const commitSingleFile = async (filePath: string, dataObj: any) => {
+      const repoUrl = `https://api.github.com/repos/ashikdaspc-star/omove-store/contents/${filePath}`;
       let sha = '';
-      if (getRes.ok) {
-        const fileData = await getRes.json();
-        sha = fileData.sha;
-      }
+      try {
+        const getRes = await fetch(`${repoUrl}?ref=main`, {
+          headers: {
+            'Authorization': `Bearer ${storedToken}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+        if (getRes.ok) {
+          const fileData = await getRes.json();
+          sha = fileData.sha;
+        }
+      } catch (e) {}
 
-      const jsonText = JSON.stringify(newProducts, null, 2);
+      const jsonText = JSON.stringify(dataObj, null, 2);
       const encoded = btoa(unescape(encodeURIComponent(jsonText)));
 
       const putRes = await fetch(repoUrl, {
@@ -611,20 +614,33 @@ export default function App() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          message: `Auto-update catalog via Live Admin Panel (${newProducts.length} items) [skip ci]`,
+          message: `Auto-update catalog & services via Live Admin Panel [skip ci]`,
           content: encoded,
-          sha: sha || undefined
+          sha: sha || undefined,
+          branch: 'main'
         })
       });
 
-      if (putRes.ok) {
-        console.log('[OMOVE SYNC] GitHub REST API push SUCCESSFUL!');
-        return { success: true, message: 'Direct GitHub commit & push successful!' };
-      } else {
+      if (!putRes.ok) {
         const errData = await putRes.json().catch(() => ({}));
-        console.warn('[OMOVE SYNC] GitHub REST API error:', errData);
-        return { success: false, message: errData.message || `HTTP ${putRes.status}` };
+        throw new Error(errData.message || `HTTP ${putRes.status}`);
       }
+
+      const resData = await putRes.json();
+      return resData.commit?.sha || 'ok';
+    };
+
+    try {
+      console.log('[OMOVE SYNC] Pushing products & services directly to GitHub REST API...');
+      const prodSha = await commitSingleFile('src/data/products.json', newProducts);
+      const srvSha = await commitSingleFile('src/data/services.json', newServices);
+
+      console.log('[OMOVE SYNC] GitHub REST API push SUCCESSFUL!', prodSha, srvSha);
+      return {
+        success: true,
+        message: 'Direct GitHub commit & push successful!',
+        commitSha: prodSha || srvSha
+      };
     } catch (e: any) {
       console.warn('[OMOVE SYNC] GitHub API exception:', e.message);
       return { success: false, message: e.message };
@@ -644,13 +660,12 @@ export default function App() {
       const bc = new BroadcastChannel('omove_catalog_sync_channel');
       bc.postMessage({ type: 'CATALOG_UPDATED', version: newVer });
       bc.close();
-      console.log('[OMOVE SYNC] 6. BroadcastChannel event posted to all open tabs');
+      console.log('[OMOVE SYNC] BroadcastChannel event posted to all open tabs');
     } catch (e) {}
   };
 
   const syncProducts = (updated: Product[]) => {
     broadcastCatalogUpdate(updated);
-    console.log('[OMOVE SYNC] 2. React state updated locally');
     fetch('/api/products/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -658,16 +673,13 @@ export default function App() {
     })
       .then((res) => res.json())
       .then((data) => {
-        console.log('[OMOVE SYNC] 4. Server API sync response:', data);
+        console.log('[OMOVE SYNC] Server API sync response:', data);
       })
       .catch((e) => {
         console.log('[OMOVE SYNC] Local server sync failed, auto-pushing to GitHub API:', e.message);
-        // On Vercel (no backend), auto-push directly to GitHub so the product persists
-        pushDirectToGitHubApi(updated).then((result) => {
+        pushDirectToGitHubApi(updated, services).then((result) => {
           if (result.success) {
-            console.log('[OMOVE SYNC] Auto GitHub push successful! Product persisted to repository.');
-          } else {
-            console.warn('[OMOVE SYNC] Auto GitHub push note:', result.message);
+            console.log('[OMOVE SYNC] Auto GitHub push successful!');
           }
         }).catch(() => {});
       });
@@ -701,34 +713,39 @@ export default function App() {
     syncProducts(updated);
   };
 
-
   const handlePublishCatalog = async (): Promise<{ success: boolean; message?: string }> => {
-    console.log('[OMOVE SYNC] 3. Publish started...');
+    console.log('[OMOVE SYNC] Publish started...');
     try {
       broadcastCatalogUpdate(products);
 
-      // 1. Try local backend API publish first
+      // 1. Try server-side API publish endpoint first
       try {
-        const res = await fetch('/api/products/publish', {
+        const res = await fetch('/api/admin/publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products })
+          body: JSON.stringify({ products, services })
         });
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
           if (data.success) {
-            console.log('[OMOVE SYNC] Backend API publish response:', data);
-            return { success: true, message: 'Catalog saved to server & published live to GitHub!' };
+            console.log('[OMOVE SYNC] Server-side publish response:', data);
+            return {
+              success: true,
+              message: `Published Live to GitHub main! (Commit: ${data.commitSha ? String(data.commitSha).substring(0, 7) : 'verified'})`
+            };
           }
         }
       } catch (e) {
-        console.log('[OMOVE SYNC] Backend API publish skipped:', e);
+        console.log('[OMOVE SYNC] Server API publish skipped:', e);
       }
 
-      // 2. Direct GitHub REST API Push (for live Vercel deployments)
-      const ghResult = await pushDirectToGitHubApi(products);
+      // 2. Direct GitHub REST API Push (fallback)
+      const ghResult = await pushDirectToGitHubApi(products, services);
       if (ghResult.success) {
-        return { success: true, message: 'Catalog published live to GitHub repository!' };
+        return {
+          success: true,
+          message: `Published Live to GitHub main! (Commit: ${ghResult.commitSha ? String(ghResult.commitSha).substring(0, 7) : 'verified'})`
+        };
       }
 
       return { success: true, message: 'Catalog saved to store catalog!' };

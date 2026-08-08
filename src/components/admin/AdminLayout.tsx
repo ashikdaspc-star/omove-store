@@ -251,6 +251,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           setIsOpenMobile={setIsOpenMobile}
           onOpenGlobalSearch={() => setShowGlobalSearch(true)}
           onExitAdmin={onExitAdmin}
+          onPublishCatalog={onPublishCatalog}
         />
 
         {/* View Content Body */}

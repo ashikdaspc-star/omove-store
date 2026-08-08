@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import Razorpay from 'razorpay';
 import nodemailer from 'nodemailer';
 import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS, MOCK_COUPONS } from './src/data/mockData';
-import { Order, RemoteBooking, SupportTicket, Product, Coupon } from './src/types';
+import { Order, RemoteBooking, SupportTicket, Product, Coupon, RemoteService } from './src/types';
 
 dotenv.config();
 
@@ -355,8 +355,195 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'OMOVE TECH Engine', time: new Date().toISOString() });
 });
 
+  const SERVICES_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'services.json');
+
+  function loadServicesFromDisk(): RemoteService[] {
+    try {
+      if (fs.existsSync(SERVICES_FILE_PATH)) {
+        const raw = fs.readFileSync(SERVICES_FILE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to load services.json from disk:', e);
+    }
+    return [
+      {
+        id: 'srv-001',
+        title: 'Remote PC Support',
+        description: "Get secure remote support from certified technicians. We connect to your PC using AnyDesk and stay in touch through WhatsApp to diagnose, troubleshoot, and resolve your Windows or software issues quickly and safely.\n\nIf we're unable to resolve your issue, your payment will be automatically refunded within 2–3 business days.",
+        price: 39,
+        originalPrice: 499,
+        category: 'Windows Fix',
+        estimatedTime: '15 Mins',
+        iconName: 'Search',
+        popular: true,
+        features: ['Direct Expert Support', 'PC & Software Solutions', 'Secure Remote Repair', 'WhatsApp Support']
+      }
+    ];
+  }
+
+  let dynamicServicesStore: RemoteService[] = loadServicesFromDisk();
+
+  function saveServicesToDisk() {
+    try {
+      fs.writeFileSync(SERVICES_FILE_PATH, JSON.stringify(dynamicServicesStore, null, 2));
+    } catch (e) {
+      console.warn('Failed to save services.json to disk:', e);
+    }
+  }
+
   let dynamicProductsStore: any[] = [...MOCK_PRODUCTS];
   let currentCatalogVersion: number = Date.now();
+
+  // Public & Admin Services Endpoints
+  app.get('/api/services', (_req: Request, res: Response) => {
+    res.json(dynamicServicesStore);
+  });
+
+  app.get('/api/admin/services', (_req: Request, res: Response) => {
+    res.json(dynamicServicesStore);
+  });
+
+  app.post('/api/admin/services', (req: Request, res: Response) => {
+    try {
+      const srvData = req.body || {};
+      const newService: RemoteService = {
+        id: srvData.id || `srv_${Date.now()}`,
+        title: srvData.title || 'New Remote Support Service',
+        description: srvData.description || 'Remote PC support package.',
+        price: Number(srvData.price) || 39,
+        originalPrice: Number(srvData.originalPrice) || 499,
+        category: srvData.category || 'Windows Fix',
+        estimatedTime: srvData.estimatedTime || '15 Mins',
+        iconName: srvData.iconName || 'Wrench',
+        popular: Boolean(srvData.popular),
+        features: Array.isArray(srvData.features) ? srvData.features : ['Direct Expert Support', 'Secure Remote Repair']
+      };
+
+      dynamicServicesStore.unshift(newService);
+      saveServicesToDisk();
+      res.json({ success: true, service: newService });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/admin/services/:id', (req: Request, res: Response) => {
+    try {
+      const idx = dynamicServicesStore.findIndex(s => s.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Service not found' });
+
+      dynamicServicesStore[idx] = {
+        ...dynamicServicesStore[idx],
+        ...req.body
+      };
+      saveServicesToDisk();
+      res.json({ success: true, service: dynamicServicesStore[idx] });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/admin/services/:id', (req: Request, res: Response) => {
+    try {
+      const idx = dynamicServicesStore.findIndex(s => s.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Service not found' });
+
+      dynamicServicesStore.splice(idx, 1);
+      saveServicesToDisk();
+      res.json({ success: true, deleted: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Server-Side Production Publish Endpoint (Direct GitHub REST API commit on main branch)
+  app.post('/api/admin/publish', async (req: Request, res: Response) => {
+    try {
+      const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || '';
+      const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
+      const repo = process.env.GITHUB_REPO || 'omove-store';
+      const branch = process.env.GITHUB_BRANCH || 'main';
+
+      if (!token) {
+        return res.status(500).json({ success: false, error: 'Server secret GITHUB_TOKEN is not configured.' });
+      }
+
+      if (Array.isArray(req.body.products)) {
+        dynamicProductsStore = req.body.products;
+        try { fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2)); } catch (e) {}
+      }
+      if (Array.isArray(req.body.services)) {
+        dynamicServicesStore = req.body.services;
+        saveServicesToDisk();
+      }
+
+      const commitFileToGitHub = async (filePath: string, contentData: any, message: string) => {
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+
+        let sha = '';
+        try {
+          const getRes = await fetch(`${url}?ref=${branch}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/vnd.github.v3+json',
+              'User-Agent': 'OmoveStore-Publish/1.0'
+            }
+          });
+          if (getRes.ok) {
+            const fileData: any = await getRes.json();
+            sha = fileData.sha;
+          }
+        } catch (e) {}
+
+        const jsonText = JSON.stringify(contentData, null, 2);
+        const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
+
+        const putRes = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'OmoveStore-Publish/1.0'
+          },
+          body: JSON.stringify({
+            message: message,
+            content: base64Content,
+            sha: sha || undefined,
+            branch: branch
+          })
+        });
+
+        if (!putRes.ok) {
+          const errBody: any = await putRes.json().catch(() => ({}));
+          throw new Error(errBody.message || `GitHub HTTP ${putRes.status} for ${filePath}`);
+        }
+
+        const resBody: any = await putRes.json();
+        return resBody.commit?.sha || 'committed';
+      };
+
+      const nowStr = new Date().toISOString();
+      const commitMsg = `Live Production Catalog Sync via Admin Command Center [${nowStr}] [skip ci]`;
+
+      const productsSha = await commitFileToGitHub('src/data/products.json', dynamicProductsStore, commitMsg);
+      const servicesSha = await commitFileToGitHub('src/data/services.json', dynamicServicesStore, commitMsg);
+
+      res.json({
+        success: true,
+        message: 'Published production data to GitHub main branch. Live site will deploy automatically.',
+        commitSha: productsSha || servicesSha,
+        publishedFiles: ['src/data/products.json', 'src/data/services.json'],
+        timestamp: nowStr,
+        productionUrl: 'https://www.omovestore.shop'
+      });
+    } catch (err: any) {
+      console.error('[ADMIN PUBLISH API ERROR]', err);
+      res.status(500).json({ success: false, error: err.message || 'Failed to publish live production data.' });
+    }
+  });
 
   // Catalog version endpoint for real-time background version checking
   app.get('/api/catalog-version', (_req: Request, res: Response) => {

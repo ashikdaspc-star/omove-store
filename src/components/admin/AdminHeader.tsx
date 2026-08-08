@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, Search, Bell, ShieldCheck, LogOut, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Menu, Search, Bell, ShieldCheck, LogOut, ChevronDown, CheckCircle2, Globe, Sparkles, Check, AlertCircle } from 'lucide-react';
 import { AdminTab } from './AdminSidebar';
 
 interface AdminHeaderProps {
@@ -7,16 +7,45 @@ interface AdminHeaderProps {
   setIsOpenMobile: (open: boolean) => void;
   onOpenGlobalSearch: () => void;
   onExitAdmin: () => void;
+  onPublishCatalog?: () => Promise<{ success: boolean; message?: string }>;
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
   activeTab,
   setIsOpenMobile,
   onOpenGlobalSearch,
-  onExitAdmin
+  onExitAdmin,
+  onPublishCatalog
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [publishStatus, setPublishStatus] = useState<'idle' | 'publishing' | 'success' | 'error'>('idle');
+  const [publishMessage, setPublishMessage] = useState<string>('');
+
+  const handlePublish = async () => {
+    if (!onPublishCatalog || publishStatus === 'publishing') return;
+    setPublishStatus('publishing');
+    setPublishMessage('Saving & Committing to GitHub main...');
+
+    try {
+      const res = await onPublishCatalog();
+      if (res && res.success) {
+        setPublishStatus('success');
+        setPublishMessage(res.message || 'Published Live to GitHub main!');
+      } else {
+        setPublishStatus('error');
+        setPublishMessage(res?.message || 'Publish failed.');
+      }
+    } catch (err: any) {
+      setPublishStatus('error');
+      setPublishMessage(err.message || 'Publish failed.');
+    } finally {
+      setTimeout(() => {
+        setPublishStatus('idle');
+        setPublishMessage('');
+      }, 5000);
+    }
+  };
 
   const getBreadcrumb = (tab: AdminTab) => {
     switch (tab) {
@@ -68,7 +97,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   const breadcrumb = getBreadcrumb(activeTab);
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200/90 px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+    <header className="h-16 bg-white border-b border-slate-200/90 px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30 shadow-xs font-sans">
       {/* Left Title & Breadcrumb */}
       <div className="flex items-center gap-3">
         <button
@@ -92,14 +121,62 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
 
       {/* Right Action Cluster */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Save & Publish Live Button */}
+        {onPublishCatalog && (
+          <div className="relative">
+            <button
+              onClick={handlePublish}
+              disabled={publishStatus === 'publishing'}
+              className={`px-3.5 py-2 rounded-xl font-mono text-xs font-bold transition-all shadow-md flex items-center gap-2 ${
+                publishStatus === 'publishing'
+                  ? 'bg-slate-800 text-white cursor-wait'
+                  : publishStatus === 'success'
+                  ? 'bg-emerald-600 text-white'
+                  : publishStatus === 'error'
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105'
+              }`}
+              title="Publish catalog & services directly to live website"
+            >
+              {publishStatus === 'publishing' ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span className="hidden sm:inline">PUBLISHING LIVE...</span>
+                </>
+              ) : publishStatus === 'success' ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-200" />
+                  <span className="hidden sm:inline">PUBLISHED LIVE ✓</span>
+                </>
+              ) : publishStatus === 'error' ? (
+                <>
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">PUBLISH FAILED</span>
+                </>
+              ) : (
+                <>
+                  <Globe className="w-4 h-4 text-emerald-200" />
+                  <span>SAVE & PUBLISH LIVE</span>
+                </>
+              )}
+            </button>
+
+            {publishMessage && (
+              <div className="absolute right-0 top-12 whitespace-nowrap px-3 py-1.5 rounded-xl bg-slate-900 text-white text-[11px] font-mono shadow-xl z-50 border border-slate-800 animate-fadeIn">
+                {publishMessage}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Global Search Button */}
         <button
           onClick={onOpenGlobalSearch}
           className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200/90 text-xs font-mono font-medium flex items-center gap-2 transition-all min-h-[40px]"
         >
           <Search className="w-4 h-4 text-slate-400" />
-          <span className="hidden sm:inline">Search orders, products, customers...</span>
-          <kbd className="hidden md:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-white border border-slate-300 rounded text-slate-500">
+          <span className="hidden xl:inline">Search orders, products, customers...</span>
+          <kbd className="hidden xl:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-white border border-slate-300 rounded text-slate-500">
             Ctrl+K
           </kbd>
         </button>
@@ -126,8 +203,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                 <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200/60 flex items-start gap-2 text-slate-700">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="block text-slate-900 font-bold text-[11px]">Server Verified Payment</strong>
-                    <span className="text-[10px] text-slate-500 block font-mono">Razorpay HMAC signature verification active</span>
+                    <strong className="block text-slate-900 font-bold text-[11px]">GitHub Live Sync Active</strong>
+                    <span className="text-[10px] text-slate-500 block font-mono">Main branch deployment sync connected</span>
                   </div>
                 </div>
               </div>
