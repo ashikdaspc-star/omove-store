@@ -29,6 +29,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
   // Form State
   const [name, setName] = useState(product?.name || '');
   const [category, setCategory] = useState(product?.category || (targetProductType === 'DIGITAL' ? 'Digital Software' : 'Software'));
+  const [subCategory, setSubCategory] = useState(product?.subCategory || '');
   const [shortDescription, setShortDescription] = useState(product?.shortDescription || '');
   const [fullDescription, setFullDescription] = useState(product?.fullDescription || '');
   const [tagsInput, setTagsInput] = useState(
@@ -127,6 +128,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
       setCategory(
         product?.category || (targetProductType === 'DIGITAL' ? 'Digital Software' : 'Software')
       );
+      setSubCategory(product?.subCategory || '');
       setShortDescription(product?.shortDescription || '');
       setFullDescription(product?.fullDescription || '');
       setTagsInput(
@@ -192,6 +194,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
       slug: slug || (name ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `product-${Date.now()}`),
       productType: activeType,
       category,
+      subCategory: subCategory.trim() || undefined,
       tags: tags.length > 0 ? tags : (activeType === 'DIGITAL' ? ['Digital Key'] : ['Store Card']),
       shortDescription: shortDescription || 'High performance software solution.',
       fullDescription: fullDescription || shortDescription || 'Full digital product package.',
@@ -287,7 +290,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
                   <label className="font-bold text-slate-900 block mb-1">Category *</label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                    onChange={(e) => setCategory(e.target.value as any)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-600 text-xs font-mono"
                   >
                     {CATEGORIES.map((cat) => (
@@ -307,6 +310,33 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
                     <span>{activeType === 'DIGITAL' ? 'DIGITAL CATALOG (INSTANT KEY)' : 'STORE CATALOG (PHYSICAL/SETUP)'}</span>
                   </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-900 block mb-1">
+                  Sub-Category (Add custom or choose preset)
+                </label>
+                <input
+                  type="text"
+                  value={subCategory}
+                  onChange={(e) => setSubCategory(e.target.value)}
+                  placeholder="e.g. Software Keys, CAD Software, Antivirus, Operating Systems..."
+                  list="sub-category-presets"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-600 text-xs font-mono font-semibold"
+                />
+                <datalist id="sub-category-presets">
+                  <option value="Software Keys" />
+                  <option value="Operating Systems" />
+                  <option value="CAD & Design Tools" />
+                  <option value="Antivirus & Security" />
+                  <option value="Office & Productivity" />
+                  <option value="Utilities & Optimization" />
+                  <option value="Developer Tools" />
+                  <option value="Lifetime Licenses" />
+                </datalist>
+                <p className="text-[10px] text-slate-500 font-mono mt-1">
+                  Sub-categories are automatically displayed as filter tabs on the Digital Products page.
+                </p>
               </div>
 
               <div>

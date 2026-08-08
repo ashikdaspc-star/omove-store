@@ -14,6 +14,7 @@ export interface Product {
   slug: string;
   productType: ProductType;
   category: ProductCategory;
+  subCategory?: string;
   shortDescription: string;
   fullDescription: string;
   price: number;

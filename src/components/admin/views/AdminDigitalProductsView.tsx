@@ -206,7 +206,14 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
                       <img src={prod.image} alt={prod.name} className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" />
                       <div>
                         <strong className="text-slate-900 text-xs font-sans font-bold block line-clamp-1">{prod.name}</strong>
-                        <span className="text-[10px] text-slate-400 font-mono">ID: {prod.id}</span>
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono mt-0.5">
+                          <span className="text-slate-400">ID: {prod.id}</span>
+                          {prod.subCategory && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200 uppercase">
+                              {prod.subCategory}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </td>

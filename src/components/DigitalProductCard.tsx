@@ -39,11 +39,16 @@ export const DigitalProductCard: React.FC<DigitalProductCardProps> = ({
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent opacity-50" />
 
-          {/* Digital Badge */}
-          <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
+          {/* Digital & SubCategory Badge */}
+          <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5 z-10">
             <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
               DIGITAL PRODUCT
             </span>
+            {product.subCategory && (
+              <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-slate-950/80 backdrop-blur-md text-cyan-300 border border-cyan-500/30">
+                {product.subCategory}
+              </span>
+            )}
             {product.discountPercent > 0 && (
               <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider bg-slate-900 text-emerald-300 border border-emerald-500/30">
                 -{product.discountPercent}%
