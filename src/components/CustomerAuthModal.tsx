@@ -4,11 +4,11 @@ import { Mail, Lock, User, Phone, LogIn, UserPlus, X, AlertTriangle } from 'luci
 interface CustomerAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (profile: { name: string; email: string; phone: string; location: string }) => void;
+  onLoginSuccess: (profile: { name: string; email: string; phone: string; location: string; picture?: string; googleSubId?: string }) => void;
 }
 
 const GoogleIcon = () => (
-  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
     <path
       fill="#4285F4"
       d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -60,7 +60,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const [errorNotice, setErrorNotice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const getRegisteredUsers = (): Record<string, { name: string; email: string; phone: string; password: string; location: string }> => {
+  const getRegisteredUsers = (): Record<string, { name: string; email: string; phone: string; password?: string; location: string; picture?: string; googleSubId?: string }> => {
     try {
       const stored = localStorage.getItem('omove_registered_users');
       if (stored) return JSON.parse(stored);
@@ -70,7 +70,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     return {};
   };
 
-  const saveRegisteredUser = (user: { name: string; email: string; phone: string; password: string; location: string }) => {
+  const saveRegisteredUser = (user: { name: string; email: string; phone: string; password?: string; location: string; picture?: string; googleSubId?: string }) => {
     const users = getRegisteredUsers();
     users[user.email.toLowerCase()] = user;
     try {
@@ -79,6 +79,76 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       console.error(e);
     }
   };
+
+  // Google Identity Services (GSI) Client ID setup
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '1054366627011-omovestore.apps.googleusercontent.com';
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id && googleClientId) {
+      try {
+        (window as any).google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response: any) => {
+            if (response && response.credential) {
+              const payload = parseJwt(response.credential);
+              if (payload && payload.email) {
+                const userEmail = payload.email.toLowerCase();
+                const userName = payload.name || userEmail.split('@')[0];
+                const subId = payload.sub || `goog_${Math.random().toString(36).substring(2, 12)}`;
+                const picture = payload.picture || '';
+
+                try {
+                  const res = await fetch('/api/auth/google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      email: userEmail,
+                      name: userName,
+                      googleSubId: subId,
+                      picture
+                    })
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.user) {
+                      const userProfile = {
+                        name: data.user.name,
+                        email: data.user.email,
+                        phone: data.user.phone || '+91 8345968169',
+                        location: data.user.location || 'Kolkata, West Bengal, India',
+                        picture: data.user.picture || picture,
+                        googleSubId: data.user.googleSubId || subId
+                      };
+                      saveRegisteredUser(userProfile);
+                      onLoginSuccess(userProfile);
+                      onClose();
+                      return;
+                    }
+                  }
+                } catch (err) {
+                  console.warn('GSI server auth note:', err);
+                }
+
+                const fallbackProfile = {
+                  name: userName,
+                  email: userEmail,
+                  phone: '+91 8345968169',
+                  location: 'Kolkata, West Bengal, India',
+                  picture,
+                  googleSubId: subId
+                };
+                saveRegisteredUser(fallbackProfile);
+                onLoginSuccess(fallbackProfile);
+                onClose();
+              }
+            }
+          }
+        });
+      } catch (e) {
+        console.warn('Google One Tap init warning:', e);
+      }
+    }
+  }, [isOpen, googleClientId]);
 
   const handleGoogleLogin = async () => {
     setIsSubmitting(true);
@@ -94,8 +164,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
     const rawName = targetEmail === 'ashikdaspc@gmail.com' ? 'Ashik Das' : (targetEmail.split('@')[0] || 'google');
     const googleName = rawName === 'Ashik Das' ? 'Ashik Das' : (rawName.charAt(0).toUpperCase() + rawName.slice(1));
+    const googleSubId = `goog_${Math.random().toString(36).substring(2, 14)}`;
 
-    // Open official Google Account Sign-In / Chooser window (without invalid OAuth client_id parameter!)
     let popup: Window | null = null;
     try {
       const googleUrl = email.trim()
@@ -126,7 +196,11 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           const res = await fetch('/api/auth/google', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: targetEmail, name: googleName })
+            body: JSON.stringify({
+              email: targetEmail,
+              name: googleName,
+              googleSubId
+            })
           });
 
           if (res.ok) {
@@ -137,7 +211,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 email: data.user.email,
                 phone: data.user.phone || '+91 8345968169',
                 password: 'google-oauth-authenticated',
-                location: data.user.location || 'Kolkata, West Bengal, India'
+                location: data.user.location || 'Kolkata, West Bengal, India',
+                picture: data.user.picture || '',
+                googleSubId: data.user.googleSubId || googleSubId
               });
               onLoginSuccess(data.user);
               onClose();
@@ -154,7 +230,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           email: targetEmail,
           phone: '+91 8345968169',
           password: 'google-oauth-authenticated',
-          location: 'Kolkata, West Bengal, India'
+          location: 'Kolkata, West Bengal, India',
+          googleSubId
         };
         saveRegisteredUser(googleUser);
         onLoginSuccess(googleUser);
@@ -264,27 +341,6 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           <button onClick={onClose} className="text-slate-400 hover:text-slate-900 p-1.5 rounded-xl bg-slate-100">
             <X className="w-5 h-5" />
           </button>
-        </div>
-
-        {/* Continue with Google Button */}
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={isSubmitting}
-            className="w-full py-3.5 px-4 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 border-2 border-slate-200 font-extrabold text-xs font-sans tracking-wide shadow-xs flex items-center justify-center gap-3 transition-all hover:scale-[1.01] active:scale-95 disabled:opacity-50 min-h-[44px]"
-          >
-            <GoogleIcon />
-            <span>Continue with Google</span>
-          </button>
-
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-slate-200 w-full" />
-            <span className="bg-white px-3 text-[10px] uppercase font-mono font-bold text-slate-400 shrink-0">
-              or continue with email
-            </span>
-            <div className="border-t border-slate-200 w-full" />
-          </div>
         </div>
 
         {/* Mode Switcher Tabs */}
@@ -402,6 +458,27 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 ? 'SIGN IN TO ACCOUNT'
                 : 'CREATE ACCOUNT & CONTINUE'}
             </span>
+          </button>
+
+          {/* OR Divider */}
+          <div className="relative flex items-center justify-center pt-2">
+            <div className="border-t border-slate-200 w-full" />
+            <span className="bg-white px-3 text-[10px] uppercase font-mono font-bold text-slate-400 shrink-0">
+              OR
+            </span>
+            <div className="border-t border-slate-200 w-full" />
+          </div>
+
+          {/* Continue with Google Button */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isSubmitting}
+            aria-label="Continue with Google"
+            className="w-full py-3.5 px-4 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 border-2 border-slate-200 font-extrabold text-xs font-sans tracking-wide shadow-xs flex items-center justify-center gap-3 transition-all hover:scale-[1.01] active:scale-95 disabled:opacity-50 min-h-[44px] cursor-pointer"
+          >
+            <GoogleIcon />
+            <span>Continue with Google</span>
           </button>
         </form>
       </div>

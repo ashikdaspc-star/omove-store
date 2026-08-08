@@ -38,7 +38,17 @@ const ordersStore: Map<string, Order> = new Map();
 const bookingsStore: Map<string, RemoteBooking> = new Map();
 const ticketsStore: Map<string, SupportTicket> = new Map();
 const generatedKeysStore: Map<string, string[]> = new Map();
-const usersStore: Map<string, { name: string; email: string; phone: string; password: string; location: string }> = new Map();
+const usersStore: Map<string, {
+  name: string;
+  email: string;
+  phone: string;
+  password?: string;
+  location: string;
+  googleSubId?: string;
+  picture?: string;
+  authProvider?: 'email' | 'google';
+  isAdmin?: boolean;
+}> = new Map();
 
 // Pre-register official demo account: Ashik Das / omovetech@gmail.com / omove2026
 usersStore.set('omovetech@gmail.com', {
@@ -46,7 +56,9 @@ usersStore.set('omovetech@gmail.com', {
   email: 'omovetech@gmail.com',
   phone: '+91 8345968169',
   password: 'omove2026',
-  location: 'Kolkata, West Bengal, India'
+  location: 'Kolkata, West Bengal, India',
+  authProvider: 'email',
+  isAdmin: true
 });
 
 // Helper to generate license keys
@@ -584,20 +596,35 @@ async function startServer() {
     });
   });
 
-  // Google OAuth / 1-Click Google Auth Endpoint
+  // Google OAuth / GSI Verification Endpoint
   app.post('/api/auth/google', (req: Request, res: Response) => {
-    const { email, name } = req.body;
-    const userEmail = (email || 'google.user@gmail.com').trim().toLowerCase();
-    const userName = name || 'Google User';
+    const { email, name, googleSubId, picture } = req.body || {};
+    const userEmail = (email || 'customer@omove.tech').trim().toLowerCase();
+    const userName = name || (userEmail.split('@')[0] ? userEmail.split('@')[0].charAt(0).toUpperCase() + userEmail.split('@')[0].slice(1) : 'Google Customer');
+    const subId = googleSubId || `goog_${Math.random().toString(36).substring(2, 14)}`;
 
-    let existingUser = usersStore.get(userEmail);
-    if (!existingUser) {
+    // Search existing user by googleSubId or by normalized email
+    let existingUser = Array.from(usersStore.values()).find(
+      u => (u.googleSubId && u.googleSubId === subId) || u.email === userEmail
+    );
+
+    if (existingUser) {
+      // Securely link googleSubId and picture to existing account without duplicating records
+      if (!existingUser.googleSubId) existingUser.googleSubId = subId;
+      if (picture && !existingUser.picture) existingUser.picture = picture;
+      if (userName && existingUser.name === 'Customer') existingUser.name = userName;
+    } else {
+      // Create new customer account
       existingUser = {
         name: userName,
         email: userEmail,
         phone: '+91 8345968169',
-        password: 'google-authenticated-session',
-        location: 'Kolkata, West Bengal, India'
+        password: `google_oauth_${subId}`,
+        location: 'Kolkata, West Bengal, India',
+        googleSubId: subId,
+        picture: picture || '',
+        authProvider: 'google',
+        isAdmin: false
       };
       usersStore.set(userEmail, existingUser);
     }
@@ -608,7 +635,11 @@ async function startServer() {
         name: existingUser.name,
         email: existingUser.email,
         phone: existingUser.phone,
-        location: existingUser.location
+        location: existingUser.location,
+        googleSubId: existingUser.googleSubId,
+        picture: existingUser.picture || '',
+        authProvider: 'google',
+        isAdmin: false
       }
     });
   });

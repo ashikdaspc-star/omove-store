@@ -15,7 +15,10 @@ import {
   ShieldCheck,
   MessageSquare,
   Download,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  Package,
+  Settings
 } from 'lucide-react';
 import { CartItem } from '../types';
 
@@ -58,6 +61,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [showSearchModal, setShowSearchModal] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -191,31 +196,78 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* User Account / Sign In Pill */}
+          {/* User Account / Sign In Dropdown Control */}
           {isLoggedIn ? (
-            <div className="flex items-center rounded-xl bg-slate-100 border border-slate-200/90 p-1 min-h-[44px]">
-              <Link
-                to="/dashboard"
-                onClick={handleNavClick}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 ${
-                  location.pathname === '/dashboard'
-                    ? 'bg-white text-emerald-700 shadow-xs'
-                    : 'text-slate-700 hover:text-slate-900'
-                }`}
-                title="Account Dashboard"
+            <div className="relative">
+              <button
+                onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200/90 text-xs font-mono font-bold text-slate-800 transition-all min-h-[44px]"
+                aria-expanded={accountMenuOpen}
+                aria-haspopup="true"
               >
-                <User className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden md:inline">{customerName.split(' ')[0]}</span>
-              </Link>
+                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[11px] font-bold uppercase shadow-xs shrink-0">
+                  {customerName ? customerName.charAt(0) : 'U'}
+                </div>
+                <span className="hidden md:inline font-sans font-bold text-slate-900">{customerName.split(' ')[0]}</span>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-              {onSignOut && (
-                <button
-                  onClick={onSignOut}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                  title="Sign Out"
+              {accountMenuOpen && (
+                <div
+                  className="absolute right-0 mt-2 w-52 rounded-2xl bg-white border border-slate-200 shadow-xl py-2 z-50 animate-fadeIn text-xs font-sans"
+                  onClick={() => setAccountMenuOpen(false)}
                 >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
+                  <div className="px-4 py-2 border-b border-slate-100">
+                    <p className="font-bold text-slate-900 truncate">{customerName}</p>
+                    <p className="text-[10px] text-slate-500 font-mono truncate">Customer Account</p>
+                  </div>
+
+                  <Link
+                    to="/dashboard"
+                    onClick={handleNavClick}
+                    className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 font-medium transition-colors"
+                  >
+                    <User className="w-4 h-4 text-emerald-600" />
+                    <span>My Account</span>
+                  </Link>
+
+                  <Link
+                    to="/dashboard"
+                    onClick={handleNavClick}
+                    className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 font-medium transition-colors"
+                  >
+                    <Package className="w-4 h-4 text-emerald-600" />
+                    <span>My Orders</span>
+                  </Link>
+
+                  <Link
+                    to="/downloads"
+                    onClick={handleNavClick}
+                    className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 font-medium transition-colors"
+                  >
+                    <Download className="w-4 h-4 text-emerald-600" />
+                    <span>My Downloads</span>
+                  </Link>
+
+                  <Link
+                    to="/dashboard"
+                    onClick={handleNavClick}
+                    className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 font-medium transition-colors border-b border-slate-100"
+                  >
+                    <Settings className="w-4 h-4 text-emerald-600" />
+                    <span>Account Settings</span>
+                  </Link>
+
+                  {onSignOut && (
+                    <button
+                      onClick={() => { onSignOut(); setAccountMenuOpen(false); }}
+                      className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-rose-50 text-rose-600 font-semibold transition-colors mt-1"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Sign Out</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ) : (
