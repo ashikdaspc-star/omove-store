@@ -67,21 +67,39 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     setIsSubmitting(true);
     setErrorNotice('');
 
-    const promptEmail = prompt('Enter your Google Account email address:', 'user@gmail.com');
-    if (promptEmail === null) {
+    let targetEmail = email.trim().toLowerCase();
+
+    if (!targetEmail) {
+      setErrorNotice('Please enter your Email Address below to continue with Google.');
+      const inputElem = document.getElementById('customer-email-input');
+      if (inputElem) inputElem.focus();
       setIsSubmitting(false);
       return;
     }
 
-    const googleEmail = (promptEmail || 'user@gmail.com').trim().toLowerCase();
-    const rawName = googleEmail.split('@')[0] || 'google';
+    if (!targetEmail.includes('@')) {
+      targetEmail = `${targetEmail}@gmail.com`;
+    }
+
+    const rawName = targetEmail.split('@')[0] || 'google';
     const googleName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+
+    // Open real Google Account chooser popup window for customer email
+    try {
+      window.open(
+        `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(targetEmail)}`,
+        'GoogleAuthPopup',
+        'width=520,height=620,left=300,top=100'
+      );
+    } catch (e) {
+      console.error(e);
+    }
 
     try {
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: googleEmail, name: googleName })
+        body: JSON.stringify({ email: targetEmail, name: googleName })
       });
 
       if (res.ok) {
@@ -106,7 +124,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
     const googleUser = {
       name: googleName,
-      email: googleEmail,
+      email: targetEmail,
       phone: '+91 8345968169',
       password: 'google-oauth-authenticated',
       location: 'Kolkata, West Bengal, India'
@@ -293,6 +311,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             <div className="relative">
               <Mail className="w-4 h-4 text-emerald-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
+                id="customer-email-input"
                 type="email"
                 required
                 placeholder="Enter Email Address"
