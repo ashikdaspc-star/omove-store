@@ -132,7 +132,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
           <span className="text-[10px] text-emerald-600 font-extrabold flex items-center gap-0.5">
             <Zap className="w-3 h-3 fill-emerald-600 animate-pulse" />
-            Instant Access & Key
+            Instant Access your product
           </span>
         </div>
 
