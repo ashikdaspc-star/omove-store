@@ -21,6 +21,7 @@ import { DashboardView } from './views/DashboardView';
 import { AdminView } from './views/AdminView';
 import { BlogView } from './views/BlogView';
 import { DownloadsView } from './views/DownloadsView';
+import { DigitalProductsView } from './views/DigitalProductsView';
 import { AboutContactView } from './views/AboutContactView';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
 
@@ -348,6 +349,10 @@ export default function App() {
     switch (view) {
       case 'home':
         navigate('/');
+        break;
+      case 'digital-products':
+      case 'digital-product-sell':
+        navigate('/digital-products');
         break;
       case 'store':
         navigate('/store');
@@ -747,6 +752,21 @@ export default function App() {
               />
             }
           />
+
+          <Route
+            path="/digital-products"
+            element={
+              <DigitalProductsView
+                products={products}
+                onSelectProduct={setSelectedProductForDetail}
+                onAddToCart={handleAddToCart}
+                onBuyNow={handleBuyNow}
+                wishlist={wishlist}
+                onToggleWishlist={handleToggleWishlist}
+              />
+            }
+          />
+          <Route path="/digital-product-sell" element={<Navigate to="/digital-products" replace />} />
 
           <Route
             path="/store"
