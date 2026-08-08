@@ -584,6 +584,35 @@ async function startServer() {
     });
   });
 
+  // Google OAuth / 1-Click Google Auth Endpoint
+  app.post('/api/auth/google', (req: Request, res: Response) => {
+    const { email, name } = req.body;
+    const userEmail = (email || 'google.user@gmail.com').trim().toLowerCase();
+    const userName = name || 'Google User';
+
+    let existingUser = usersStore.get(userEmail);
+    if (!existingUser) {
+      existingUser = {
+        name: userName,
+        email: userEmail,
+        phone: '+91 8345968169',
+        password: 'google-authenticated-session',
+        location: 'Kolkata, West Bengal, India'
+      };
+      usersStore.set(userEmail, existingUser);
+    }
+
+    res.json({
+      success: true,
+      user: {
+        name: existingUser.name,
+        email: existingUser.email,
+        phone: existingUser.phone,
+        location: existingUser.location
+      }
+    });
+  });
+
   // Admin Analytics & Key Generator
   app.get('/api/admin/analytics', (req: Request, res: Response) => {
     const ordersList = Array.from(ordersStore.values());
