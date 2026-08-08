@@ -50,8 +50,8 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
 
-  const handleApplyBookingCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleApplyBookingCoupon = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const basePrice = selectedService?.price || 39;
     const res = validateAndApplyCoupon(couponInput, basePrice);
     if (res.valid) {

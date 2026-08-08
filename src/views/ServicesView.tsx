@@ -46,8 +46,8 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
 
-  const handleApplyBookingCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleApplyBookingCoupon = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!activeService) return;
     const res = validateAndApplyCoupon(couponInput, activeService.price);
     if (res.valid) {

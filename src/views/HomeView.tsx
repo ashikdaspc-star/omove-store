@@ -76,8 +76,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
 
-  const handleApplyBookingCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleApplyBookingCoupon = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!activeBookingService) return;
     const res = validateAndApplyCoupon(couponInput, activeBookingService.price);
     if (res.valid) {
