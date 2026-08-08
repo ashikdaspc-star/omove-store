@@ -43,36 +43,9 @@ export const Footer: React.FC<FooterProps> = () => {
 
   return (
     <footer className="bg-gradient-to-b from-[#042F2C] via-[#052327] to-[#071426] text-slate-200 font-sans border-t border-emerald-500/20 relative">
-      {/* Compact Support CTA Strip (Compact 64px horizontal strip directly above footer) */}
-      <div className="pt-6 pb-2 max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8">
-        <div className="py-3 px-4 sm:py-3.5 sm:px-6 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-emerald-900/80 border border-emerald-500/20 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 font-sans">
-          <div className="flex items-center gap-3 text-center sm:text-left">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-400 flex items-center justify-center shrink-0">
-              <MessageSquare className="w-4 h-4" />
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
-              <h4 className="text-sm font-bold text-white tracking-tight">
-                Need help with your order?
-              </h4>
-              <span className="hidden sm:inline text-slate-600">•</span>
-              <p className="text-xs text-slate-300">
-                Our support team is ready to help.
-              </p>
-            </div>
-          </div>
-
-          <Link
-            to="/contact"
-            className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 shrink-0"
-          >
-            <span>Contact Support</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-
-      {/* Main 4-Column Footer Grid */}
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-12 lg:py-16">
+      {/* Main Footer Container */}
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 pt-10 pb-8 lg:pt-14 lg:pb-10">
+        {/* Main 4-Column Footer Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10">
           {/* Column 1 — OMOVE STORE Brand & Newsletter (5 Cols) */}
           <div className="lg:col-span-5 space-y-5">
@@ -134,7 +107,7 @@ export const Footer: React.FC<FooterProps> = () => {
             </div>
           </div>
 
-          {/* Column 2 — SHOP (2.3 Cols) */}
+          {/* Column 2 — SHOP (2.5 Cols) */}
           <div className="lg:col-span-2.5 space-y-3.5">
             <div
               onClick={() => toggleSection('shop')}
@@ -177,7 +150,7 @@ export const Footer: React.FC<FooterProps> = () => {
             )}
           </div>
 
-          {/* Column 3 — SUPPORT (2.3 Cols) */}
+          {/* Column 3 — SUPPORT (2.5 Cols) */}
           <div className="lg:col-span-2.5 space-y-3.5">
             <div
               onClick={() => toggleSection('support')}
@@ -276,6 +249,34 @@ export const Footer: React.FC<FooterProps> = () => {
                 </li>
               </ul>
             )}
+          </div>
+        </div>
+
+        {/* Compact Support CTA Strip (Positioned INSIDE footer, directly below main columns & above Trust Strip) */}
+        <div className="mt-8 lg:mt-10">
+          <div className="py-3 px-4 sm:py-3.5 sm:px-6 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-slate-900/90 to-emerald-900/90 border border-emerald-500/30 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 font-sans">
+            <div className="flex items-center gap-3 text-center sm:text-left">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-400 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
+                <h4 className="text-sm font-bold text-white tracking-tight">
+                  Need help with your order?
+                </h4>
+                <span className="hidden sm:inline text-slate-600">•</span>
+                <p className="text-xs text-slate-300">
+                  Our support team is ready to help.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/contact"
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 shrink-0"
+            >
+              <span>Contact Support</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
       </div>
