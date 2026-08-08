@@ -116,25 +116,18 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     let targetEmail = email.trim().toLowerCase();
 
     if (!targetEmail) {
-      const inputEmail = prompt('Enter or confirm your device Google Account email:', 'ashik8611@gmail.com');
-      if (inputEmail === null) {
-        setIsSubmitting(false);
-        return;
-      }
-      targetEmail = (inputEmail || 'ashik8611@gmail.com').trim().toLowerCase();
-    }
-
-    if (!targetEmail.includes('@')) {
+      targetEmail = 'ashikdaspc@gmail.com';
+    } else if (!targetEmail.includes('@')) {
       targetEmail = `${targetEmail}@gmail.com`;
     }
 
-    const rawName = targetEmail.split('@')[0] || 'google';
-    const googleName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+    const rawName = targetEmail === 'ashikdaspc@gmail.com' ? 'Ashik Das' : (targetEmail.split('@')[0] || 'google');
+    const googleName = rawName === 'Ashik Das' ? 'Ashik Das' : (rawName.charAt(0).toUpperCase() + rawName.slice(1));
 
     let popup: Window | null = null;
     try {
       popup = window.open(
-        `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(targetEmail)}`,
+        'https://myaccount.google.com',
         'GoogleAuthPopup',
         'width=520,height=620,left=300,top=100'
       );
