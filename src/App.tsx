@@ -113,14 +113,24 @@ export default function App() {
       }
     }
 
-    // Don't lose locally added products if GitHub CDN hasn't updated yet
+    // Don't lose locally added products if GitHub CDN hasn't updated yet, and respect deleted products
     if (Array.isArray(fetchedData) && fetchedData.length > 0) {
+      let deletedIds: string[] = [];
+      try {
+        const storedDeleted = localStorage.getItem('omove_deleted_product_ids');
+        if (storedDeleted) deletedIds = JSON.parse(storedDeleted);
+      } catch (e) {}
+
+      if (deletedIds.length > 0) {
+        fetchedData = fetchedData.filter((p) => !deletedIds.includes(p.id));
+      }
+
       let localProducts: Product[] = [];
       try {
         const cached = localStorage.getItem('omove_products');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed)) localProducts = parsed;
+          if (Array.isArray(parsed)) localProducts = parsed.filter((p) => !deletedIds.includes(p.id));
         }
       } catch (e) {}
 
@@ -624,6 +634,13 @@ export default function App() {
     lastLocalEditRef.current = Date.now();
     const updated = products.filter((p) => p.id !== prodId);
     setProducts(updated);
+    try {
+      const deletedIds: string[] = JSON.parse(localStorage.getItem('omove_deleted_product_ids') || '[]');
+      if (!deletedIds.includes(prodId)) {
+        deletedIds.push(prodId);
+        localStorage.setItem('omove_deleted_product_ids', JSON.stringify(deletedIds));
+      }
+    } catch (e) {}
     syncProducts(updated);
   };
 
