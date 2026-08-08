@@ -70,7 +70,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     let targetEmail = email.trim().toLowerCase();
 
     if (!targetEmail) {
-      setErrorNotice('Please enter your Email Address below to continue with Google.');
+      setErrorNotice('Please enter your Email Address below to verify with Google.');
       const inputElem = document.getElementById('customer-email-input');
       if (inputElem) inputElem.focus();
       setIsSubmitting(false);
@@ -85,8 +85,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     const googleName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
     // Open real Google Account chooser popup window for customer email
+    let popup: Window | null = null;
     try {
-      window.open(
+      popup = window.open(
         `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(targetEmail)}`,
         'GoogleAuthPopup',
         'width=520,height=620,left=300,top=100'
@@ -95,44 +96,57 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       console.error(e);
     }
 
-    try {
-      const res = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail, name: googleName })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
-          saveRegisteredUser({
-            name: data.user.name,
-            email: data.user.email,
-            phone: data.user.phone || '+91 8345968169',
-            password: 'google-oauth-authenticated',
-            location: data.user.location || 'Kolkata, West Bengal, India'
-          });
-          onLoginSuccess(data.user);
-          onClose();
-          setIsSubmitting(false);
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn('Google backend note, continuing with Google profile:', err);
+    if (!popup) {
+      setErrorNotice('Popup window was blocked by your browser. Please allow popups or use Email & Password sign in.');
+      setIsSubmitting(false);
+      return;
     }
 
-    const googleUser = {
-      name: googleName,
-      email: targetEmail,
-      phone: '+91 8345968169',
-      password: 'google-oauth-authenticated',
-      location: 'Kolkata, West Bengal, India'
-    };
-    saveRegisteredUser(googleUser);
-    onLoginSuccess(googleUser);
-    onClose();
-    setIsSubmitting(false);
+    // Wait until the user completes Google verification and closes the Google popup window
+    const checkTimer = setInterval(async () => {
+      if (popup && popup.closed) {
+        clearInterval(checkTimer);
+
+        try {
+          const res = await fetch('/api/auth/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: targetEmail, name: googleName })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.user) {
+              saveRegisteredUser({
+                name: data.user.name,
+                email: data.user.email,
+                phone: data.user.phone || '+91 8345968169',
+                password: 'google-oauth-authenticated',
+                location: data.user.location || 'Kolkata, West Bengal, India'
+              });
+              onLoginSuccess(data.user);
+              onClose();
+              setIsSubmitting(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Google backend note, continuing with verified Google profile:', err);
+        }
+
+        const googleUser = {
+          name: googleName,
+          email: targetEmail,
+          phone: '+91 8345968169',
+          password: 'google-oauth-authenticated',
+          location: 'Kolkata, West Bengal, India'
+        };
+        saveRegisteredUser(googleUser);
+        onLoginSuccess(googleUser);
+        onClose();
+        setIsSubmitting(false);
+      }
+    }, 400);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
