@@ -23,8 +23,12 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
-  // Filter EXCLUSIVELY Digital Products (Software & License Keys, excluding Windows Tools/store items)
+  // Filter EXCLUSIVELY Digital Products (exclude Store Card items)
   const digitalProducts = products.filter((p) => {
+    // Exclude items created as Store Cards
+    const isStoreCard = p.tags && p.tags.some((t) => t.toLowerCase().includes('store card'));
+    if (isStoreCard) return false;
+
     const isDigitalProduct = p.category === 'Software' || p.category.toLowerCase().includes('software') || p.instantKeyAvailable;
     const matchesCategory =
       selectedCategory === 'All' ||

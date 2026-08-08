@@ -3,7 +3,7 @@
     "id": "prod-1786153044404",
     "name": "Autocad 2026",
     "slug": "autocad-2026",
-    "category": "Software",
+    "category": "Windows Tools",
     "shortDescription": "Digital software product and utility package.",
     "fullDescription": "Complete digital product license with instant download access.",
     "price": 60,
@@ -41,9 +41,8 @@
     "isFeatured": true,
     "isNew": true,
     "tags": [
-      "Software",
-      "Store Card",
-      "Software"
+      "Windows Tools",
+      "Store Card"
     ],
     "salesCount": 1
   },
