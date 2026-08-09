@@ -4,7 +4,7 @@ import { Product, RemoteService, RemoteBooking, BlogPost } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCoupon } from '../utils/couponManager';
 import { useOnlineStatus } from '../components/OfflineBanner';
-import { CATEGORIES } from '../data/mockData';
+import { CATEGORIES, MOCK_PRODUCTS } from '../data/mockData';
 import { ProductCard } from '../components/ProductCard';
 import {
   ShieldCheck,

@@ -214,15 +214,12 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     const registered = getRegisteredUsers();
     const existing = registered[normEmail];
 
-    if (existing) {
-      if (existing.password && existing.password !== password) {
-        setErrorNotice('Incorrect password! Please check your password and try again.');
+    if (mode === 'register') {
+      if (existing) {
+        setErrorNotice('An account with this email address already exists. Please click "Sign In" instead.');
         setIsSubmitting(false);
         return;
       }
-      onLoginSuccess(existing);
-      onClose();
-    } else if (mode === 'register') {
       const defaultName = normEmail.split('@')[0] || 'Customer';
       const capitalizedName = name || (defaultName.charAt(0).toUpperCase() + defaultName.slice(1));
       const newUser = {
@@ -236,7 +233,18 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       onLoginSuccess(newUser);
       onClose();
     } else {
-      setErrorNotice('Invalid email address or password. Please check your credentials or click New Account.');
+      // signin mode
+      if (existing) {
+        if (existing.password && existing.password !== password) {
+          setErrorNotice('Incorrect password! Please check your password and try again.');
+          setIsSubmitting(false);
+          return;
+        }
+        onLoginSuccess(existing);
+        onClose();
+      } else {
+        setErrorNotice('Invalid email address or password. Please check your credentials or click New Account.');
+      }
     }
 
     setIsSubmitting(false);
