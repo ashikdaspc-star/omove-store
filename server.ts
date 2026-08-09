@@ -600,14 +600,96 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       .catch(() => {});
   };
 
+  // ─── Live GitHub Fetch Engine (READ from GitHub) ───
+  // On Vercel serverless, each cold start loads data from the deployment bundle.
+  // If a DIFFERENT instance committed new data to GitHub, THIS instance won't see it.
+  // This engine fetches the latest data directly from GitHub REST API to stay in sync.
+  let lastCouponsRefresh = 0;
+  let lastUsersRefresh = 0;
+  const REFRESH_INTERVAL_MS = 15_000; // Don't re-fetch within 15 seconds
 
+  const fetchFileFromGitHub = async (filePath: string): Promise<any | null> => {
+    const token = getGitHubToken();
+    const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
+    const repo = process.env.GITHUB_REPO || 'omove-store';
+    const branch = process.env.GITHUB_BRANCH || 'main';
+    if (!token) return null;
+    try {
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'OmoveStore-LiveSync/1.0'
+        }
+      });
+      if (!res.ok) return null;
+      const fileData: any = await res.json();
+      if (fileData.content) {
+        const decoded = Buffer.from(fileData.content, 'base64').toString('utf-8');
+        return JSON.parse(decoded);
+      }
+    } catch (e: any) {
+      console.warn(`[GITHUB FETCH] Failed to fetch ${filePath}:`, e.message);
+    }
+    return null;
+  };
 
+  const refreshCouponsFromGitHub = async (): Promise<void> => {
+    const now = Date.now();
+    if (now - lastCouponsRefresh < REFRESH_INTERVAL_MS) return;
+    lastCouponsRefresh = now;
+    try {
+      const data = await fetchFileFromGitHub('src/data/coupons.json');
+      if (Array.isArray(data) && data.length > 0) {
+        // Merge: keep in-memory coupons that aren't in GitHub yet, add all GitHub ones
+        const gitHubMap = new Map<string, Coupon>();
+        data.forEach((c: Coupon) => { if (c.code) gitHubMap.set(c.code.toUpperCase(), c); });
+        // Add any in-memory coupons not yet in GitHub
+        dynamicCouponsStore.forEach(c => {
+          if (c.code && !gitHubMap.has(c.code.toUpperCase())) {
+            gitHubMap.set(c.code.toUpperCase(), c);
+          }
+        });
+        dynamicCouponsStore = Array.from(gitHubMap.values());
+        console.log(`[GITHUB REFRESH] Coupons synced: ${dynamicCouponsStore.length} coupons`);
+      }
+    } catch (e) {}
+  };
+
+  const refreshUsersFromGitHub = async (): Promise<void> => {
+    const now = Date.now();
+    if (now - lastUsersRefresh < REFRESH_INTERVAL_MS) return;
+    lastUsersRefresh = now;
+    try {
+      const data = await fetchFileFromGitHub('src/data/users.json');
+      if (Array.isArray(data) && data.length > 0) {
+        // Merge: keep in-memory users that aren't in GitHub yet
+        const gitHubEmails = new Set<string>();
+        data.forEach((u: UserAccount) => {
+          if (u.email) {
+            const key = u.email.toLowerCase();
+            gitHubEmails.add(key);
+            if (!usersStore.has(key)) {
+              usersStore.set(key, u);
+            }
+          }
+        });
+        console.log(`[GITHUB REFRESH] Users synced: ${usersStore.size} accounts`);
+      }
+    } catch (e) {}
+  };
+
+  // Initial async refresh on server startup to pull latest data from GitHub
+  refreshCouponsFromGitHub().catch(() => {});
+  refreshUsersFromGitHub().catch(() => {});
   // COUPON API ENDPOINTS
-  app.get('/api/coupons', (_req: Request, res: Response) => {
+  app.get('/api/coupons', async (_req: Request, res: Response) => {
+    await refreshCouponsFromGitHub();
     res.json(dynamicCouponsStore);
   });
 
-  app.post('/api/coupons', (req: Request, res: Response) => {
+  app.post('/api/coupons', async (req: Request, res: Response) => {
     try {
       const { code, discountType, discountValue, minOrderAmount = 0, description, isActive = true } = req.body || {};
 
@@ -616,6 +698,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       }
 
       const cleanCode = code.trim().toUpperCase();
+      await refreshCouponsFromGitHub();
       const existing = dynamicCouponsStore.find(c => c.code.toUpperCase() === cleanCode);
       if (existing) {
         return res.status(400).json({ error: `Coupon code '${cleanCode}' already exists.` });
@@ -642,8 +725,9 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
-  app.patch('/api/coupons/:id/toggle', (req: Request, res: Response) => {
+  app.patch('/api/coupons/:id/toggle', async (req: Request, res: Response) => {
     try {
+      await refreshCouponsFromGitHub();
       const cpn = dynamicCouponsStore.find(c => c.id === req.params.id || c.code.toUpperCase() === req.params.id.toUpperCase());
       if (!cpn) return res.status(404).json({ error: 'Coupon not found' });
 
@@ -657,8 +741,9 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
-  app.delete('/api/coupons/:id', (req: Request, res: Response) => {
+  app.delete('/api/coupons/:id', async (req: Request, res: Response) => {
     try {
+      await refreshCouponsFromGitHub();
       const idx = dynamicCouponsStore.findIndex(c => c.id === req.params.id || c.code.toUpperCase() === req.params.id.toUpperCase());
       if (idx === -1) return res.status(404).json({ error: 'Coupon not found' });
 
@@ -666,14 +751,13 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       saveCouponsToDisk();
       autoPublishCouponsToGitHub('Delete coupon ' + req.params.id);
 
-
       res.json({ success: true, deleted: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post('/api/coupons/validate', (req: Request, res: Response) => {
+  app.post('/api/coupons/validate', async (req: Request, res: Response) => {
     try {
       const { code, orderTotal = 0 } = req.body || {};
       if (!code || !code.trim()) {
@@ -681,7 +765,15 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       }
 
       const cleanCode = code.trim().toUpperCase();
-      const found = dynamicCouponsStore.find(c => c.code.toUpperCase() === cleanCode);
+
+      // First check in-memory
+      let found = dynamicCouponsStore.find(c => c.code.toUpperCase() === cleanCode);
+
+      // If not found, refresh from GitHub and retry
+      if (!found) {
+        await refreshCouponsFromGitHub();
+        found = dynamicCouponsStore.find(c => c.code.toUpperCase() === cleanCode);
+      }
 
       if (!found) {
         return res.status(404).json({ valid: false, message: `Coupon '${cleanCode}' is invalid or expired.`, discountAmount: 0 });
@@ -712,6 +804,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       res.status(500).json({ valid: false, message: err.message || 'Validation error', discountAmount: 0 });
     }
   });
+
 
   // Public & Admin Services Endpoints
   app.get('/api/services', (_req: Request, res: Response) => {
@@ -1053,8 +1146,9 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   });
 
   // Admin Registered Customer Accounts Directory & Deletion Endpoints
-  app.get('/api/admin/customers', (_req: Request, res: Response) => {
+  app.get('/api/admin/customers', async (_req: Request, res: Response) => {
     try {
+      await refreshUsersFromGitHub();
       const customersList = Array.from(usersStore.values()).map(user => ({
         id: user.id,
         name: user.name,
@@ -1073,6 +1167,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       res.status(500).json({ success: false, error: err.message });
     }
   });
+
 
   app.delete('/api/admin/customers/:email', (req: Request, res: Response) => {
     try {
