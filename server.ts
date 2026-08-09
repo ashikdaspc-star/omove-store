@@ -1018,6 +1018,58 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     res.json(digitalItems);
   });
 
+  // Admin Registered Customer Accounts Directory & Deletion Endpoints
+  app.get('/api/admin/customers', (_req: Request, res: Response) => {
+    try {
+      const customersList = Array.from(usersStore.values()).map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        location: user.location || 'Kolkata, West Bengal, India',
+        picture: user.picture || '',
+        authProvider: user.authProvider || 'email',
+        isAdmin: Boolean(user.isAdmin),
+        createdAt: user.createdAt || new Date().toISOString(),
+        updatedAt: user.updatedAt || new Date().toISOString(),
+        lastLoginAt: user.lastLoginAt || new Date().toISOString()
+      }));
+      res.json({ success: true, customers: customersList });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.delete('/api/admin/customers/:email', (req: Request, res: Response) => {
+    try {
+      const emailToDelete = req.params.email ? req.params.email.trim().toLowerCase() : '';
+      if (!emailToDelete) {
+        return res.status(400).json({ success: false, error: 'Email parameter is required.' });
+      }
+
+      if (!usersStore.has(emailToDelete)) {
+        return res.status(404).json({ success: false, error: 'Customer account not found.' });
+      }
+
+      // Delete from usersStore and save
+      usersStore.delete(emailToDelete);
+      saveUsersToDisk(usersStore);
+
+      // Clean up sessions for this user
+      for (const [sessId, sess] of sessionsStore.entries()) {
+        if (sess.userEmail.toLowerCase() === emailToDelete) {
+          sessionsStore.delete(sessId);
+        }
+      }
+      saveSessionsToDisk(sessionsStore);
+
+      res.json({ success: true, message: `Account for ${emailToDelete} has been permanently deleted.`, deletedEmail: emailToDelete });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+
   // Create Store Product
   app.post('/api/admin/store-products', (req: Request, res: Response) => {
     try {

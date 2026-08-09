@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "sessionId": "0d0f4fa798c7c8b37d1bc17d6350fa978acd46c981ed04307127d0c57c43a133",
+    "userId": "usr_1786273538180_jhx64",
+    "userEmail": "ashikdaspc@gmail.com",
+    "isAdmin": false,
+    "createdAt": "2026-08-09T11:05:38.181Z",
+    "expiresAt": 1788865538181
+  },
+  {
+    "sessionId": "fc9482dd3cf23a60f93e1aedaeac46e703cf51b3cb728d487f3db32854ec01f3",
+    "userId": "usr_1786274387795_94n8o",
+    "userEmail": "ashikdaspc@outlook.com",
+    "isAdmin": false,
+    "createdAt": "2026-08-09T11:19:47.796Z",
+    "expiresAt": 1788866387796
+  }
+]

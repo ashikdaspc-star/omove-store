@@ -12,5 +12,33 @@
     "createdAt": "2026-01-01T00:00:00.000Z",
     "updatedAt": "2026-01-01T00:00:00.000Z",
     "lastLoginAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "usr_1786273538180_jhx64",
+    "name": "Ashikdaspc",
+    "email": "ashikdaspc@gmail.com",
+    "phone": "+91 8345968169",
+    "passwordHash": "ef5afd68b2dc8a7a97d35da54b3eedda66a203c080367db32033dbf592cc164d",
+    "passwordSalt": "eb1126e344ab652fe08741f4b3b871a9",
+    "location": "Kolkata, West Bengal, India",
+    "authProvider": "email",
+    "isAdmin": false,
+    "createdAt": "2026-08-09T11:05:38.180Z",
+    "updatedAt": "2026-08-09T11:05:38.180Z",
+    "lastLoginAt": "2026-08-09T11:05:38.180Z"
+  },
+  {
+    "id": "usr_1786274387795_94n8o",
+    "name": "Ashik Das",
+    "email": "ashikdaspc@outlook.com",
+    "phone": "8391994097",
+    "passwordHash": "81462238a178136ca2b592f92c12b1b89ec87226d6dbdd1887bec3a3319a187c",
+    "passwordSalt": "e8fffa8906aff7a0afdc5237aefc1cbf",
+    "location": "Kolkata, West Bengal, India",
+    "authProvider": "email",
+    "isAdmin": false,
+    "createdAt": "2026-08-09T11:19:47.795Z",
+    "updatedAt": "2026-08-09T11:19:47.795Z",
+    "lastLoginAt": "2026-08-09T11:19:47.795Z"
   }
 ]
