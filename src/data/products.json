@@ -1,5 +1,46 @@
 [
   {
+    "id": "dig-1786252524765",
+    "name": "test",
+    "slug": "test",
+    "productType": "DIGITAL",
+    "category": "Digital Software",
+    "tags": [
+      "Digital Key",
+      "Instant Download"
+    ],
+    "shortDescription": "High performance software solution.",
+    "fullDescription": "Full digital product package.",
+    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80",
+    "price": 499,
+    "originalPrice": 999,
+    "discountPercent": 50,
+    "licenseType": "Instant Digital Key",
+    "version": "v2026.1",
+    "downloadSize": "50 MB",
+    "compatibility": [
+      "Windows 11",
+      "Windows 10"
+    ],
+    "features": [
+      "Instant Product Access Key",
+      "Official Setup Package"
+    ],
+    "instantKeyAvailable": true,
+    "isBestSeller": false,
+    "status": "PUBLISHED",
+    "rating": 4.9,
+    "reviewCount": 1,
+    "screenshots": [],
+    "requirements": [
+      "Windows 10/11"
+    ],
+    "versionHistory": [],
+    "fileUrl": "/api/downloads/setup",
+    "salesCount": 0,
+    "createdAt": "2026-08-09T05:15:24.765Z"
+  },
+  {
     "id": "prod-1786216930241",
     "name": "AutoCAD Regular",
     "slug": "autocad-regular",
