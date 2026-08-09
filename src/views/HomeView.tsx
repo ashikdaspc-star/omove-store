@@ -26,7 +26,9 @@ import {
   ExternalLink,
   MessageSquare,
   Tag,
-  WifiOff
+  WifiOff,
+  Heart,
+  ShoppingBag
 } from 'lucide-react';
 
 interface HomeViewProps {
@@ -89,7 +91,32 @@ export const HomeView: React.FC<HomeViewProps> = ({
     }
   };
 
-  const featuredProducts = products.filter((p) => p.isFeatured || p.isBestSeller).slice(0, 6);
+  const displayFeaturedProducts = React.useMemo(() => {
+    const sourceList = (products && products.length > 0) ? products : MOCK_PRODUCTS;
+    const activeProducts = sourceList.filter(
+      (p) => (p.status || 'PUBLISHED') === 'PUBLISHED'
+    );
+
+    const pool = activeProducts.length > 0 ? activeProducts : sourceList;
+
+    const getPriorityScore = (p: Product) => {
+      let score = 0;
+      if (p.isFeatured) score += 100;
+      if (p.isBestSeller) score += 50;
+      if (p.salesCount && p.salesCount > 0) score += 20;
+      if (p.discountPercent > 0 || (p.originalPrice && p.originalPrice > p.price)) score += 10;
+      if (p.isNew) score += 5;
+      return score;
+    };
+
+    const sorted = [...pool].sort((a, b) => {
+      const scoreDiff = getPriorityScore(b) - getPriorityScore(a);
+      if (scoreDiff !== 0) return scoreDiff;
+      return (b.rating || 0) - (a.rating || 0);
+    });
+
+    return sorted.slice(0, 4);
+  }, [products]);
 
   const handleCategoryClick = (catName: string) => {
     setSelectedCategory(catName);
@@ -503,30 +530,162 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 2. INTERACTIVE DIAGNOSIS TOOL */}
-      <section className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8">
-        <div className="p-8 sm:p-10 rounded-3xl bg-white border border-slate-200 shadow-md space-y-8 relative overflow-hidden">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-mono font-bold mb-2">
-                <Wrench className="w-3.5 h-3.5" />
-                <span>INSTANT ISSUE SELECTOR</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">What issue are you facing today?</h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">Select your error code or problem for instant diagnosis and solution.</p>
-            </div>
 
-            <button
-              onClick={() => {
-                const targetService = services.find((s) => s.id === 'srv-001') || services[0];
-                if (targetService) handleStartBooking(targetService);
-              }}
-              className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-md shadow-emerald-600/20 whitespace-nowrap"
-            >
-              BOOK REMOTE TECH (₹39)
-            </button>
+      {/* 3. FEATURED PRODUCTS SECTION */}
+      <section className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 space-y-6 sm:space-y-8 my-8 sm:my-12">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200/80 pb-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-mono font-bold mb-2">
+              <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
+              <span>OFFICIAL CATALOG</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Featured Products
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              Explore our popular digital products, software and PC solutions.
+            </p>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentView('store');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="text-xs sm:text-sm font-mono font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 self-start sm:self-auto group transition-colors"
+          >
+            <span>View All Products</span>
+            <ArrowRight className="w-4 h-4 text-emerald-600 group-hover:translate-x-1 transition-transform" />
+          </button>
         </div>
+
+        {displayFeaturedProducts.length === 0 ? (
+          <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 font-mono text-xs">
+            No products available at the moment.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {displayFeaturedProducts.map((product) => {
+              const categoryLabel = product.productType === 'DIGITAL'
+                ? 'DIGITAL PRODUCT'
+                : (product.productType === 'STORE' ? 'STORE' : (product.category ? product.category.toUpperCase() : 'STORE'));
+              const isWishlisted = wishlist.includes(product.id);
+              const showPopular = Boolean(product.isFeatured || product.isBestSeller);
+              const hasDiscount = product.discountPercent > 0 || (product.originalPrice && product.originalPrice > product.price);
+              const calcDiscount = product.discountPercent || (product.originalPrice ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) : 0);
+
+              return (
+                <div
+                  key={product.id}
+                  onClick={() => onSelectProduct(product)}
+                  className="group bg-white rounded-2xl overflow-hidden border border-slate-200/90 hover:border-emerald-500/60 transition-all duration-300 hover:-translate-y-1.5 shadow-xs hover:shadow-xl hover:shadow-emerald-500/10 flex flex-col justify-between cursor-pointer"
+                >
+                  <div>
+                    {/* Thumbnail & Badges */}
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent opacity-40" />
+
+                      {/* Top Category & Popular Badges */}
+                      <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5 z-10">
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
+                          {categoryLabel}
+                        </span>
+                        {showPopular && (
+                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase tracking-wider bg-amber-400 text-slate-950 shadow-xs">
+                            POPULAR
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Wishlist Heart Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleWishlist(product.id);
+                        }}
+                        className={`absolute top-3 right-3 p-2 rounded-xl backdrop-blur-md border transition-all z-10 ${
+                          isWishlisted
+                            ? 'bg-rose-500 text-white border-rose-400'
+                            : 'bg-white/80 text-slate-700 border-slate-200 hover:text-slate-950 hover:bg-white'
+                        }`}
+                        title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
+                      >
+                        <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
+                      </button>
+                    </div>
+
+                    {/* Card Content Body */}
+                    <div className="p-5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 text-amber-500 text-xs font-semibold">
+                          <Star className="w-3.5 h-3.5 fill-current" />
+                          <span>{product.rating || 5.0}</span>
+                          <span className="text-slate-400">({product.reviewCount || 12})</span>
+                        </div>
+                        {product.licenseType && (
+                          <span className="text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 truncate max-w-[120px]">
+                            {product.licenseType}
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="font-extrabold text-base text-slate-900 group-hover:text-emerald-600 transition-colors line-clamp-1">
+                        {product.name}
+                      </h3>
+
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                        {product.shortDescription}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Pricing & CTA */}
+                  <div className="p-5 pt-0 mt-auto">
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex flex-col">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-lg font-black font-mono text-slate-900">₹{product.price}</span>
+                          {product.originalPrice > product.price && (
+                            <span className="text-xs text-slate-400 line-through font-mono">₹{product.originalPrice}</span>
+                          )}
+                        </div>
+                        {hasDiscount && calcDiscount > 0 && (
+                          <span className="text-[10px] font-bold font-mono text-emerald-600">
+                            SAVE {calcDiscount}%
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectProduct(product);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 group-hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap"
+                      >
+                        <span>View Product</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* 4. RECENT KNOWLEDGE BASE GUIDES */}
