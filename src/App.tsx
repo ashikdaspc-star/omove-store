@@ -318,10 +318,13 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [pendingCheckoutAfterAuth, setPendingCheckoutAfterAuth] = useState<boolean>(false);
 
-  // Admin Auth state - persist session in sessionStorage
+  // Admin Auth state - persist session in sessionStorage & localStorage
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     try {
-      return sessionStorage.getItem('omove_admin_session') === 'true';
+      return (
+        sessionStorage.getItem('omove_admin_session') === 'true' ||
+        localStorage.getItem('omove_admin_session') === 'true'
+      );
     } catch {
       return false;
     }
@@ -329,7 +332,10 @@ export default function App() {
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
     try {
-      return sessionStorage.getItem('omove_admin_session') === 'true';
+      return (
+        sessionStorage.getItem('omove_admin_session') === 'true' ||
+        localStorage.getItem('omove_admin_session') === 'true'
+      );
     } catch {
       return false;
     }
@@ -532,6 +538,7 @@ export default function App() {
       setIsAdminMode(false);
       try {
         sessionStorage.removeItem('omove_admin_session');
+        localStorage.removeItem('omove_admin_session');
       } catch (e) {
         console.error(e);
       }
@@ -545,6 +552,7 @@ export default function App() {
     setIsAdminAuthModalOpen(false);
     try {
       sessionStorage.setItem('omove_admin_session', 'true');
+      localStorage.setItem('omove_admin_session', 'true');
     } catch (e) {
       console.error(e);
     }
