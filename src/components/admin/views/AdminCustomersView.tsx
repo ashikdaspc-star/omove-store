@@ -34,57 +34,100 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
   const [customerToDelete, setCustomerToDelete] = useState<ServerCustomer | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  // Fetch registered customers from backend
+  // Helper to read local browser registry users
+  const getLocalRegistryUsers = (): ServerCustomer[] => {
+    const list: ServerCustomer[] = [];
+    try {
+      // 1. Registered users dictionary
+      const stored = localStorage.getItem('omove_registered_users');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        Object.values(parsed).forEach((u: any) => {
+          if (u && u.email) {
+            list.push({
+              id: u.id || `usr_local_${u.email}`,
+              name: u.name || u.email.split('@')[0],
+              email: u.email,
+              phone: u.phone || '+91 8345968169',
+              location: u.location || 'Kolkata, West Bengal, India',
+              createdAt: u.createdAt || new Date().toISOString(),
+              authProvider: 'email',
+              isAdmin: false
+            });
+          }
+        });
+      }
+
+      // 2. Currently active local session user
+      const activeSess = localStorage.getItem('omove_active_session');
+      if (activeSess) {
+        const u = JSON.parse(activeSess);
+        if (u && u.email) {
+          list.push({
+            id: u.id || `usr_active_${u.email}`,
+            name: u.name || u.email.split('@')[0],
+            email: u.email,
+            phone: u.phone || '+91 8345968169',
+            location: u.location || 'Kolkata, West Bengal, India',
+            createdAt: u.createdAt || new Date().toISOString(),
+            authProvider: 'email',
+            isAdmin: false
+          });
+        }
+      }
+    } catch (e) {}
+    return list;
+  };
+
+  // Fetch registered customers from backend and merge with local storage
   const fetchCustomers = async () => {
     setIsLoading(true);
     setErrorNotice('');
     try {
+      let serverList: ServerCustomer[] = [];
       const res = await fetch('/api/admin/customers');
       const data = await res.json();
       if (data && data.success && Array.isArray(data.customers)) {
-        setCustomers(data.customers);
-      } else {
-        // Fallback to local storage registry
-        loadLocalRegistry();
+        serverList = data.customers;
       }
+
+      // Merge backend server accounts + local browser registry accounts
+      const mergedMap = new Map<string, ServerCustomer>();
+      serverList.forEach(c => {
+        if (c.email) mergedMap.set(c.email.toLowerCase(), c);
+      });
+
+      const localList = getLocalRegistryUsers();
+      localList.forEach(c => {
+        if (c.email && !mergedMap.has(c.email.toLowerCase())) {
+          mergedMap.set(c.email.toLowerCase(), c);
+        }
+      });
+
+      setCustomers(Array.from(mergedMap.values()));
     } catch (err) {
-      console.warn('Backend customers API offline, loading local fallback:', err);
-      loadLocalRegistry();
+      console.warn('Backend customers API note, loading local registry:', err);
+      setCustomers(getLocalRegistryUsers());
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadLocalRegistry = () => {
-    try {
-      const stored = localStorage.getItem('omove_registered_users');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const list: ServerCustomer[] = Object.values(parsed).map((u: any) => ({
-          id: u.id || `usr_local_${u.email}`,
-          name: u.name || u.email.split('@')[0],
-          email: u.email,
-          phone: u.phone || '+91 8345968169',
-          location: u.location || 'Kolkata, West Bengal, India',
-          createdAt: u.createdAt || new Date().toISOString(),
-          authProvider: 'email',
-          isAdmin: false
-        }));
-        setCustomers(list);
-        return;
-      }
-    } catch (e) {}
-    setCustomers([]);
-  };
-
   useEffect(() => {
     fetchCustomers();
+
+    // Re-sync on window focus or storage update
+    const handleStorageChange = () => {
+      fetchCustomers();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // Merge backend / local customers with order statistics
   const customerMap = new Map<string, ServerCustomer>();
 
-  // 1. Add fetched customers
+  // 1. Add fetched customers (server + local storage)
   customers.forEach(c => {
     if (c.email) {
       customerMap.set(c.email.toLowerCase(), {
@@ -95,8 +138,20 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
     }
   });
 
-  // 2. Add default fallback demo user if missing
-  if (!customerMap.has('ad1824110@gmail.com') && customers.length === 0) {
+  // 2. Also ensure any local storage user is present
+  const localUsers = getLocalRegistryUsers();
+  localUsers.forEach(lu => {
+    if (lu.email && !customerMap.has(lu.email.toLowerCase())) {
+      customerMap.set(lu.email.toLowerCase(), {
+        ...lu,
+        ordersCount: 0,
+        totalSpent: 0
+      });
+    }
+  });
+
+  // 3. Add default fallback demo user if missing
+  if (!customerMap.has('ad1824110@gmail.com') && customerMap.size === 0) {
     customerMap.set('ad1824110@gmail.com', {
       id: 'usr_demo_101',
       email: 'ad1824110@gmail.com',
