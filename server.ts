@@ -575,6 +575,81 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       .catch(() => {});
   };
 
+  // ─── Shared GitHub REST API Commit Helper for users.json ───
+  // Persists customer registrations & deletions to GitHub repo so Vercel serverless keeps data permanently across cold starts.
+  const commitUsersToGitHubApi = async (commitMessage?: string): Promise<{ success: boolean; message: string; commitSha?: string }> => {
+    const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || '';
+    const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
+    const repo = process.env.GITHUB_REPO || 'omove-store';
+    const branch = process.env.GITHUB_BRANCH || 'main';
+    const filePath = 'src/data/users.json';
+
+    if (!token) {
+      console.warn('[GITHUB SYNC USERS] No GITHUB_TOKEN configured — skipping users GitHub commit');
+      return { success: false, message: 'No GITHUB_TOKEN configured' };
+    }
+
+    try {
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+      const message = commitMessage || `Users registry update [${new Date().toISOString()}]`;
+
+      let sha = '';
+      try {
+        const getRes = await fetch(`${url}?ref=${branch}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'OmoveStore-AutoSync/1.0'
+          }
+        });
+        if (getRes.ok) {
+          const fileData: any = await getRes.json();
+          sha = fileData.sha;
+        }
+      } catch (e) {}
+
+      const userList = Array.from(usersStore.values());
+      const jsonText = JSON.stringify(userList, null, 2);
+      const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
+
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'OmoveStore-AutoSync/1.0'
+        },
+        body: JSON.stringify({
+          message,
+          content: base64Content,
+          sha: sha || undefined,
+          branch
+        })
+      });
+
+      if (!putRes.ok) {
+        const errBody: any = await putRes.json().catch(() => ({}));
+        throw new Error(errBody.message || `GitHub HTTP ${putRes.status}`);
+      }
+
+      const resBody: any = await putRes.json();
+      const commitSha = resBody.commit?.sha || 'committed';
+      console.log(`[GITHUB SYNC USERS] Successfully committed users.json to GitHub (${commitSha.substring(0, 7)})`);
+      return { success: true, message: 'GitHub users commit successful', commitSha };
+    } catch (e: any) {
+      console.warn('[GITHUB SYNC USERS] GitHub REST API commit failed:', e.message);
+      return { success: false, message: e.message };
+    }
+  };
+
+  const autoPublishUsersToGitHub = (action: string) => {
+    commitUsersToGitHubApi(`Auto-sync user account: ${action} [${new Date().toISOString()}]`)
+      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH USERS] ${action} synced to GitHub`); })
+      .catch(() => {});
+  };
+
+
   // COUPON API ENDPOINTS
   app.get('/api/coupons', (_req: Request, res: Response) => {
     res.json(dynamicCouponsStore);
@@ -1054,6 +1129,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       // Delete from usersStore and save
       usersStore.delete(emailToDelete);
       saveUsersToDisk(usersStore);
+      autoPublishUsersToGitHub('Deleted customer account: ' + emailToDelete);
 
       // Clean up sessions for this user
       for (const [sessId, sess] of sessionsStore.entries()) {
@@ -2146,6 +2222,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
     usersStore.set(normalizedEmail, newUser);
     saveUsersToDisk(usersStore);
+    autoPublishUsersToGitHub('New customer registration: ' + normalizedEmail);
 
     const session = createSessionAndSetCookie(res, newUser);
 
