@@ -39,6 +39,41 @@ export interface CouponValidationResult {
   discountAmount: number;
 }
 
+export const validateAndApplyCouponAsync = async (inputCode: string, orderTotal: number): Promise<CouponValidationResult> => {
+  if (!inputCode.trim()) {
+    return { valid: false, message: 'Please enter a coupon code.', discountAmount: 0 };
+  }
+
+  const cleanCode = inputCode.trim().toUpperCase();
+
+  // 1. Try Live Server API validation first
+  try {
+    const res = await fetch('/api/coupons/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: cleanCode, orderTotal })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data.valid === 'boolean') {
+        fetchAndCacheCoupons().catch(() => {});
+        return {
+          valid: data.valid,
+          message: data.message || (data.valid ? `Coupon '${cleanCode}' applied!` : `Coupon '${cleanCode}' is invalid.`),
+          coupon: data.coupon,
+          discountAmount: Number(data.discountAmount) || 0
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Live coupon validation note:', err);
+  }
+
+  // 2. Fetch fresh coupons list from server & fallback to local storage
+  await fetchAndCacheCoupons().catch(() => {});
+  return validateAndApplyCoupon(cleanCode, orderTotal);
+};
+
 export const validateAndApplyCoupon = (inputCode: string, orderTotal: number): CouponValidationResult => {
   if (!inputCode.trim()) {
     return { valid: false, message: 'Please enter a coupon code.', discountAmount: 0 };
@@ -74,3 +109,4 @@ export const validateAndApplyCoupon = (inputCode: string, orderTotal: number): C
     discountAmount: calculatedDiscount
   };
 };
+

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { CartItem, Order } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
-import { validateAndApplyCoupon } from '../utils/couponManager';
+import { validateAndApplyCoupon, validateAndApplyCouponAsync, fetchAndCacheCoupons } from '../utils/couponManager';
 import {
   X,
   ShieldCheck,
@@ -80,14 +80,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const taxAmount = 0;
   const finalTotal = Math.max(0, Number((subtotal - appliedDiscount).toFixed(2)));
 
-  const handleApplyCouponCode = (codeToApply?: string) => {
+  useEffect(() => {
+    if (isOpen) {
+      fetchAndCacheCoupons().catch(() => {});
+    }
+  }, [isOpen]);
+
+  const handleApplyCouponCode = async (codeToApply?: string) => {
     const code = (codeToApply || couponInput).trim();
     if (!code) {
       setCouponStatus({ valid: false, message: 'Please enter a promo coupon code.' });
       return;
     }
 
-    const res = validateAndApplyCoupon(code, subtotal);
+    setCouponStatus({ valid: true, message: 'Validating coupon...' });
+    const res = await validateAndApplyCouponAsync(code, subtotal);
     if (res.valid) {
       setAppliedDiscount(res.discountAmount);
       setAppliedCode(res.coupon?.code || code.toUpperCase());
@@ -97,6 +104,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setCouponStatus({ valid: false, message: res.message });
     }
   };
+
 
   const handleRemoveCouponCode = () => {
     setAppliedDiscount(0);

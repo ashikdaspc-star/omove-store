@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CartItem } from '../types';
 import { X, Trash2, Plus, Minus, Tag, ShieldCheck, ArrowRight, ShoppingBag, WifiOff } from 'lucide-react';
-import { validateAndApplyCoupon } from '../utils/couponManager';
+import { validateAndApplyCoupon, validateAndApplyCouponAsync } from '../utils/couponManager';
 import { useOnlineStatus } from './OfflineBanner';
 
 interface CartDrawerProps {
@@ -31,14 +31,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponInput.trim()) return;
 
     setValidating(true);
     setCouponError('');
 
-    const result = validateAndApplyCoupon(couponInput, subtotal);
+    const result = await validateAndApplyCouponAsync(couponInput, subtotal);
     if (result.valid && result.coupon) {
       setAppliedCoupon({
         code: result.coupon.code,
