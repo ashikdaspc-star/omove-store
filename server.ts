@@ -481,8 +481,99 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   }
 
-  let dynamicProductsStore: any[] = [...MOCK_PRODUCTS];
+  let dynamicProductsStore: any[] = (() => {
+    try {
+      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+      if (fs.existsSync(filePath)) {
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        if (Array.isArray(data) && data.length > 0) {
+          console.log('[SERVER BOOT] Loaded', data.length, 'products from products.json on disk');
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn('[SERVER BOOT] Failed to load products.json, using MOCK_PRODUCTS fallback:', e);
+    }
+    console.log('[SERVER BOOT] Using MOCK_PRODUCTS fallback (' + MOCK_PRODUCTS.length + ' items)');
+    return [...MOCK_PRODUCTS];
+  })();
   let currentCatalogVersion: number = Date.now();
+
+  // ─── Shared GitHub REST API Commit Helper ───
+  // This is the ONLY mechanism for syncing products to GitHub.
+  // It uses the GitHub Contents API (no git CLI required) — works on Vercel serverless.
+  const commitProductsToGitHubApi = async (commitMessage?: string): Promise<{ success: boolean; message: string; commitSha?: string }> => {
+    const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || '';
+    const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
+    const repo = process.env.GITHUB_REPO || 'omove-store';
+    const branch = process.env.GITHUB_BRANCH || 'main';
+    const filePath = 'src/data/products.json';
+
+    if (!token) {
+      console.warn('[GITHUB SYNC] No GITHUB_TOKEN configured — skipping GitHub commit');
+      return { success: false, message: 'No GITHUB_TOKEN configured' };
+    }
+
+    try {
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+      const message = commitMessage || `Catalog update via Admin Panel [${new Date().toISOString()}]`;
+
+      // Get current file SHA
+      let sha = '';
+      try {
+        const getRes = await fetch(`${url}?ref=${branch}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'OmoveStore-AutoSync/1.0'
+          }
+        });
+        if (getRes.ok) {
+          const fileData: any = await getRes.json();
+          sha = fileData.sha;
+        }
+      } catch (e) {}
+
+      const jsonText = JSON.stringify(dynamicProductsStore, null, 2);
+      const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
+
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'OmoveStore-AutoSync/1.0'
+        },
+        body: JSON.stringify({
+          message,
+          content: base64Content,
+          sha: sha || undefined,
+          branch
+        })
+      });
+
+      if (!putRes.ok) {
+        const errBody: any = await putRes.json().catch(() => ({}));
+        throw new Error(errBody.message || `GitHub HTTP ${putRes.status}`);
+      }
+
+      const resBody: any = await putRes.json();
+      const commitSha = resBody.commit?.sha || 'committed';
+      console.log(`[GITHUB SYNC] Successfully committed products.json to GitHub (${commitSha.substring(0, 7)})`);
+      return { success: true, message: 'GitHub commit successful', commitSha };
+    } catch (e: any) {
+      console.warn('[GITHUB SYNC] GitHub REST API commit failed:', e.message);
+      return { success: false, message: e.message };
+    }
+  };
+
+  // Fire-and-forget auto-publish helper — call after any product CRUD
+  const autoPublishToGitHub = (action: string) => {
+    commitProductsToGitHubApi(`Auto-sync: ${action} [${new Date().toISOString()}]`)
+      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH] ${action} synced to GitHub`); })
+      .catch(() => {});
+  };
 
   // COUPON API ENDPOINTS
   app.get('/api/coupons', (_req: Request, res: Response) => {
@@ -668,6 +759,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         try {
           fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2));
         } catch (e) {}
+        autoPublishToGitHub('Delete digital product ' + prodId);
       }
       res.json({ success: true, deleted: true, permanent });
     } catch (err: any) {
@@ -689,6 +781,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         try {
           fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2));
         } catch (e) {}
+        autoPublishToGitHub('Delete store product ' + prodId);
       }
       res.json({ success: true, deleted: true, permanent });
     } catch (err: any) {
@@ -774,7 +867,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
             return resBody.commit?.sha || 'committed';
           };
 
-          const commitMsg = `Live Production Catalog Sync via Admin Command Center [${nowStr}] [skip ci]`;
+          const commitMsg = `Live Production Catalog Sync via Admin Command Center [${nowStr}]`;
           const productsSha = await commitFileToGitHub('src/data/products.json', dynamicProductsStore, commitMsg);
           const servicesSha = await commitFileToGitHub('src/data/services.json', dynamicServicesStore, commitMsg);
           commitSha = productsSha || servicesSha;
@@ -964,6 +1057,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       currentCatalogVersion = Date.now();
       const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
       fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+      autoPublishToGitHub('Create store product: ' + newStoreProduct.name);
 
       res.json({ success: true, product: newStoreProduct, version: currentCatalogVersion });
     } catch (err: any) {
@@ -1010,6 +1104,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       currentCatalogVersion = Date.now();
       const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
       fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+      autoPublishToGitHub('Create digital product: ' + newDigitalProduct.name);
 
       res.json({ success: true, product: newDigitalProduct, version: currentCatalogVersion });
     } catch (err: any) {
@@ -1033,6 +1128,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       currentCatalogVersion = Date.now();
       const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
       fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+      autoPublishToGitHub('Edit store product: ' + dynamicProductsStore[idx].name);
 
       res.json({ success: true, product: dynamicProductsStore[idx], version: currentCatalogVersion });
     } catch (err: any) {
@@ -1056,6 +1152,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       currentCatalogVersion = Date.now();
       const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
       fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+      autoPublishToGitHub('Edit digital product: ' + dynamicProductsStore[idx].name);
 
       res.json({ success: true, product: dynamicProductsStore[idx], version: currentCatalogVersion });
     } catch (err: any) {
@@ -1078,6 +1175,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         currentCatalogVersion = Date.now();
         const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
         fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+        autoPublishToGitHub('Archive store product: ' + prod.name);
         return res.json({ success: true, archived: true, message: 'Store product archived to preserve customer order history.' });
       }
 
@@ -1085,6 +1183,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       currentCatalogVersion = Date.now();
       const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
       fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+      autoPublishToGitHub('Permanently delete store product: ' + req.params.id);
 
       res.json({ success: true, deleted: true, message: 'Store product permanently deleted.' });
     } catch (err: any) {
@@ -1107,6 +1206,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         currentCatalogVersion = Date.now();
         const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
         fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+        autoPublishToGitHub('Archive digital product: ' + prod.name);
         return res.json({ success: true, archived: true, message: 'Digital product archived to preserve customer order history.' });
       }
 
@@ -1114,6 +1214,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       currentCatalogVersion = Date.now();
       const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
       fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+      autoPublishToGitHub('Permanently delete digital product: ' + req.params.id);
 
       res.json({ success: true, deleted: true, message: 'Digital product permanently deleted.' });
     } catch (err: any) {
@@ -1121,25 +1222,9 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
+  // Legacy git-CLI push replaced by REST API — kept as thin wrapper for backward compat
   const pushProductsToGitHub = (): Promise<{ success: boolean; message: string }> => {
-    return new Promise((resolve) => {
-      const cwd = process.cwd();
-      exec('git add src/data/products.json', { cwd }, (errAdd) => {
-        if (errAdd) {
-          console.warn('Git add warning:', errAdd.message);
-        }
-        exec('git commit -m "Auto-sync updated products catalog [skip ci]"', { cwd }, (_errCommit) => {
-          exec('git push origin main', { cwd }, (errPush, stdoutPush, stderrPush) => {
-            if (errPush) {
-              console.warn('Git push note:', stderrPush || errPush.message);
-            } else {
-              console.log('Successfully pushed updated products catalog to GitHub');
-            }
-            resolve({ success: true, message: stdoutPush || stderrPush || 'Catalog saved and synced' });
-          });
-        });
-      });
-    });
+    return commitProductsToGitHubApi('Auto-sync updated products catalog');
   };
 
   app.post('/api/products/sync', async (req: Request, res: Response) => {
@@ -1152,7 +1237,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         fs.writeFileSync(filePath, JSON.stringify(products, null, 2));
       }
       if (autoPush) {
-        pushProductsToGitHub().catch(() => { });
+        commitProductsToGitHubApi('Sync products catalog via Admin Panel').catch(() => {});
       }
       res.json({ success: true, count: dynamicProductsStore.length, version: currentCatalogVersion });
     } catch (err: any) {

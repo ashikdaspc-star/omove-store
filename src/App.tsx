@@ -635,7 +635,7 @@ export default function App() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          message: `Auto-update catalog & services via Live Admin Panel [skip ci]`,
+          message: `Auto-update catalog & services via Live Admin Panel`,
           content: encoded,
           sha: sha || undefined,
           branch: 'main'
