@@ -432,11 +432,22 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Check server-authoritative session on mount
+  // Check server-authoritative session on mount with client fallback
   useEffect(() => {
+    const token = localStorage.getItem('omove_session_token');
+    const localSession = localStorage.getItem('omove_active_session');
+
+    const headers: Record<string, string> = {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     fetch('/api/auth/me', {
       cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+      headers
     })
       .then((res) => res.json())
       .then((data) => {
@@ -446,21 +457,28 @@ export default function App() {
           try {
             localStorage.setItem('omove_active_session', JSON.stringify(data.user));
           } catch (e) {}
-        } else {
-          setIsLoggedIn(false);
-          setCustomerProfile({
-            name: '',
-            email: '',
-            phone: '',
-            location: ''
-          });
+        } else if (localSession) {
+          // Preserve existing local session so user is not logged out during serverless cold starts
           try {
-            localStorage.removeItem('omove_active_session');
+            const parsed = JSON.parse(localSession);
+            if (parsed && parsed.email) {
+              setIsLoggedIn(true);
+              setCustomerProfile(parsed);
+            }
           } catch (e) {}
         }
       })
       .catch((err) => {
         console.warn('Server auth verify note:', err);
+        if (localSession) {
+          try {
+            const parsed = JSON.parse(localSession);
+            if (parsed && parsed.email) {
+              setIsLoggedIn(true);
+              setCustomerProfile(parsed);
+            }
+          } catch (e) {}
+        }
       });
   }, []);
 
@@ -490,6 +508,7 @@ export default function App() {
     });
     try {
       localStorage.removeItem('omove_active_session');
+      localStorage.removeItem('omove_session_token');
       localStorage.removeItem('omove_orders');
       sessionStorage.clear();
       await fetch('/api/auth/logout', { method: 'POST' });

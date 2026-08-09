@@ -130,7 +130,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     const updated = { name, email, phone, location };
     if (onUpdateCustomerProfile) {
@@ -141,6 +141,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     } catch (e) {
       console.error(e);
     }
+
+    const token = localStorage.getItem('omove_session_token');
+    try {
+      await fetch('/api/account/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(updated)
+      });
+    } catch (e) {}
+
     setShowEditProfileModal(false);
   };
 
@@ -148,12 +161,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [serverBookings, setServerBookings] = useState<RemoteBooking[]>([]);
 
   useEffect(() => {
+    const token = localStorage.getItem('omove_session_token');
+    const headers: Record<string, string> = {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     // Fetch server-authoritative orders for authenticated session
     fetch('/api/account/orders', {
       cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
+      headers
     })
-      .then((res) => res.ok ? res.json() : [])
+      .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) setServerOrders(data);
       })
@@ -162,9 +184,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     // Fetch server-authoritative bookings for authenticated session
     fetch('/api/account/bookings', {
       cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
+      headers
     })
-      .then((res) => res.ok ? res.json() : [])
+      .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) setServerBookings(data);
       })

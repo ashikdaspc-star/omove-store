@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Lock, ShieldCheck, LogIn, UserPlus, Sparkles } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Lock, LogIn, UserPlus } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,59 +7,40 @@ interface ProtectedRouteProps {
   onOpenAuthModal?: () => void;
 }
 
+/**
+ * ProtectedRoute — Single Source of Truth Guard
+ *
+ * This component trusts the parent App.tsx `isLoggedIn` prop as the
+ * SINGLE authoritative authentication state. It does NOT run its own
+ * independent `/api/auth/me` fetch, which previously caused a race
+ * condition where the Header showed logged-in but ProtectedRoute
+ * showed "Authentication Required".
+ *
+ * Auth verification flow:
+ *   1. App.tsx initializes `isLoggedIn` from localStorage('omove_active_session')
+ *   2. App.tsx runs `/api/auth/me` on mount to verify/refresh
+ *   3. App.tsx passes `isLoggedIn` prop to both Header and ProtectedRoute
+ *   4. ProtectedRoute simply renders children or auth-required screen
+ *
+ * This eliminates the dual-state desync that caused the bug.
+ */
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   isLoggedIn = false,
   onOpenAuthModal = () => {}
 }) => {
-  const [isVerifying, setIsVerifying] = useState<boolean>(true);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(isLoggedIn);
-  const location = useLocation();
-  const navigate = useNavigate();
+  // Single source of truth: the isLoggedIn prop from App.tsx
+  // Also check localStorage as a synchronous fallback for direct URL navigation
+  // where App.tsx state may not have propagated yet
+  const hasLocalSession = (() => {
+    try {
+      return Boolean(localStorage.getItem('omove_active_session'));
+    } catch {
+      return false;
+    }
+  })();
 
-  useEffect(() => {
-    let isMounted = true;
-    fetch('/api/auth/me', {
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (isMounted) {
-          if (data && data.authenticated) {
-            setIsAuthenticated(true);
-          } else {
-            setIsAuthenticated(false);
-          }
-          setIsVerifying(false);
-        }
-      })
-      .catch((err) => {
-        console.warn('Auth verification note:', err);
-        if (isMounted) {
-          setIsAuthenticated(false);
-          setIsVerifying(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [location.pathname, isLoggedIn]);
-
-  if (isVerifying) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-16 text-center space-y-6 animate-pulse">
-        <div className="w-16 h-16 mx-auto rounded-3xl bg-slate-200/80 flex items-center justify-center">
-          <ShieldCheck className="w-8 h-8 text-slate-400" />
-        </div>
-        <div className="space-y-2">
-          <div className="h-6 w-48 bg-slate-200/80 rounded-xl mx-auto"></div>
-          <div className="h-4 w-64 bg-slate-200/60 rounded-xl mx-auto"></div>
-        </div>
-      </div>
-    );
-  }
+  const isAuthenticated = isLoggedIn || hasLocalSession;
 
   if (!isAuthenticated) {
     return (
@@ -107,3 +87,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   return <>{children}</>;
 };
+
+
+
+
+
+

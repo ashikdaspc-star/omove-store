@@ -185,6 +185,11 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       const data = await res.json();
 
       if (res.ok && data.success && data.user) {
+        if (data.token) {
+          try {
+            localStorage.setItem('omove_session_token', data.token);
+          } catch (e) {}
+        }
         saveRegisteredUser({
           name: data.user.name || normEmail.split('@')[0],
           email: normEmail,
