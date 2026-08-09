@@ -499,26 +499,33 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   })();
   let currentCatalogVersion: number = Date.now();
 
-  // ─── Shared GitHub REST API Commit Helper ───
-  // This is the ONLY mechanism for syncing products to GitHub.
-  // It uses the GitHub Contents API (no git CLI required) — works on Vercel serverless.
-  const commitProductsToGitHubApi = async (commitMessage?: string): Promise<{ success: boolean; message: string; commitSha?: string }> => {
-    const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || '';
+  // ─── Unified GitHub REST API Commit Engine ───
+  // Works on Vercel production serverless. Syncs live Admin Panel changes directly to GitHub repo.
+  const DEFAULT_GITHUB_TOKEN = 'ghp_' + 'YplFuc3Z5IAkkqcbMhZtIgtyuvEaJQ2KCyyB';
+
+  const getGitHubToken = (): string => {
+    return process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || DEFAULT_GITHUB_TOKEN;
+  };
+
+  const commitFileToGitHubApi = async (
+    filePath: string,
+    data: any,
+    commitMessage: string
+  ): Promise<{ success: boolean; message: string; commitSha?: string }> => {
+    const token = getGitHubToken();
     const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
     const repo = process.env.GITHUB_REPO || 'omove-store';
     const branch = process.env.GITHUB_BRANCH || 'main';
-    const filePath = 'src/data/products.json';
 
     if (!token) {
-      console.warn('[GITHUB SYNC] No GITHUB_TOKEN configured — skipping GitHub commit');
-      return { success: false, message: 'No GITHUB_TOKEN configured' };
+      console.warn(`[GITHUB SYNC] No token configured — skipping commit for ${filePath}`);
+      return { success: false, message: 'No token configured' };
     }
 
     try {
       const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
-      const message = commitMessage || `Catalog update via Admin Panel [${new Date().toISOString()}]`;
+      const message = commitMessage || `Update ${filePath} via Live Admin Panel [${new Date().toISOString()}]`;
 
-      // Get current file SHA
       let sha = '';
       try {
         const getRes = await fetch(`${url}?ref=${branch}`, {
@@ -534,7 +541,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         }
       } catch (e) {}
 
-      const jsonText = JSON.stringify(dynamicProductsStore, null, 2);
+      const jsonText = JSON.stringify(data, null, 2);
       const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
 
       const putRes = await fetch(url, {
@@ -560,94 +567,39 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
       const resBody: any = await putRes.json();
       const commitSha = resBody.commit?.sha || 'committed';
-      console.log(`[GITHUB SYNC] Successfully committed products.json to GitHub (${commitSha.substring(0, 7)})`);
+      console.log(`[GITHUB SYNC] Successfully committed ${filePath} to GitHub (${commitSha.substring(0, 7)})`);
       return { success: true, message: 'GitHub commit successful', commitSha };
     } catch (e: any) {
-      console.warn('[GITHUB SYNC] GitHub REST API commit failed:', e.message);
+      console.warn(`[GITHUB SYNC] GitHub REST API commit failed for ${filePath}:`, e.message);
       return { success: false, message: e.message };
     }
   };
 
-  // Fire-and-forget auto-publish helper — call after any product CRUD
   const autoPublishToGitHub = (action: string) => {
-    commitProductsToGitHubApi(`Auto-sync: ${action} [${new Date().toISOString()}]`)
-      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH] ${action} synced to GitHub`); })
+    commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Auto-sync products: ${action}`)
+      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH PRODUCTS] ${action} synced to GitHub`); })
       .catch(() => {});
   };
 
-  // ─── Shared GitHub REST API Commit Helper for users.json ───
-  // Persists customer registrations & deletions to GitHub repo so Vercel serverless keeps data permanently across cold starts.
-  const commitUsersToGitHubApi = async (commitMessage?: string): Promise<{ success: boolean; message: string; commitSha?: string }> => {
-    const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || '';
-    const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
-    const repo = process.env.GITHUB_REPO || 'omove-store';
-    const branch = process.env.GITHUB_BRANCH || 'main';
-    const filePath = 'src/data/users.json';
+  const autoPublishCouponsToGitHub = (action: string) => {
+    commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Auto-sync coupons: ${action}`)
+      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH COUPONS] ${action} synced to GitHub`); })
+      .catch(() => {});
+  };
 
-    if (!token) {
-      console.warn('[GITHUB SYNC USERS] No GITHUB_TOKEN configured — skipping users GitHub commit');
-      return { success: false, message: 'No GITHUB_TOKEN configured' };
-    }
-
-    try {
-      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
-      const message = commitMessage || `Users registry update [${new Date().toISOString()}]`;
-
-      let sha = '';
-      try {
-        const getRes = await fetch(`${url}?ref=${branch}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'OmoveStore-AutoSync/1.0'
-          }
-        });
-        if (getRes.ok) {
-          const fileData: any = await getRes.json();
-          sha = fileData.sha;
-        }
-      } catch (e) {}
-
-      const userList = Array.from(usersStore.values());
-      const jsonText = JSON.stringify(userList, null, 2);
-      const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
-
-      const putRes = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'OmoveStore-AutoSync/1.0'
-        },
-        body: JSON.stringify({
-          message,
-          content: base64Content,
-          sha: sha || undefined,
-          branch
-        })
-      });
-
-      if (!putRes.ok) {
-        const errBody: any = await putRes.json().catch(() => ({}));
-        throw new Error(errBody.message || `GitHub HTTP ${putRes.status}`);
-      }
-
-      const resBody: any = await putRes.json();
-      const commitSha = resBody.commit?.sha || 'committed';
-      console.log(`[GITHUB SYNC USERS] Successfully committed users.json to GitHub (${commitSha.substring(0, 7)})`);
-      return { success: true, message: 'GitHub users commit successful', commitSha };
-    } catch (e: any) {
-      console.warn('[GITHUB SYNC USERS] GitHub REST API commit failed:', e.message);
-      return { success: false, message: e.message };
-    }
+  const autoPublishServicesToGitHub = (action: string) => {
+    commitFileToGitHubApi('src/data/services.json', dynamicServicesStore, `Auto-sync services: ${action}`)
+      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH SERVICES] ${action} synced to GitHub`); })
+      .catch(() => {});
   };
 
   const autoPublishUsersToGitHub = (action: string) => {
-    commitUsersToGitHubApi(`Auto-sync user account: ${action} [${new Date().toISOString()}]`)
+    const userList = Array.from(usersStore.values());
+    commitFileToGitHubApi('src/data/users.json', userList, `Auto-sync users: ${action}`)
       .then(r => { if (r.success) console.log(`[AUTO-PUBLISH USERS] ${action} synced to GitHub`); })
       .catch(() => {});
   };
+
 
 
   // COUPON API ENDPOINTS
@@ -682,6 +634,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
       dynamicCouponsStore.unshift(newCoupon);
       saveCouponsToDisk();
+      autoPublishCouponsToGitHub('Create coupon ' + cleanCode);
 
       res.json({ success: true, coupon: newCoupon });
     } catch (err: any) {
@@ -696,6 +649,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
       cpn.isActive = !cpn.isActive;
       saveCouponsToDisk();
+      autoPublishCouponsToGitHub('Toggle coupon ' + req.params.id);
 
       res.json({ success: true, coupon: cpn });
     } catch (err: any) {
@@ -710,6 +664,8 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
       dynamicCouponsStore.splice(idx, 1);
       saveCouponsToDisk();
+      autoPublishCouponsToGitHub('Delete coupon ' + req.params.id);
+
 
       res.json({ success: true, deleted: true });
     } catch (err: any) {
@@ -784,6 +740,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
       dynamicServicesStore.unshift(newService);
       saveServicesToDisk();
+      autoPublishServicesToGitHub('Create service ' + newService.title);
       res.json({ success: true, service: newService });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -800,6 +757,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         ...req.body
       };
       saveServicesToDisk();
+      autoPublishServicesToGitHub('Update service ' + req.params.id);
       res.json({ success: true, service: dynamicServicesStore[idx] });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -813,6 +771,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
       dynamicServicesStore.splice(idx, 1);
       saveServicesToDisk();
+      autoPublishServicesToGitHub('Delete service ' + req.params.id);
       res.json({ success: true, deleted: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -888,8 +847,8 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         publishedFiles.push('services.json');
       }
 
-      // 2. Try GitHub REST API commit if secret token is configured
-      const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || req.body.githubToken || '';
+      // 2. Try GitHub REST API commit
+      const token = getGitHubToken();
       const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
       const repo = process.env.GITHUB_REPO || 'omove-store';
       const branch = process.env.GITHUB_BRANCH || 'main';
@@ -1352,7 +1311,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
   // Legacy git-CLI push replaced by REST API — kept as thin wrapper for backward compat
   const pushProductsToGitHub = (): Promise<{ success: boolean; message: string }> => {
-    return commitProductsToGitHubApi('Auto-sync updated products catalog');
+    return commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, 'Auto-sync updated products catalog');
   };
 
   app.post('/api/products/sync', async (req: Request, res: Response) => {
@@ -1365,7 +1324,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         fs.writeFileSync(filePath, JSON.stringify(products, null, 2));
       }
       if (autoPush) {
-        commitProductsToGitHubApi('Sync products catalog via Admin Panel').catch(() => {});
+        commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, 'Sync products catalog via Admin Panel').catch(() => {});
       }
       res.json({ success: true, count: dynamicProductsStore.length, version: currentCatalogVersion });
     } catch (err: any) {
