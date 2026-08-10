@@ -20,3 +20,4 @@ View your app in AI Studio: https://ai.studio/apps/4ae8dd20-87ca-418f-8762-c5391
    `npm run build && npm run dev`
 
 <!-- Production Trigger: 2026.8.10-production-git-sync-v1 -->
+<!-- Cloudflare Automatic Production Deployment Trigger: 2026.8.10-prod-v1 -->
