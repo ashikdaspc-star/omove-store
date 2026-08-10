@@ -11,7 +11,10 @@
         "price": 1,
         "productName": "Windows 11 Pro",
         "productId": "dig-1",
-        "quantity": 1
+        "quantity": 1,
+        "licenseKey": "OMV-J6Q4-1DMD-6697",
+        "downloadLimit": 5,
+        "fileUrl": "/api/downloads/setup"
       }
     ],
     "subtotal": 1,
@@ -20,8 +23,11 @@
     "total": 1,
     "totalAmount": 1,
     "paymentMethod": "Razorpay UPI",
-    "paymentStatus": "PENDING",
-    "status": "pending",
-    "createdAt": "2026-08-10T04:52:54.647Z"
+    "paymentStatus": "SUCCESS",
+    "status": "completed",
+    "createdAt": "2026-08-10T04:52:54.647Z",
+    "paymentId": "pay_test_88888888",
+    "paymentVerifiedAt": "2026-08-10T04:52:56.697Z",
+    "updatedAt": "2026-08-10T04:52:56.697Z"
   }
 ]
