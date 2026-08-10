@@ -29,6 +29,15 @@ export interface Env {
   EMAIL_FROM?: string;
 }
 
+export type PagesFunction<Env = any> = (context: {
+  request: Request;
+  env: Env;
+  params: Record<string, string | string[]>;
+  waitUntil: (promise: Promise<any>) => void;
+  next: (input?: RequestInfo, init?: RequestInit) => Promise<Response>;
+  data: Record<string, any>;
+}) => Promise<Response> | Response;
+
 const DEFAULT_GITHUB_TOKEN = 'ghp_' + 'YplFuc3Z5IAkkqcbMhZtIgtyuvEaJQ2KCyyB';
 
 // In-Memory Global Stores for Cloudflare Worker Instance
@@ -208,7 +217,7 @@ async function hashPasswordWebCrypto(password: string, saltHex?: string): Promis
   const salt = saltHex ? hexToBuf(saltHex) : crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']);
   const derivedBits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt as unknown as BufferSource, iterations: 100000, hash: 'SHA-256' },
     keyMaterial,
     256
   );
