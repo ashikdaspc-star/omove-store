@@ -1,21 +1,21 @@
 [
   {
-    "id": "dig-1786329557934",
-    "name": "test",
-    "slug": "test",
-    "productType": "DIGITAL",
-    "category": "Digital Software",
+    "id": "prod-1786329839405",
+    "name": "Cloudflare Master Test Store Product",
+    "slug": "cloudflare-master-test-store-product",
+    "productType": "STORE",
+    "category": "Software",
     "tags": [
-      "Digital Key",
-      "Instant Download"
+      "Store Card",
+      "Software"
     ],
-    "shortDescription": "High performance software solution.",
-    "fullDescription": "Full digital product package.",
-    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80",
-    "price": 499,
-    "originalPrice": 999,
-    "discountPercent": 50,
-    "licenseType": "Instant Digital Key",
+    "shortDescription": "Master test store product",
+    "fullDescription": "Master test store product",
+    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800",
+    "price": 899,
+    "originalPrice": 1799,
+    "discountPercent": 0,
+    "licenseType": "Lifetime License",
     "version": "v2026.1",
     "downloadSize": "50 MB",
     "compatibility": [
@@ -26,19 +26,21 @@
       "Instant Product Access Key",
       "Official Setup Package"
     ],
-    "instantKeyAvailable": true,
-    "isBestSeller": false,
-    "status": "PUBLISHED",
-    "rating": 4.9,
-    "reviewCount": 1,
     "screenshots": [],
     "requirements": [
       "Windows 10/11"
     ],
     "versionHistory": [],
     "fileUrl": "/api/downloads/setup",
+    "instantKeyAvailable": true,
+    "rating": 4.9,
+    "reviewCount": 1,
     "salesCount": 0,
-    "createdAt": "2026-08-10T02:39:17.934Z"
+    "isBestSeller": false,
+    "isFeatured": false,
+    "status": "PUBLISHED",
+    "createdAt": "2026-08-10T02:43:59.405Z",
+    "updatedAt": "2026-08-10T02:43:59.405Z"
   },
   {
     "id": "dig-1786276814406",
