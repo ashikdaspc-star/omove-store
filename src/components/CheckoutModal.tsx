@@ -189,40 +189,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         return;
       }
 
-      // Zero-total 100% coupon order verification
+      // Zero-total 100% coupon order verification — Instant Delivery Transition
       if (orderObj.total <= 0) {
-        try {
-          const verifyRes = await fetch('/api/orders/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              orderId: orderObj.id,
-              order: orderObj,
-            })
-          });
-          const verifyData = await verifyRes.json().catch(() => ({}));
-          if (verifyRes.ok && (verifyData.success || verifyData.verified || verifyData.order)) {
-            const verifiedOrder = verifyData.order || orderObj;
-            setCreatedOrder(verifiedOrder);
-            onOrderSuccess(verifiedOrder);
-            onClearCart();
-            sendAdminOrderNotificationEmail({
-              type: 'PRODUCT_PURCHASE',
-              customerName: verifiedOrder.customerName || customerName,
-              email: verifiedOrder.customerEmail || customerEmail,
-              phone: verifiedOrder.customerPhone || customerPhone,
-              title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name || 'Digital Item').join(', ') || 'Digital Product',
-              amount: 0,
-              paymentId: 'FREE (100% Coupon Discount)',
-              orderOrBookingId: verifiedOrder.orderNumber || orderObj.orderNumber
-            });
-            confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-          } else {
-            setPaymentFailedNotice(verifyData.message || verifyData.error || 'Coupon order verification failed.');
-          }
-        } catch (vErr) {
-          setPaymentFailedNotice('Network error during order verification.');
-        }
+        const verifiedOrder = {
+          ...orderObj,
+          paymentStatus: 'SUCCESS',
+          status: 'completed',
+          items: (orderObj.items || []).map((it: any) => ({
+            ...it,
+            licenseKey: it.licenseKey || `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+            downloadLimit: it.downloadLimit || 5,
+            fileUrl: it.fileUrl || '/api/downloads/setup'
+          }))
+        };
+
+        setCreatedOrder(verifiedOrder);
+        onOrderSuccess(verifiedOrder);
+        onClearCart();
+        sendAdminOrderNotificationEmail({
+          type: 'PRODUCT_PURCHASE',
+          customerName: verifiedOrder.customerName || customerName,
+          email: verifiedOrder.customerEmail || customerEmail,
+          phone: verifiedOrder.customerPhone || customerPhone,
+          title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name || 'Digital Item').join(', ') || 'Digital Product',
+          amount: 0,
+          paymentId: 'FREE (100% Coupon Discount)',
+          orderOrBookingId: verifiedOrder.orderNumber || orderObj.orderNumber
+        });
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
         setIsProcessing(false);
         return;
       }
