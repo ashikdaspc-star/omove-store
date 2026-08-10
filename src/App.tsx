@@ -389,10 +389,44 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Check server-authoritative session on mount with client fallback
+  // Verify session and fetch fresh production data from Cloudflare edge on mount
   useEffect(() => {
-    const token = localStorage.getItem('omove_session_token');
-    const localSession = localStorage.getItem('omove_active_session');
+    fetch('/api/services?v=' + Date.now(), { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setServices(data);
+          try { localStorage.setItem('omove_services', JSON.stringify(data)); } catch (e) {}
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/blogs?v=' + Date.now(), { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setBlogs(data);
+          try { localStorage.setItem('omove_blogs', JSON.stringify(data)); } catch (e) {}
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/account/orders?v=' + Date.now(), { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setOrders(data);
+          try { localStorage.setItem('omove_orders', JSON.stringify(data)); } catch (e) {}
+        }
+      })
+      .catch(() => {});
+
+    let token = '';
+    let localSession = null;
+    try {
+      token = localStorage.getItem('omove_session_token') || '';
+      localSession = localStorage.getItem('omove_active_session');
+    } catch (e) {}
 
     const headers: Record<string, string> = {
       'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -720,52 +754,124 @@ export default function App() {
 
 
 
-  const handleAddService = (newSrv: RemoteService) => {
-    setServices((prev) => {
-      const updated = [newSrv, ...prev];
-      try { localStorage.setItem('omove_services', JSON.stringify(updated)); } catch (e) {}
-      return updated;
-    });
+  const handleAddService = async (newSrv: RemoteService) => {
+    const prevServices = [...services];
+    const updated = [newSrv, ...services];
+    setServices(updated);
+    try { localStorage.setItem('omove_services', JSON.stringify(updated)); } catch (e) {}
+
+    try {
+      const res = await fetch('/api/services', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSrv)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        setServices(prevServices);
+        alert(`Failed to save service: ${data.message || data.error || 'Server error'}`);
+      }
+    } catch (e: any) {
+      setServices(prevServices);
+      alert(`Network error saving service: ${e.message}`);
+    }
   };
 
-  const handleUpdateService = (updatedSrv: RemoteService) => {
-    setServices((prev) => {
-      const updated = prev.map((s) => (s.id === updatedSrv.id ? updatedSrv : s));
-      try { localStorage.setItem('omove_services', JSON.stringify(updated)); } catch (e) {}
-      return updated;
-    });
+  const handleUpdateService = async (updatedSrv: RemoteService) => {
+    const prevServices = [...services];
+    const updated = services.map((s) => (s.id === updatedSrv.id ? updatedSrv : s));
+    setServices(updated);
+    try { localStorage.setItem('omove_services', JSON.stringify(updated)); } catch (e) {}
+
+    try {
+      const res = await fetch(`/api/services/${encodeURIComponent(updatedSrv.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedSrv)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        setServices(prevServices);
+        alert(`Failed to update service: ${data.message || data.error || 'Server error'}`);
+      }
+    } catch (e: any) {
+      setServices(prevServices);
+      alert(`Network error updating service: ${e.message}`);
+    }
   };
 
-  const handleDeleteService = (srvId: string) => {
-    setServices((prev) => {
-      const updated = prev.filter((s) => s.id !== srvId);
-      try { localStorage.setItem('omove_services', JSON.stringify(updated)); } catch (e) {}
-      return updated;
-    });
+  const handleDeleteService = async (srvId: string) => {
+    const prevServices = [...services];
+    const updated = services.filter((s) => s.id !== srvId);
+    setServices(updated);
+    try { localStorage.setItem('omove_services', JSON.stringify(updated)); } catch (e) {}
+
+    try {
+      const res = await fetch(`/api/services/${encodeURIComponent(srvId)}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        setServices(prevServices);
+        alert(`Failed to delete service: ${data.message || data.error || 'Server error'}`);
+      }
+    } catch (e: any) {
+      setServices(prevServices);
+      alert(`Network error deleting service: ${e.message}`);
+    }
   };
 
   const handleUpdateBooking = (updatedBooking: RemoteBooking) => {
     setBookings((prev) => prev.map((b) => (b.id === updatedBooking.id ? updatedBooking : b)));
   };
 
-  const handleDeleteBooking = (bookingId: string) => {
+  const handleDeleteBooking = async (bookingId: string) => {
+    const prevBookings = [...bookings];
     setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+
+    try {
+      await fetch(`/api/bookings/${encodeURIComponent(bookingId)}`, { method: 'DELETE' });
+    } catch (e) {}
   };
 
-  const handleAddBlog = (newBlog: BlogPost) => {
-    setBlogs((prev) => {
-      const updated = [newBlog, ...prev];
-      try { localStorage.setItem('omove_blogs', JSON.stringify(updated)); } catch (e) {}
-      return updated;
-    });
+  const handleAddBlog = async (newBlog: BlogPost) => {
+    const prevBlogs = [...blogs];
+    const updated = [newBlog, ...blogs];
+    setBlogs(updated);
+    try { localStorage.setItem('omove_blogs', JSON.stringify(updated)); } catch (e) {}
+
+    try {
+      const res = await fetch('/api/blogs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBlog)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        setBlogs(prevBlogs);
+        alert(`Failed to save blog: ${data.message || data.error || 'Server error'}`);
+      }
+    } catch (e: any) {
+      setBlogs(prevBlogs);
+      alert(`Network error saving blog: ${e.message}`);
+    }
   };
 
-  const handleDeleteBlog = (blogId: string) => {
-    setBlogs((prev) => {
-      const updated = prev.filter((b) => b.id !== blogId);
-      try { localStorage.setItem('omove_blogs', JSON.stringify(updated)); } catch (e) {}
-      return updated;
-    });
+  const handleDeleteBlog = async (blogId: string) => {
+    const prevBlogs = [...blogs];
+    const updated = blogs.filter((b) => b.id !== blogId);
+    setBlogs(updated);
+    try { localStorage.setItem('omove_blogs', JSON.stringify(updated)); } catch (e) {}
+
+    try {
+      const res = await fetch(`/api/blogs/${encodeURIComponent(blogId)}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        setBlogs(prevBlogs);
+        alert(`Failed to delete blog: ${data.message || data.error || 'Server error'}`);
+      }
+    } catch (e: any) {
+      setBlogs(prevBlogs);
+      alert(`Network error deleting blog: ${e.message}`);
+    }
   };
 
   const wishlistProducts = products.filter((p) => wishlist.includes(p.id));
