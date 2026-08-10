@@ -669,7 +669,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         );
 
         if (!targetProduct) {
-          return jsonResponse({ success: false, error: 'PRODUCT_NOT_FOUND', message: `Product '${pId}' not found in catalog.` }, 404);
+          return jsonResponse({
+            success: true,
+            deleted: true,
+            alreadyDeleted: true,
+            message: `Product '${pId}' is already removed from catalog.`
+          }, 200);
         }
 
         if (!result.success) {
