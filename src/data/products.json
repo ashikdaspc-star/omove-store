@@ -1,8 +1,8 @@
 [
   {
-    "id": "prod-1786326656744",
-    "name": "test",
-    "slug": "test",
+    "id": "prod-1786326671380",
+    "name": "test ",
+    "slug": "test-",
     "productType": "STORE",
     "price": 499,
     "originalPrice": 999,
@@ -29,7 +29,7 @@
       "Official Setup Package"
     ],
     "downloadsCount": 0,
-    "updatedAt": "2026-08-10T01:48:39.339Z"
+    "updatedAt": "2026-08-10T01:48:53.972Z"
   },
   {
     "id": "dig-1786276814406",
