@@ -1,5 +1,6 @@
-// Cloudflare Pages Functions Handler for Omove Store API (/api/*) v2026.8.10-live-rzp-v2
+// Cloudflare Pages Functions Handler for Omove Store API (/api/*) v2026.8.10-production-fix-v3
 // Handles all /api/* routes on Cloudflare Edge Runtime with full GitHub REST API persistence
+// CLOUDFLARE-ONLY — No Vercel dependencies
 
 import productsData from '../../src/data/products.json';
 import couponsData from '../../src/data/coupons.json';
@@ -38,8 +39,6 @@ export type PagesFunction<Env = any> = (context: {
   data: Record<string, any>;
 }) => Promise<Response> | Response;
 
-const DEFAULT_GITHUB_TOKEN = 'ghp_' + 'YplFuc3Z5IAkkqcbMhZtIgtyuvEaJQ2KCyyB';
-
 // In-Memory Global Stores for Cloudflare Worker Instance
 let dynamicProductsStore: any[] = Array.isArray(productsData) && productsData.length > 0 ? [...productsData] : [...MOCK_PRODUCTS];
 let dynamicCouponsStore: any[] = Array.isArray(couponsData) && couponsData.length > 0 ? [...couponsData] : [...MOCK_COUPONS];
@@ -71,9 +70,9 @@ const ticketsStore: Map<string, any> = new Map();
 
 let lastProductsRefresh = 0;
 
-// Helper: Get GitHub Token (Server-side only)
+// Helper: Get GitHub Token (Server-side only — use Cloudflare env vars)
 function getGitHubToken(env: Env): string {
-  return env.GITHUB_TOKEN || env.VITE_GITHUB_TOKEN || DEFAULT_GITHUB_TOKEN;
+  return env.GITHUB_TOKEN || env.VITE_GITHUB_TOKEN || '';
 }
 
 // Universal Base64 Encoder (Safe for 4MB+ JSON strings and binary media)
@@ -92,82 +91,8 @@ function encodeBase64Safe(jsonText: string): string {
   return btoa(binary);
 }
 
-// GitHub REST API Integration Engine
-async function commitFileToGitHubApi(filePath: string, data: any, commitMessage: string, env: Env) {
-  const token = getGitHubToken(env);
-  const owner = env.GITHUB_OWNER || 'ashikdaspc-star';
-  const repo = env.GITHUB_REPO || 'omove-store';
-  const branch = env.GITHUB_BRANCH || env.CF_PAGES_BRANCH || 'main';
-
-  console.log(`[GITHUB SYNC REQUEST] Target File: ${filePath} | Repo: ${owner}/${repo} | Branch: ${branch}`);
-
-  if (!token) {
-    console.error(`[GITHUB SYNC FAIL] No GitHub token configured.`);
-    return { success: false, message: 'No GitHub token configured' };
-  }
-
-  try {
-    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
-    let sha = '';
-    try {
-      const getRes = await fetch(`${url}?ref=${branch}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'OmoveStore-CloudflareSync/1.0'
-        }
-      });
-      if (getRes.ok) {
-        const fileData: any = await getRes.json();
-        sha = fileData.sha;
-        console.log(`[GITHUB SYNC GET SHA] Success | SHA: ${sha.substring(0, 7)}`);
-      }
-    } catch (e: any) {
-      console.warn(`[GITHUB SYNC GET SHA NOTE] ${e.message}`);
-    }
-
-    let base64Content = '';
-    if (typeof data === 'string') {
-      base64Content = data.startsWith('data:') ? data.split(',')[1] : encodeBase64Safe(data);
-    } else {
-      const jsonText = JSON.stringify(data, null, 2);
-      base64Content = encodeBase64Safe(jsonText);
-    }
-
-    const putRes = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'OmoveStore-CloudflareSync/1.0'
-      },
-      body: JSON.stringify({
-        message: commitMessage || `Cloudflare AutoSync ${filePath}`,
-        content: base64Content,
-        sha: sha || undefined,
-        branch
-      })
-    });
-
-    if (!putRes.ok) {
-      const errBody: any = await putRes.json().catch(() => ({}));
-      const errMsg = errBody.message || `GitHub API HTTP ${putRes.status}`;
-      console.error(`[GITHUB SYNC PUT FAIL] Status: ${putRes.status} | Error: ${errMsg}`);
-      return { success: false, message: errMsg };
-    }
-
-    const resBody: any = await putRes.json();
-    const commitSha = resBody.commit?.sha || 'committed';
-    console.log(`[GITHUB SYNC SUCCESS] Committed ${filePath} to ${owner}/${repo}#${branch} | Commit SHA: ${commitSha.substring(0, 7)}`);
-    return { success: true, commitSha };
-  } catch (e: any) {
-    console.error(`[GITHUB SYNC EXCEPTION] ${e.message}`);
-    return { success: false, message: e.message };
-  }
-}
-
-async function fetchFileFromGitHub(filePath: string, env: Env): Promise<any | null> {
+// GitHub REST API — Get file content + SHA
+async function getFileFromGitHub(filePath: string, env: Env): Promise<{ data: any; sha: string } | null> {
   const token = getGitHubToken(env);
   const owner = env.GITHUB_OWNER || 'ashikdaspc-star';
   const repo = env.GITHUB_REPO || 'omove-store';
@@ -180,7 +105,7 @@ async function fetchFileFromGitHub(filePath: string, env: Env): Promise<any | nu
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'OmoveStore-CloudflareSync/1.0'
+        'User-Agent': 'OmoveStore-CloudflareSync/2.0'
       }
     });
     if (!res.ok) return null;
@@ -193,10 +118,102 @@ async function fetchFileFromGitHub(filePath: string, env: Env): Promise<any | nu
       } else {
         decoded = decodeURIComponent(escape(atob(cleanBase64)));
       }
-      return JSON.parse(decoded);
+      return { data: JSON.parse(decoded), sha: fileData.sha };
     }
   } catch (e) {}
   return null;
+}
+
+// GitHub REST API — Commit file with conflict retry
+async function commitFileToGitHubApi(filePath: string, data: any, commitMessage: string, env: Env, maxRetries = 2): Promise<{ success: boolean; message?: string; commitSha?: string }> {
+  const token = getGitHubToken(env);
+  const owner = env.GITHUB_OWNER || 'ashikdaspc-star';
+  const repo = env.GITHUB_REPO || 'omove-store';
+  const branch = env.GITHUB_BRANCH || env.CF_PAGES_BRANCH || 'main';
+
+  console.log(`[GITHUB SYNC REQUEST] Target File: ${filePath} | Repo: ${owner}/${repo} | Branch: ${branch}`);
+
+  if (!token) {
+    console.error(`[GITHUB SYNC FAIL] No GitHub token configured.`);
+    return { success: false, message: 'No GitHub token configured. Set GITHUB_TOKEN in Cloudflare environment variables.' };
+  }
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+      let sha = '';
+      try {
+        const getRes = await fetch(`${url}?ref=${branch}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'OmoveStore-CloudflareSync/2.0'
+          }
+        });
+        if (getRes.ok) {
+          const fileData: any = await getRes.json();
+          sha = fileData.sha;
+          console.log(`[GITHUB SYNC GET SHA] Success | SHA: ${sha.substring(0, 7)} | Attempt: ${attempt + 1}`);
+        }
+      } catch (e: any) {
+        console.warn(`[GITHUB SYNC GET SHA NOTE] ${e.message}`);
+      }
+
+      let base64Content = '';
+      if (typeof data === 'string') {
+        base64Content = data.startsWith('data:') ? data.split(',')[1] : encodeBase64Safe(data);
+      } else {
+        const jsonText = JSON.stringify(data, null, 2);
+        base64Content = encodeBase64Safe(jsonText);
+      }
+
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'OmoveStore-CloudflareSync/2.0'
+        },
+        body: JSON.stringify({
+          message: commitMessage || `Cloudflare AutoSync ${filePath}`,
+          content: base64Content,
+          sha: sha || undefined,
+          branch
+        })
+      });
+
+      if (putRes.status === 409 && attempt < maxRetries) {
+        console.warn(`[GITHUB SYNC 409 CONFLICT] Retry ${attempt + 1}/${maxRetries} for ${filePath}`);
+        continue; // Retry — will re-fetch SHA on next iteration
+      }
+
+      if (!putRes.ok) {
+        const errBody: any = await putRes.json().catch(() => ({}));
+        const errMsg = errBody.message || `GitHub API HTTP ${putRes.status}`;
+        console.error(`[GITHUB SYNC PUT FAIL] Status: ${putRes.status} | Error: ${errMsg}`);
+        return { success: false, message: errMsg };
+      }
+
+      const resBody: any = await putRes.json();
+      const commitSha = resBody.commit?.sha || 'committed';
+      console.log(`[GITHUB SYNC SUCCESS] Committed ${filePath} to ${owner}/${repo}#${branch} | Commit SHA: ${commitSha.substring(0, 7)}`);
+      return { success: true, commitSha };
+    } catch (e: any) {
+      console.error(`[GITHUB SYNC EXCEPTION] ${e.message}`);
+      if (attempt >= maxRetries) {
+        return { success: false, message: e.message };
+      }
+    }
+  }
+
+  return { success: false, message: 'GitHub sync failed after retries' };
+}
+
+// Fetch parsed JSON file from GitHub (convenience wrapper)
+async function fetchFileFromGitHub(filePath: string, env: Env): Promise<any | null> {
+  const result = await getFileFromGitHub(filePath, env);
+  return result ? result.data : null;
 }
 
 async function refreshProductsFromGitHub(env: Env) {
@@ -209,6 +226,113 @@ async function refreshProductsFromGitHub(env: Env) {
       dynamicProductsStore = fresh;
     }
   } catch (e) {}
+}
+
+// Atomic product mutation: fetch latest from GitHub, apply mutation, commit
+async function atomicProductMutation(
+  mutationFn: (products: any[]) => any[],
+  commitMessage: string,
+  env: Env
+): Promise<{ success: boolean; products: any[]; message?: string; commitSha?: string }> {
+  const token = getGitHubToken(env);
+  const owner = env.GITHUB_OWNER || 'ashikdaspc-star';
+  const repo = env.GITHUB_REPO || 'omove-store';
+  const branch = env.GITHUB_BRANCH || env.CF_PAGES_BRANCH || 'main';
+  const filePath = 'src/data/products.json';
+
+  if (!token) {
+    return { success: false, products: dynamicProductsStore, message: 'No GitHub token configured' };
+  }
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      // 1. Fetch latest from GitHub
+      const fileResult = await getFileFromGitHub(filePath, env);
+      let currentProducts = fileResult ? fileResult.data : dynamicProductsStore;
+      const sha = fileResult ? fileResult.sha : '';
+
+      if (!Array.isArray(currentProducts)) currentProducts = [...dynamicProductsStore];
+
+      // 2. Apply mutation
+      const mutatedProducts = mutationFn(currentProducts);
+
+      // 3. Commit to GitHub
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+      const jsonText = JSON.stringify(mutatedProducts, null, 2);
+      const base64Content = encodeBase64Safe(jsonText);
+
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'OmoveStore-CloudflareSync/2.0'
+        },
+        body: JSON.stringify({
+          message: commitMessage,
+          content: base64Content,
+          sha: sha || undefined,
+          branch
+        })
+      });
+
+      if (putRes.status === 409) {
+        console.warn(`[ATOMIC PRODUCT MUTATION] 409 conflict, retry ${attempt + 1}/3`);
+        continue;
+      }
+
+      if (!putRes.ok) {
+        const errBody: any = await putRes.json().catch(() => ({}));
+        return { success: false, products: currentProducts, message: errBody.message || `GitHub HTTP ${putRes.status}` };
+      }
+
+      const resBody: any = await putRes.json();
+      const commitSha = resBody.commit?.sha || 'committed';
+
+      // 4. Update in-memory store only after successful commit
+      dynamicProductsStore = mutatedProducts;
+      lastProductsRefresh = Date.now();
+
+      console.log(`[ATOMIC PRODUCT MUTATION SUCCESS] ${commitMessage} | SHA: ${commitSha.substring(0, 7)}`);
+      return { success: true, products: mutatedProducts, commitSha };
+    } catch (e: any) {
+      console.error(`[ATOMIC PRODUCT MUTATION ERROR] ${e.message}`);
+      if (attempt >= 2) {
+        return { success: false, products: dynamicProductsStore, message: e.message };
+      }
+    }
+  }
+
+  return { success: false, products: dynamicProductsStore, message: 'Atomic mutation failed after retries' };
+}
+
+// Atomic coupon mutation: fetch latest from GitHub, apply mutation, commit
+async function atomicCouponMutation(
+  mutationFn: (coupons: any[]) => any[],
+  commitMessage: string,
+  env: Env
+): Promise<{ success: boolean; coupons: any[]; message?: string; commitSha?: string }> {
+  const filePath = 'src/data/coupons.json';
+
+  try {
+    const fileResult = await getFileFromGitHub(filePath, env);
+    let currentCoupons = fileResult ? fileResult.data : dynamicCouponsStore;
+
+    if (!Array.isArray(currentCoupons)) currentCoupons = [...dynamicCouponsStore];
+
+    const mutatedCoupons = mutationFn(currentCoupons);
+
+    const syncRes = await commitFileToGitHubApi(filePath, mutatedCoupons, commitMessage, env);
+    if (!syncRes.success) {
+      return { success: false, coupons: currentCoupons, message: syncRes.message };
+    }
+
+    dynamicCouponsStore = mutatedCoupons;
+    return { success: true, coupons: mutatedCoupons, commitSha: syncRes.commitSha };
+  } catch (e: any) {
+    return { success: false, coupons: dynamicCouponsStore, message: e.message };
+  }
 }
 
 // Password Hashing via Web Crypto API (PBKDF2)
@@ -239,15 +363,13 @@ function hexToBuf(hex: string): Uint8Array {
   return bytes;
 }
 
-const DEFAULT_RAZORPAY_KEY_ID = 'rzp_live_TMiCMOFsYnHr8G';
-const DEFAULT_RAZORPAY_KEY_SECRET = '9e1EanVNH6G0NEWwHLnvNGOB';
-
+// Razorpay credentials — use Cloudflare environment variables
 function getRazorpayKeyId(env: Env): string {
-  return env.VITE_RAZORPAY_KEY_ID || env.RAZORPAY_KEY_ID || DEFAULT_RAZORPAY_KEY_ID;
+  return env.VITE_RAZORPAY_KEY_ID || env.RAZORPAY_KEY_ID || '';
 }
 
 function getRazorpayKeySecret(env: Env): string {
-  return env.RAZORPAY_KEY_SECRET || DEFAULT_RAZORPAY_KEY_SECRET;
+  return env.RAZORPAY_KEY_SECRET || '';
 }
 
 // Razorpay REST API: Create Official Server-Side Order
@@ -286,7 +408,7 @@ async function createRazorpayOrderApi(amountInPaise: number, currency: string, r
 
 // Razorpay REST API: Fetch Payment Details Verification Fallback
 async function fetchRazorpayPaymentStatusApi(paymentId: string, keyId: string, keySecret: string): Promise<{ valid: boolean; status?: string; amount?: number }> {
-  if (!paymentId || !keyId || !keySecret || keyId === 'rzp_live_key') return { valid: false };
+  if (!paymentId || !keyId || !keySecret) return { valid: false };
   try {
     const authHeader = 'Basic ' + encodeBase64Safe(`${keyId}:${keySecret}`);
     const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
@@ -324,6 +446,59 @@ async function verifyRazorpaySignature(orderId: string, paymentId: string, signa
   }
 }
 
+// Server-side coupon validation (single canonical function)
+function validateCouponServerSide(code: string, orderTotal: number, coupons: any[]): { valid: boolean; message: string; coupon?: any; discountAmount: number } {
+  const cleanCode = (code || '').trim().toUpperCase();
+  if (!cleanCode) {
+    return { valid: false, message: 'No coupon code provided.', discountAmount: 0 };
+  }
+
+  const found = coupons.find((c: any) => (c.code || '').toUpperCase() === cleanCode);
+  if (!found) {
+    return { valid: false, message: `Coupon '${cleanCode}' is invalid or expired.`, discountAmount: 0 };
+  }
+
+  if (!found.isActive) {
+    return { valid: false, message: `Coupon '${cleanCode}' is currently disabled.`, discountAmount: 0 };
+  }
+
+  // Check expiry date
+  if (found.expiryDate) {
+    const expiryTime = new Date(found.expiryDate).getTime();
+    if (!isNaN(expiryTime) && Date.now() > expiryTime) {
+      return { valid: false, message: `Coupon '${cleanCode}' has expired.`, discountAmount: 0 };
+    }
+  }
+
+  if (orderTotal < (found.minOrderAmount || 0)) {
+    return { valid: false, message: `Coupon requires minimum order of ₹${found.minOrderAmount}.`, discountAmount: 0 };
+  }
+
+  let discountAmount = 0;
+  if (found.discountType === 'percentage') {
+    discountAmount = Math.round((orderTotal * found.discountValue) / 100);
+  } else {
+    discountAmount = Math.min(orderTotal, found.discountValue);
+  }
+
+  // Cap discount to maximum discount if specified
+  if (found.maxDiscount && discountAmount > found.maxDiscount) {
+    discountAmount = found.maxDiscount;
+  }
+
+  return {
+    valid: true,
+    message: `🎉 Coupon '${found.code}' applied! Saved ₹${discountAmount}`,
+    coupon: found,
+    discountAmount
+  };
+}
+
+// Generate license key
+function generateLicenseKey(): string {
+  return `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+}
+
 // Helper: JSON Response Builder
 function jsonResponse(data: any, status = 200, headersObj: Record<string, string> = {}) {
   return new Response(JSON.stringify(data), {
@@ -334,8 +509,8 @@ function jsonResponse(data: any, status = 200, headersObj: Record<string, string
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
       'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'X-Engine-Version': 'v2026.8.10-dashboard-stats-v2',
-      'X-Payment-Version': 'v2026.8.10-live-rzp-v1',
+      'X-Engine-Version': 'v2026.8.10-production-fix-v3',
+      'X-Payment-Version': 'v2026.8.10-live-rzp-v3',
       ...headersObj
     }
   });
@@ -433,7 +608,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     // 2.5 Live Dedicated Dashboard Stats API Endpoint
-    if (path.includes('dashboard-stats') || path.includes('analytics')) {
+    if (path === '/api/admin/dashboard-stats' || path === '/api/admin/analytics' || path.includes('dashboard-stats') || path.includes('analytics')) {
       try {
         const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
         if (Array.isArray(freshOrders)) {
@@ -511,16 +686,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const isDigital = path.includes('digital') || body.productType === 'DIGITAL';
         const newProd = buildProductObject(body, isDigital);
 
-        await refreshProductsFromGitHub(env);
-        dynamicProductsStore.unshift(newProd);
-        const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Create ${isDigital ? 'digital' : 'store'} product: ${newProd.name}`, env);
+        const result = await atomicProductMutation(
+          (products) => [newProd, ...products],
+          `Create ${isDigital ? 'digital' : 'store'} product: ${newProd.name}`,
+          env
+        );
 
-        if (!syncRes.success) {
-          console.error(`[CREATE PRODUCT FAIL] GitHub sync failed: ${syncRes.message}`);
-          return jsonResponse({ success: false, error: syncRes.message || 'Failed to sync new product to GitHub repository' }, 500);
+        if (!result.success) {
+          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to persist product to GitHub repository' }, 500);
         }
 
-        return jsonResponse({ success: true, product: newProd, sync: { success: true, commitSha: syncRes.commitSha } });
+        return jsonResponse({ success: true, product: newProd, sync: { success: true, commitSha: result.commitSha } });
       }
     }
 
@@ -538,39 +714,62 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (method === 'PUT') {
         const body: any = await request.json().catch(() => ({}));
-        await refreshProductsFromGitHub(env);
-        const idx = dynamicProductsStore.findIndex(p => p.id === pId || p.slug === pId);
-        if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
-
         const isDigital = path.includes('digital') || body.productType === 'DIGITAL';
-        dynamicProductsStore[idx] = {
-          ...dynamicProductsStore[idx],
-          ...body,
-          productType: isDigital ? 'DIGITAL' : (body.productType || dynamicProductsStore[idx].productType || 'STORE'),
-          updatedAt: new Date().toISOString()
-        };
 
-        const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Edit product: ${dynamicProductsStore[idx].name}`, env);
-        if (!syncRes.success) {
-          return jsonResponse({ success: false, error: syncRes.message || 'Failed to update product on GitHub' }, 500);
+        let updatedProduct: any = null;
+        const result = await atomicProductMutation(
+          (products) => {
+            const idx = products.findIndex((p: any) => p.id === pId || p.slug === pId);
+            if (idx === -1) return products; // No change if not found
+            updatedProduct = {
+              ...products[idx],
+              ...body,
+              productType: isDigital ? 'DIGITAL' : (body.productType || products[idx].productType || 'STORE'),
+              updatedAt: new Date().toISOString()
+            };
+            const newList = [...products];
+            newList[idx] = updatedProduct;
+            return newList;
+          },
+          `Edit product: ${body.name || pId}`,
+          env
+        );
+
+        if (!updatedProduct) {
+          return jsonResponse({ success: false, error: 'Product not found' }, 404);
         }
 
-        return jsonResponse({ success: true, product: dynamicProductsStore[idx], sync: { success: true, commitSha: syncRes.commitSha } });
+        if (!result.success) {
+          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to update product on GitHub' }, 500);
+        }
+
+        return jsonResponse({ success: true, product: updatedProduct, sync: { success: true, commitSha: result.commitSha } });
       }
 
       if (method === 'DELETE') {
-        await refreshProductsFromGitHub(env);
-        const idx = dynamicProductsStore.findIndex(p => p.id === pId || p.slug === pId);
-        if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
+        let deletedName = '';
+        const result = await atomicProductMutation(
+          (products) => {
+            const idx = products.findIndex((p: any) => p.id === pId || p.slug === pId);
+            if (idx === -1) return products;
+            deletedName = products[idx].name;
+            const newList = [...products];
+            newList.splice(idx, 1);
+            return newList;
+          },
+          `Delete product: ${pId}`,
+          env
+        );
 
-        const deletedName = dynamicProductsStore[idx].name;
-        dynamicProductsStore.splice(idx, 1);
-        const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Delete product: ${deletedName}`, env);
-        if (!syncRes.success) {
-          return jsonResponse({ success: false, error: syncRes.message || 'Failed to delete product on GitHub' }, 500);
+        if (!deletedName) {
+          return jsonResponse({ success: false, error: 'Product not found' }, 404);
         }
 
-        return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: syncRes.commitSha } });
+        if (!result.success) {
+          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to delete product on GitHub' }, 500);
+        }
+
+        return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: result.commitSha } });
       }
     }
 
@@ -592,20 +791,25 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         updatedAt: new Date().toISOString()
       };
 
-      dynamicProductsStore.unshift(duplicated);
-      const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Duplicate product: ${duplicated.name}`, env);
-      if (!syncRes.success) {
-        return jsonResponse({ success: false, error: syncRes.message || 'Failed to duplicate product on GitHub' }, 500);
+      const result = await atomicProductMutation(
+        (products) => [duplicated, ...products],
+        `Duplicate product: ${duplicated.name}`,
+        env
+      );
+
+      if (!result.success) {
+        return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to duplicate product on GitHub' }, 500);
       }
 
-      return jsonResponse({ success: true, product: duplicated, sync: { success: true, commitSha: syncRes.commitSha } });
+      return jsonResponse({ success: true, product: duplicated, sync: { success: true, commitSha: result.commitSha } });
     }
 
     // Publish & Sync Endpoints
     if (path === '/api/admin/publish' || path === '/api/products/sync' || path === '/api/products/publish') {
+      await refreshProductsFromGitHub(env);
       const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, 'Sync products via Cloudflare Admin', env);
       if (!syncRes.success) {
-        return jsonResponse({ success: false, error: syncRes.message || 'Failed to publish products to GitHub' }, 500);
+        return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: syncRes.message || 'Failed to publish products to GitHub' }, 500);
       }
       return jsonResponse({ success: true, message: 'Products published to GitHub', sync: { success: true, commitSha: syncRes.commitSha } });
     }
@@ -621,22 +825,31 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const body: any = await request.json().catch(() => ({}));
         const code = (body.code || '').trim().toUpperCase();
         if (!code) return jsonResponse({ success: false, error: 'Code required' }, 400);
+
         const newCpn = {
           id: `cpn-${Date.now()}`,
           code,
           discountType: body.discountType === 'fixed' ? 'fixed' : 'percentage',
           discountValue: Number(body.discountValue) || 10,
           minOrderAmount: Number(body.minOrderAmount) || 0,
+          maxDiscount: body.maxDiscount ? Number(body.maxDiscount) : undefined,
           description: body.description || `Discount Code ${code}`,
           isActive: Boolean(body.isActive !== false),
+          expiryDate: body.expiryDate || undefined,
           usageCount: 0
         };
-        dynamicCouponsStore.unshift(newCpn);
-        const syncRes = await commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Create coupon ${code}`, env);
-        if (!syncRes.success) {
-          return jsonResponse({ success: false, error: syncRes.message || 'Failed to save coupon to GitHub' }, 500);
+
+        const result = await atomicCouponMutation(
+          (coupons) => [newCpn, ...coupons],
+          `Create coupon ${code}`,
+          env
+        );
+
+        if (!result.success) {
+          return jsonResponse({ success: false, error: 'COUPON_SYNC_FAILED', message: result.message || 'Failed to save coupon to GitHub' }, 500);
         }
-        return jsonResponse({ success: true, coupon: newCpn, sync: { success: true, commitSha: syncRes.commitSha } });
+
+        return jsonResponse({ success: true, coupon: newCpn, sync: { success: true, commitSha: result.commitSha } });
       }
     }
 
@@ -645,54 +858,73 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const code = (body.code || '').trim().toUpperCase();
       const orderTotal = Number(body.orderTotal) || 0;
 
-      let found = dynamicCouponsStore.find(c => c.code.toUpperCase() === code);
-      if (!found) {
-        const fresh = await fetchFileFromGitHub('src/data/coupons.json', env);
-        if (Array.isArray(fresh)) {
-          dynamicCouponsStore = fresh;
-          found = dynamicCouponsStore.find(c => c.code.toUpperCase() === code);
-        }
+      // Refresh coupons from GitHub to ensure we have the latest data
+      const fresh = await fetchFileFromGitHub('src/data/coupons.json', env);
+      if (Array.isArray(fresh) && fresh.length > 0) {
+        dynamicCouponsStore = fresh;
       }
 
-      if (!found) return jsonResponse({ valid: false, message: `Coupon '${code}' is invalid or expired.`, discountAmount: 0 }, 404);
-      if (!found.isActive) return jsonResponse({ valid: false, message: `Coupon '${code}' is currently disabled.`, discountAmount: 0 }, 400);
-      if (orderTotal < found.minOrderAmount) return jsonResponse({ valid: false, message: `Coupon requires minimum order of ₹${found.minOrderAmount}.`, discountAmount: 0 }, 400);
+      const result = validateCouponServerSide(code, orderTotal, dynamicCouponsStore);
 
-      let discountAmount = 0;
-      if (found.discountType === 'percentage') {
-        discountAmount = Math.round((orderTotal * found.discountValue) / 100);
-      } else {
-        discountAmount = Math.min(orderTotal, found.discountValue);
+      if (!result.valid) {
+        return jsonResponse({ valid: false, message: result.message, discountAmount: 0 }, result.message.includes('invalid') ? 404 : 400);
       }
 
-      return jsonResponse({ valid: true, message: `🎉 Coupon '${found.code}' applied! Saved ₹${discountAmount}`, coupon: found, discountAmount });
+      return jsonResponse({ valid: true, message: result.message, coupon: result.coupon, discountAmount: result.discountAmount });
     }
 
     // Toggle/Delete Coupon
     const cpnToggleMatch = path.match(/^\/api\/coupons\/([^\/]+)\/toggle$/);
     if (cpnToggleMatch && method === 'PATCH') {
       const cId = cpnToggleMatch[1];
-      const cpn = dynamicCouponsStore.find(c => c.id === cId || c.code.toUpperCase() === cId.toUpperCase());
-      if (!cpn) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
-      cpn.isActive = !cpn.isActive;
-      const syncRes = await commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Toggle coupon ${cId}`, env);
-      if (!syncRes.success) {
-        return jsonResponse({ success: false, error: syncRes.message || 'Failed to toggle coupon on GitHub' }, 500);
+
+      let toggledCoupon: any = null;
+      const result = await atomicCouponMutation(
+        (coupons) => coupons.map((c: any) => {
+          if (c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase()) {
+            toggledCoupon = { ...c, isActive: !c.isActive };
+            return toggledCoupon;
+          }
+          return c;
+        }),
+        `Toggle coupon ${cId}`,
+        env
+      );
+
+      if (!toggledCoupon) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
+
+      if (!result.success) {
+        return jsonResponse({ success: false, error: 'COUPON_SYNC_FAILED', message: result.message || 'Failed to toggle coupon on GitHub' }, 500);
       }
-      return jsonResponse({ success: true, coupon: cpn, sync: { success: true, commitSha: syncRes.commitSha } });
+
+      return jsonResponse({ success: true, coupon: toggledCoupon, sync: { success: true, commitSha: result.commitSha } });
     }
 
     const cpnDeleteMatch = path.match(/^\/api\/coupons\/([^\/]+)$/);
     if (cpnDeleteMatch && method === 'DELETE') {
       const cId = cpnDeleteMatch[1];
-      const idx = dynamicCouponsStore.findIndex(c => c.id === cId || c.code.toUpperCase() === cId.toUpperCase());
-      if (idx === -1) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
-      dynamicCouponsStore.splice(idx, 1);
-      const syncRes = await commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Delete coupon ${cId}`, env);
-      if (!syncRes.success) {
-        return jsonResponse({ success: false, error: syncRes.message || 'Failed to delete coupon on GitHub' }, 500);
+      let found = false;
+
+      const result = await atomicCouponMutation(
+        (coupons) => {
+          const idx = coupons.findIndex((c: any) => c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase());
+          if (idx === -1) return coupons;
+          found = true;
+          const newList = [...coupons];
+          newList.splice(idx, 1);
+          return newList;
+        },
+        `Delete coupon ${cId}`,
+        env
+      );
+
+      if (!found) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
+
+      if (!result.success) {
+        return jsonResponse({ success: false, error: 'COUPON_SYNC_FAILED', message: result.message || 'Failed to delete coupon on GitHub' }, 500);
       }
-      return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: syncRes.commitSha } });
+
+      return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: result.commitSha } });
     }
 
     // 5. Services & Blogs Endpoints
@@ -765,7 +997,49 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === '/api/orders/create' && method === 'POST') {
       const body: any = await request.json().catch(() => ({}));
       const orderId = body.id || `ord-${Date.now()}`;
-      const totalVal = Number(body.total || body.amount || 0);
+
+      // SERVER-SIDE PRICE CALCULATION — Never trust browser-sent amounts
+      await refreshProductsFromGitHub(env);
+
+      let subtotal = 0;
+      const resolvedItems: any[] = [];
+
+      if (Array.isArray(body.items)) {
+        for (const item of body.items) {
+          const product = dynamicProductsStore.find((p: any) => p.id === item.productId);
+          const price = product ? Number(product.price) : Number(item.price || 0);
+          const qty = Number(item.quantity) || 1;
+          subtotal += price * qty;
+          resolvedItems.push({
+            productId: item.productId,
+            productName: product ? product.name : (item.productName || 'Product'),
+            price: price,
+            quantity: qty,
+            fileSize: product ? (product.downloadSize || '45 MB') : (item.fileSize || '45 MB'),
+            fileUrl: product ? (product.fileUrl || '/api/downloads/setup') : (item.fileUrl || '/api/downloads/setup'),
+            licenseKey: '', // Generated only after payment verification
+            downloadLimit: 5,
+            downloadsCount: 0
+          });
+        }
+      }
+
+      // Server-side coupon validation
+      let discountAmount = 0;
+      let appliedCouponCode = '';
+      const couponCode = (body.couponCode || '').trim().toUpperCase();
+      if (couponCode) {
+        const fresh = await fetchFileFromGitHub('src/data/coupons.json', env);
+        if (Array.isArray(fresh) && fresh.length > 0) dynamicCouponsStore = fresh;
+
+        const couponResult = validateCouponServerSide(couponCode, subtotal, dynamicCouponsStore);
+        if (couponResult.valid) {
+          discountAmount = couponResult.discountAmount;
+          appliedCouponCode = couponResult.coupon?.code || couponCode;
+        }
+      }
+
+      const totalVal = Math.max(0, subtotal - discountAmount);
       const amountInPaise = Math.round(totalVal * 100);
 
       const rzpKeyId = getRazorpayKeyId(env);
@@ -786,10 +1060,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         customerName: body.customerName || 'Customer',
         customerEmail: body.customerEmail || 'customer@example.com',
         customerPhone: body.customerPhone || '+91 8345968169',
-        items: body.items || [],
-        subtotal: Number(body.subtotal) || totalVal,
-        discount: Number(body.discountAmount || body.discount) || 0,
-        tax: Number(body.tax) || 0,
+        items: resolvedItems,
+        subtotal: subtotal,
+        discount: discountAmount,
+        couponCode: appliedCouponCode,
+        tax: 0,
         total: totalVal,
         totalAmount: totalVal,
         paymentMethod: body.paymentMethod || 'Razorpay UPI',
@@ -799,6 +1074,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       };
       ordersStore.set(orderId, newOrder);
       const syncRes = await commitFileToGitHubApi('src/data/orders.json', Array.from(ordersStore.values()), `Create order ${orderId}`, env);
+
+      console.log(`[ORDER CREATE] ID: ${orderId} | Subtotal: ${subtotal} | Discount: ${discountAmount} | Total: ${totalVal} | RzpOrder: ${rzpOrderId}`);
 
       return jsonResponse({
         success: true,
@@ -858,7 +1135,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (rzpPaymentId && rzpKeyId && secret) {
         const apiCheck = await fetchRazorpayPaymentStatusApi(rzpPaymentId, rzpKeyId, secret);
         if (apiCheck.valid) {
-          // If signature wasn't set or in test mode, API validation confirms payment
+          // Verify amount matches server-side order amount
+          if (order && apiCheck.amount !== undefined) {
+            const expectedAmountPaise = Math.round((order.total || order.totalAmount || 0) * 100);
+            if (apiCheck.amount !== expectedAmountPaise && expectedAmountPaise > 0) {
+              console.error(`[PAYMENT VERIFY AMOUNT MISMATCH] Expected: ${expectedAmountPaise} paise | Got: ${apiCheck.amount} paise`);
+              return jsonResponse({
+                success: false,
+                verified: false,
+                error: 'PAYMENT_AMOUNT_MISMATCH',
+                message: 'Payment amount does not match order amount. Possible tampering detected.'
+              }, 400);
+            }
+          }
           if (!isVerified && !rzpSignature) {
             isVerified = true;
           }
@@ -868,7 +1157,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
       }
 
-      // 4. Test Mode & Zero-Total Fallback when secret is unconfigured
+      // 4. Zero-total / free order (100% coupon discount)
+      if (!isVerified && order && (order.total <= 0 || order.totalAmount <= 0)) {
+        isVerified = true;
+        console.log(`[PAYMENT VERIFY FREE ORDER] PASS — zero total order`);
+      }
+
+      // 5. Test Mode Fallback when secret is unconfigured
       if (!isVerified && (!secret || rzpPaymentId.startsWith('pay_test_') || rzpPaymentId === 'VERIFIED')) {
         isVerified = true;
         console.log(`[PAYMENT VERIFY TEST MODE FALLBACK] PASS`);
@@ -879,7 +1174,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return jsonResponse({
           success: false,
           verified: false,
-          error: 'Server payment verification failed. Access denied.'
+          error: 'PAYMENT_VERIFICATION_FAILED',
+          message: 'Server payment verification failed. Access denied.'
         }, 400);
       }
 
@@ -904,13 +1200,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       order.status = 'completed';
       order.paymentStatus = 'SUCCESS';
       order.paymentId = rzpPaymentId || 'VERIFIED';
+      order.razorpayPaymentId = rzpPaymentId || undefined;
       order.paymentVerifiedAt = new Date().toISOString();
       order.updatedAt = new Date().toISOString();
 
+      // Generate license keys ONLY after successful verification
       if (Array.isArray(order.items)) {
         order.items = order.items.map((it: any) => ({
           ...it,
-          licenseKey: it.licenseKey || `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+          licenseKey: it.licenseKey || generateLicenseKey(),
           downloadLimit: it.downloadLimit || 5,
           fileUrl: it.fileUrl || '/api/downloads/setup'
         }));
@@ -926,8 +1224,30 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         verified: true,
         message: 'Razorpay payment verified successfully',
         order,
+        orderId: order.id,
         sync: syncRes
       });
+    }
+
+    // GET single order by ID (for order recovery on refresh)
+    const orderIdMatch = path.match(/^\/api\/orders\/([^\/]+)$/);
+    if (orderIdMatch && method === 'GET') {
+      const oId = decodeURIComponent(orderIdMatch[1]);
+
+      let order = ordersStore.get(oId);
+      if (!order) {
+        const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
+        if (Array.isArray(freshOrders)) {
+          freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
+          order = ordersStore.get(oId);
+        }
+      }
+
+      if (!order) {
+        return jsonResponse({ success: false, error: 'Order not found' }, 404);
+      }
+
+      return jsonResponse({ success: true, order });
     }
 
     if (path === '/api/bookings' && method === 'POST') {
@@ -953,65 +1273,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
       }
       return jsonResponse(Array.from(ordersStore.values()));
-    }
-
-    if (path === '/api/admin/dashboard-stats' || path === '/api/admin/analytics' || path.includes('dashboard-stats')) {
-      try {
-        const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
-        if (Array.isArray(freshOrders)) {
-          freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
-        }
-      } catch (e) {}
-
-      try {
-        const freshUsers = await fetchFileFromGitHub('src/data/users.json', env);
-        if (Array.isArray(freshUsers)) {
-          freshUsers.forEach((u: any) => { if (u.email) usersStore.set(u.email.toLowerCase(), u); });
-        }
-      } catch (e) {}
-
-      try {
-        const freshBookings = await fetchFileFromGitHub('src/data/bookings.json', env);
-        if (Array.isArray(freshBookings)) {
-          freshBookings.forEach((b: any) => { if (b.id) bookingsStore.set(b.id, b); });
-        }
-      } catch (e) {}
-
-      await refreshProductsFromGitHub(env);
-
-      const allOrders = Array.from(ordersStore.values());
-      const paidOrdersList = allOrders.filter(o => o.paymentStatus === 'SUCCESS' || o.status === 'completed');
-      const pendingOrdersList = allOrders.filter(o => o.paymentStatus !== 'SUCCESS' && o.status !== 'completed');
-
-      const totalRevenue = paidOrdersList.reduce((sum, o) => {
-        const val = Number(o.total || o.totalAmount || o.amount || 0);
-        return sum + (isNaN(val) ? 0 : val);
-      }, 0);
-
-      const digitalProductsCount = dynamicProductsStore.filter(p => p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))).length;
-      const storeProductsCount = dynamicProductsStore.filter(p => p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card'))).length;
-
-      const stats = {
-        customers: usersStore.size,
-        totalOrders: allOrders.length,
-        totalRevenue: totalRevenue,
-        paidOrders: paidOrdersList.length,
-        pendingVerification: pendingOrdersList.length,
-        digitalProducts: digitalProductsCount,
-        storeProducts: storeProductsCount,
-        remoteSupport: bookingsStore.size
-      };
-
-      return jsonResponse({
-        success: true,
-        stats,
-        orders: allOrders,
-        customersCount: usersStore.size,
-        totalRevenue,
-        totalOrders: allOrders.length,
-        totalProducts: dynamicProductsStore.length,
-        conversionRate: 4.8
-      });
     }
 
     // 9. Auth Endpoints
@@ -1096,7 +1357,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     if (path === '/api/admin/license-generator' && method === 'POST') {
-      const keys = Array.from({ length: 5 }, () => `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`);
+      const keys = Array.from({ length: 5 }, () => generateLicenseKey());
       return jsonResponse({ success: true, keysGenerated: keys.length, keys });
     }
 
@@ -1104,6 +1365,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return jsonResponse({ success: false, error: `API route not found: ${method} ${path}` }, 404);
   } catch (err: any) {
     console.error(`[API EDGE EXCEPTION] ${err.stack || err.message}`);
-    return jsonResponse({ success: false, error: err.message || 'Internal Edge Error' }, 500);
+    return jsonResponse({ success: false, error: 'INTERNAL_ERROR', message: err.message || 'Internal Edge Error' }, 500);
   }
 };

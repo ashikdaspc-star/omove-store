@@ -76,11 +76,11 @@ export default function App() {
       return;
     }
 
-    console.log('[OMOVE SYNC] 7. Store fetch started...');
+    console.log('[OMOVE SYNC] Store fetch started...');
     let fetchedData: Product[] | null = null;
     let source = '';
 
-    // Primary: Backend API endpoint
+    // Primary: Backend API endpoint (Cloudflare Pages Function)
     try {
       const res = await fetch(`/api/products?v=${Date.now()}`, {
         cache: 'no-store',
@@ -104,7 +104,7 @@ export default function App() {
       console.log('[OMOVE SYNC] Backend API fetch skipped:', e);
     }
 
-    // Secondary Fallback: GitHub Raw CDN (for static deployments like Vercel/GitHub Pages)
+    // Secondary Fallback: GitHub Raw CDN (for Cloudflare Pages static builds)
     if (!fetchedData || !Array.isArray(fetchedData) || fetchedData.length === 0) {
       try {
         const ghRes = await fetch(`https://raw.githubusercontent.com/ashikdaspc-star/omove-store/main/src/data/products.json?v=${Date.now()}`, {
@@ -123,46 +123,9 @@ export default function App() {
       }
     }
 
-    // Authoritative Catalog Update: Remote Server / GitHub CDN is single source of truth
+    // Authoritative Catalog Update: Server API / GitHub CDN is single source of truth
     if (Array.isArray(fetchedData) && fetchedData.length > 0) {
-      let deletedIds: string[] = [];
-      try {
-        const storedDeleted = localStorage.getItem('omove_deleted_product_ids');
-        if (storedDeleted) deletedIds = JSON.parse(storedDeleted);
-      } catch (e) {}
-
-      if (deletedIds.length > 0) {
-        fetchedData = fetchedData.filter((p) => !deletedIds.includes(p.id));
-      }
-
-      // Only preserve freshly added local products (created < 10 mins ago) if in Admin Mode
-      const inAdminMode = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
-      if (inAdminMode) {
-        let localProducts: Product[] = [];
-        try {
-          const cached = localStorage.getItem('omove_products');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed)) localProducts = parsed.filter((p) => !deletedIds.includes(p.id));
-          }
-        } catch (e) {}
-
-        if (localProducts.length > 0) {
-          const fetchedIds = new Set(fetchedData.map((p) => p.id));
-          const tenMinsAgo = Date.now() - 10 * 60 * 1000;
-          const freshLocalOnly = localProducts.filter((p) => {
-            if (fetchedIds.has(p.id)) return false;
-            const createdTime = p.createdAt ? new Date(p.createdAt).getTime() : 0;
-            return createdTime > tenMinsAgo;
-          });
-          if (freshLocalOnly.length > 0) {
-            console.log(`[OMOVE SYNC] Preserving ${freshLocalOnly.length} freshly created local product(s) in Admin Mode.`);
-            fetchedData = [...freshLocalOnly, ...fetchedData];
-          }
-        }
-      }
-
-      console.log(`[OMOVE SYNC] 8. Store fetch result received from ${source}:`, fetchedData.length, 'items');
+      console.log(`[OMOVE SYNC] Store fetch result received from ${source}:`, fetchedData.length, 'items');
       setProducts(fetchedData);
       try {
         localStorage.setItem('omove_products', JSON.stringify(fetchedData));
@@ -170,8 +133,7 @@ export default function App() {
       } catch (e) {
         console.error(e);
       }
-      console.log('[OMOVE SYNC] 9. UI re-rendered with latest catalog');
-      console.log('[OMOVE SYNC] 10. Cache status: Clean & Synced');
+      console.log('[OMOVE SYNC] UI re-rendered with latest catalog');
     }
   }, []);
 
@@ -252,30 +214,19 @@ export default function App() {
           const ghProducts = await ghRes.json();
           if (Array.isArray(ghProducts) && ghProducts.length > 0) {
             setProducts((current) => {
-              let deletedIds: string[] = [];
-              try {
-                const storedDeleted = localStorage.getItem('omove_deleted_product_ids');
-                if (storedDeleted) deletedIds = JSON.parse(storedDeleted);
-              } catch (e) {}
-
-              let updated = ghProducts;
-              if (deletedIds.length > 0) {
-                updated = updated.filter((p: Product) => !deletedIds.includes(p.id));
-              }
-
-              if (JSON.stringify(current) !== JSON.stringify(updated)) {
+              if (JSON.stringify(current) !== JSON.stringify(ghProducts)) {
                 console.log('[OMOVE SYNC] GitHub Raw CDN updated catalog detected! Auto-updating UI...');
                 try {
-                  localStorage.setItem('omove_products', JSON.stringify(updated));
+                  localStorage.setItem('omove_products', JSON.stringify(ghProducts));
                 } catch (e) {}
-                return updated;
+                return ghProducts;
               }
               return current;
             });
           }
         }
       } catch (e) {}
-    }, 10000);
+    }, 30000); // 30-second poll interval to reduce API pressure
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
@@ -624,79 +575,9 @@ export default function App() {
     });
   };
 
-  const DEFAULT_GITHUB_TOKEN = '';
-
-  const pushDirectToGitHubApi = async (
-    newProducts: Product[],
-    newServices: RemoteService[]
-  ): Promise<{ success: boolean; message: string; commitSha?: string }> => {
-    const storedToken = localStorage.getItem('omove_github_token') || import.meta.env.VITE_GITHUB_TOKEN || DEFAULT_GITHUB_TOKEN;
-    if (!storedToken) {
-      return { success: false, message: 'No GitHub PAT token configured' };
-    }
-
-    const commitSingleFile = async (filePath: string, dataObj: any) => {
-      const repoUrl = `https://api.github.com/repos/ashikdaspc-star/omove-store/contents/${filePath}`;
-      let sha = '';
-      try {
-        const getRes = await fetch(`${repoUrl}?ref=main`, {
-          headers: {
-            'Authorization': `Bearer ${storedToken}`,
-            'Accept': 'application/vnd.github.v3+json'
-          }
-        });
-        if (getRes.ok) {
-          const fileData = await getRes.json();
-          sha = fileData.sha;
-        }
-      } catch (e) {}
-
-      const jsonText = JSON.stringify(dataObj, null, 2);
-      const encoded = btoa(unescape(encodeURIComponent(jsonText)));
-
-      const putRes = await fetch(repoUrl, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${storedToken}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: `Auto-update catalog & services via Live Admin Panel`,
-          content: encoded,
-          sha: sha || undefined,
-          branch: 'main'
-        })
-      });
-
-      if (!putRes.ok) {
-        const errData = await putRes.json().catch(() => ({}));
-        throw new Error(errData.message || `HTTP ${putRes.status}`);
-      }
-
-      const resData = await putRes.json();
-      return resData.commit?.sha || 'ok';
-    };
-
-    try {
-      console.log('[OMOVE SYNC] Pushing products & services directly to GitHub REST API...');
-      const prodSha = await commitSingleFile('src/data/products.json', newProducts);
-      const srvSha = await commitSingleFile('src/data/services.json', newServices);
-
-      console.log('[OMOVE SYNC] GitHub REST API push SUCCESSFUL!', prodSha, srvSha);
-      return {
-        success: true,
-        message: 'Direct GitHub commit & push successful!',
-        commitSha: prodSha || srvSha
-      };
-    } catch (e: any) {
-      console.warn('[OMOVE SYNC] GitHub API exception:', e.message);
-      return { success: false, message: e.message };
-    }
-  };
-
+  // Broadcast catalog update to other tabs (local cache only, server handles GitHub)
   const broadcastCatalogUpdate = (newProducts: Product[]) => {
-    console.log('[OMOVE SYNC] 1. Save started:', newProducts.length, 'products');
+    console.log('[OMOVE SYNC] Catalog updated locally:', newProducts.length, 'products');
     const newVer = Date.now();
     catalogVersionRef.current = newVer;
     try {
@@ -712,99 +593,124 @@ export default function App() {
     } catch (e) {}
   };
 
-  const syncProducts = (updated: Product[]) => {
-    broadcastCatalogUpdate(updated);
-    fetch('/api/products/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products: updated, autoPush: true })
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log('[OMOVE SYNC] Server API sync response:', data);
-      })
-      .catch((e) => {
-        console.log('[OMOVE SYNC] Local server sync failed, auto-pushing to GitHub API:', e.message);
-        pushDirectToGitHubApi(updated, services).then((result) => {
-          if (result.success) {
-            console.log('[OMOVE SYNC] Auto GitHub push successful!');
-          }
-        }).catch(() => {});
-      });
-  };
-
-  const handleAddProduct = (newProd: Product) => {
+  // SERVER-AUTHORITATIVE CRUD — All product mutations go through the Cloudflare API
+  // The API handles atomic GitHub commits with conflict retry
+  const handleAddProduct = async (newProd: Product) => {
     lastLocalEditRef.current = Date.now();
+    // Optimistic local update
     const updated = [newProd, ...products];
     setProducts(updated);
-    syncProducts(updated);
+    broadcastCatalogUpdate(updated);
+
+    try {
+      const isDigital = newProd.productType === 'DIGITAL';
+      const endpoint = isDigital ? '/api/digital-products' : '/api/store-products';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProd)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        console.error('[OMOVE SYNC] Product creation failed on server:', data.message || data.error);
+        // Revert optimistic update
+        setProducts(products);
+        broadcastCatalogUpdate(products);
+        alert(`Failed to save product: ${data.message || data.error || 'Server error'}`);
+      } else {
+        console.log('[OMOVE SYNC] Product created successfully on server. Commit:', data.sync?.commitSha);
+      }
+    } catch (e: any) {
+      console.error('[OMOVE SYNC] Product creation network error:', e.message);
+      setProducts(products);
+      broadcastCatalogUpdate(products);
+      alert(`Network error saving product: ${e.message}`);
+    }
   };
 
-  const handleUpdateProduct = (updatedProd: Product) => {
+  const handleUpdateProduct = async (updatedProd: Product) => {
     lastLocalEditRef.current = Date.now();
     const updated = products.map((p) => (p.id === updatedProd.id ? updatedProd : p));
     setProducts(updated);
-    syncProducts(updated);
+    broadcastCatalogUpdate(updated);
+
+    try {
+      const res = await fetch(`/api/products/${encodeURIComponent(updatedProd.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProd)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        console.error('[OMOVE SYNC] Product update failed on server:', data.message || data.error);
+        setProducts(products);
+        broadcastCatalogUpdate(products);
+        alert(`Failed to update product: ${data.message || data.error || 'Server error'}`);
+      } else {
+        console.log('[OMOVE SYNC] Product updated successfully on server. Commit:', data.sync?.commitSha);
+      }
+    } catch (e: any) {
+      console.error('[OMOVE SYNC] Product update network error:', e.message);
+      setProducts(products);
+      broadcastCatalogUpdate(products);
+      alert(`Network error updating product: ${e.message}`);
+    }
   };
 
-  const handleDeleteProduct = (prodId: string) => {
+  const handleDeleteProduct = async (prodId: string) => {
     lastLocalEditRef.current = Date.now();
     const updated = products.filter((p) => p.id !== prodId);
     setProducts(updated);
+    broadcastCatalogUpdate(updated);
+
     try {
-      const deletedIds: string[] = JSON.parse(localStorage.getItem('omove_deleted_product_ids') || '[]');
-      if (!deletedIds.includes(prodId)) {
-        deletedIds.push(prodId);
-        localStorage.setItem('omove_deleted_product_ids', JSON.stringify(deletedIds));
+      const res = await fetch(`/api/products/${encodeURIComponent(prodId)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        console.error('[OMOVE SYNC] Product deletion failed on server:', data.message || data.error);
+        setProducts(products);
+        broadcastCatalogUpdate(products);
+        alert(`Failed to delete product: ${data.message || data.error || 'Server error'}`);
+      } else {
+        console.log('[OMOVE SYNC] Product deleted successfully on server. Commit:', data.sync?.commitSha);
       }
-    } catch (e) {}
-    syncProducts(updated);
+    } catch (e: any) {
+      console.error('[OMOVE SYNC] Product deletion network error:', e.message);
+      setProducts(products);
+      broadcastCatalogUpdate(products);
+      alert(`Network error deleting product: ${e.message}`);
+    }
   };
 
   const handlePublishCatalog = async (): Promise<{ success: boolean; message?: string }> => {
     console.log('[OMOVE SYNC] Publish started...');
     try {
       broadcastCatalogUpdate(products);
-      const storedToken = localStorage.getItem('omove_github_token') || import.meta.env.VITE_GITHUB_TOKEN || '';
 
-      // 1. Server-side API publish endpoint
-      try {
-        const res = await fetch('/api/admin/publish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, services, githubToken: storedToken })
-        });
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          if (data.success) {
-            console.log('[OMOVE SYNC] Server-side publish response:', data);
-            return {
-              success: true,
-              message: data.gitHubSynced
-                ? `Published Live & Committed to GitHub main! (Commit: ${data.commitSha ? String(data.commitSha).substring(0, 7) : 'verified'})`
-                : 'Published Live to Server Engine Successfully!'
-            };
-          }
-        }
-      } catch (e) {
-        console.log('[OMOVE SYNC] Server API publish notice:', e);
+      // Server-side API publish endpoint (handles GitHub commit)
+      const res = await fetch('/api/admin/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products, services })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        console.log('[OMOVE SYNC] Server-side publish response:', data);
+        return {
+          success: true,
+          message: data.sync?.commitSha
+            ? `Published Live & Committed to GitHub main! (Commit: ${String(data.sync.commitSha).substring(0, 7)})`
+            : 'Published Live to Store Engine Successfully!'
+        };
       }
 
-      // 2. Direct GitHub REST API Push (fallback)
-      if (storedToken) {
-        const ghResult = await pushDirectToGitHubApi(products, services);
-        if (ghResult.success) {
-          return {
-            success: true,
-            message: `Published Live to GitHub main! (Commit: ${ghResult.commitSha ? String(ghResult.commitSha).substring(0, 7) : 'verified'})`
-          };
-        }
-      }
-
-      return { success: true, message: 'Published Live to Store Engine!' };
+      return { success: false, message: data.message || data.error || 'Publish failed on server' };
     } catch (err: any) {
-      console.log('[OMOVE SYNC] Publish error handled gracefully:', err.message);
-      return { success: true, message: 'Published Live to Store Engine!' };
+      console.error('[OMOVE SYNC] Publish error:', err.message);
+      return { success: false, message: `Publish error: ${err.message}` };
     }
   };
 

@@ -126,17 +126,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setPaymentFailedNotice('');
 
     try {
+      // Send cart items + coupon code to server for SERVER-SIDE price calculation
       const payload = {
-        items: cart.map((it) => ({ productId: it.product.id, quantity: it.quantity })),
+        items: cart.map((it) => ({
+          productId: it.product.id,
+          productName: it.product.name,
+          price: it.product.price,
+          quantity: it.quantity,
+          fileSize: it.product.downloadSize || '45 MB',
+          fileUrl: it.product.fileUrl || '/api/downloads/setup'
+        })),
         customerName,
         customerEmail,
         customerPhone,
         paymentMethod,
-        discountAmount: appliedDiscount
+        couponCode: appliedCode || '' // Send coupon code, NOT browser-calculated amount
       };
 
       let orderObj: Order | null = null;
-      let rzpKey = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G';
+      let rzpKey = import.meta.env.VITE_RAZORPAY_KEY_ID || '';
 
       try {
         const res = await fetch('/api/orders/create', {
@@ -149,69 +157,64 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           const data = await res.json().catch(() => ({}));
           if (data.success && data.order) {
             orderObj = data.order;
+            // Use server-calculated totals
+            if (data.order.discount !== undefined) {
+              setAppliedDiscount(data.order.discount);
+            }
             if (data.razorpayKeyId) rzpKey = data.razorpayKeyId;
+          } else {
+            setPaymentFailedNotice(data.message || data.error || 'Failed to create order on server.');
+            setIsProcessing(false);
+            return;
           }
+        } else {
+          setPaymentFailedNotice('Server error creating order. Please try again.');
+          setIsProcessing(false);
+          return;
         }
       } catch (e) {
         console.warn('Backend order creation notice:', e);
+        setPaymentFailedNotice('Network error creating order. Please check your connection.');
+        setIsProcessing(false);
+        return;
       }
 
       if (!orderObj) {
-        const orderId = `ord-${Date.now()}`;
-        const orderNumber = `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`;
-        orderObj = {
-          id: orderId,
-          orderNumber: orderNumber,
-          customerName: customerName || 'Customer',
-          customerEmail: customerEmail || 'customer@omovestore.shop',
-          customerPhone: customerPhone || '',
-          items: cart.map((it) => ({
-            productId: it.product.id,
-            productName: it.product.name,
-            price: it.product.price,
-            quantity: it.quantity,
-            licenseKey: `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`,
-            downloadLimit: 5,
-            downloadsCount: 0,
-            fileSize: it.product.downloadSize || '45 MB',
-            fileUrl: it.product.fileUrl || '/api/downloads/setup'
-          })),
-          subtotal: subtotal,
-          discount: appliedDiscount,
-          tax: taxAmount,
-          total: finalTotal,
-          paymentMethod: paymentMethod || 'Razorpay UPI',
-          paymentStatus: finalTotal <= 0 ? 'SUCCESS' : 'PENDING',
-          createdAt: new Date().toISOString()
-        };
+        setPaymentFailedNotice('Failed to create order. Please try again.');
+        setIsProcessing(false);
+        return;
       }
 
       // Zero-total 100% coupon order verification
       if (orderObj.total <= 0) {
-        const verifyRes = await fetch('/api/orders/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: orderObj.id })
-        });
-        const verifyData = await verifyRes.json();
-        if (verifyRes.ok && verifyData.success && verifyData.verified) {
-          const verifiedOrder = verifyData.order;
-          setCreatedOrder(verifiedOrder);
-          onOrderSuccess(verifiedOrder);
-          onClearCart();
-          sendAdminOrderNotificationEmail({
-            type: 'PRODUCT_PURCHASE',
-            customerName: verifiedOrder.customerName,
-            email: verifiedOrder.customerEmail,
-            phone: verifiedOrder.customerPhone,
-            title: verifiedOrder.items.map((i: any) => i.productName).join(', '),
-            amount: 0,
-            paymentId: 'FREE (100% Coupon Discount)',
-            orderOrBookingId: verifiedOrder.orderNumber
+        try {
+          const verifyRes = await fetch('/api/orders/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: orderObj.id })
           });
-          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-        } else {
-          setPaymentFailedNotice(verifyData.error || 'Coupon order verification failed.');
+          const verifyData = await verifyRes.json();
+          if (verifyRes.ok && verifyData.success && verifyData.verified) {
+            const verifiedOrder = verifyData.order;
+            setCreatedOrder(verifiedOrder);
+            onOrderSuccess(verifiedOrder);
+            onClearCart();
+            sendAdminOrderNotificationEmail({
+              type: 'PRODUCT_PURCHASE',
+              customerName: verifiedOrder.customerName,
+              email: verifiedOrder.customerEmail,
+              phone: verifiedOrder.customerPhone,
+              title: verifiedOrder.items.map((i: any) => i.productName).join(', '),
+              amount: 0,
+              paymentId: 'FREE (100% Coupon Discount)',
+              orderOrBookingId: verifiedOrder.orderNumber
+            });
+            confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+          } else {
+            setPaymentFailedNotice(verifyData.message || verifyData.error || 'Coupon order verification failed.');
+          }
+        } catch (vErr) {
+          setPaymentFailedNotice('Network error during order verification.');
         }
         setIsProcessing(false);
         return;
@@ -236,9 +239,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           return;
         }
 
+        // Use SERVER-CALCULATED total for Razorpay (never trust browser amount)
+        const serverTotal = orderObj.total;
+
+        // Stop showing processing spinner — Razorpay modal is now in control
+        setIsProcessing(false);
+
         const options = {
           key: rzpKey,
-          amount: Math.round(orderObj.total * 100),
+          amount: Math.round(serverTotal * 100),
           currency: 'INR',
           name: 'OMOVE STORE',
           description: `Order ${orderObj.orderNumber} - Digital Products`,
@@ -251,13 +260,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           },
           theme: { color: '#059669' },
           handler: async function (response: any) {
+            // Razorpay payment succeeded — now verify server-side
             setIsProcessing(true);
+            setPaymentFailedNotice('');
             try {
               const verifyRes = await fetch('/api/orders/verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  orderId: orderObj.id,
+                  orderId: orderObj!.id,
                   razorpayPaymentId: response.razorpay_payment_id,
                   razorpayOrderId: response.razorpay_order_id,
                   razorpaySignature: response.razorpay_signature
@@ -275,13 +286,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   email: verifiedOrder.customerEmail || customerEmail,
                   phone: verifiedOrder.customerPhone || customerPhone,
                   title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name).join(', ') || 'Digital Software',
-                  amount: verifiedOrder.total || verifiedOrder.totalAmount || finalTotal,
+                  amount: verifiedOrder.total || verifiedOrder.totalAmount || serverTotal,
                   paymentId: response.razorpay_payment_id || 'VERIFIED',
-                  orderOrBookingId: verifiedOrder.orderNumber || orderObj.orderNumber
+                  orderOrBookingId: verifiedOrder.orderNumber || orderObj!.orderNumber
                 });
                 confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
               } else {
-                setPaymentFailedNotice(verifyData.error || 'Server payment verification failed. Access denied.');
+                setPaymentFailedNotice(verifyData.message || verifyData.error || 'Server payment verification failed. Access denied.');
               }
             } catch (vErr) {
               setPaymentFailedNotice('Payment verification network error. Access denied.');
@@ -291,6 +302,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           },
           modal: {
             ondismiss: function () {
+              // User closed the Razorpay modal without paying
               setIsProcessing(false);
             }
           }
@@ -298,6 +310,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
         const rzp1 = new (window as any).Razorpay(options);
         rzp1.open();
+        // DO NOT set isProcessing=false here — Razorpay modal is open and handler will manage state
       } else {
         setPaymentFailedNotice('Razorpay payment gateway SDK unavailable. Please check your internet connection.');
         setIsProcessing(false);
@@ -305,9 +318,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     } catch (err) {
       console.error('Razorpay process error:', err);
       setPaymentFailedNotice('Failed to process payment. Please check your internet connection.');
-    } finally {
       setIsProcessing(false);
     }
+    // NO finally block here — the Razorpay handler callback manages isProcessing state asynchronously
   };
 
   const handleConfirmTestPayment = () => {

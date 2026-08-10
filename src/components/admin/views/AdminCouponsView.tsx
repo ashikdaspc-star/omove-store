@@ -82,17 +82,28 @@ export const AdminCouponsView: React.FC = () => {
       usageCount: 0
     };
 
+    // Optimistic local update
+    const prevCoupons = [...coupons];
     const nextCoupons = [newCoupon, ...coupons];
     syncLocalCoupons(nextCoupons);
 
     try {
-      await fetch('/api/coupons', {
+      const res = await fetch('/api/coupons', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newCoupon)
       });
-    } catch (err) {
-      console.warn('Backend sync coupon notice:', err);
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        // Revert on failure
+        syncLocalCoupons(prevCoupons);
+        alert(`Failed to save coupon: ${data.message || data.error || 'Server error'}`);
+        return;
+      }
+    } catch (err: any) {
+      syncLocalCoupons(prevCoupons);
+      alert(`Network error saving coupon: ${err.message}`);
+      return;
     }
 
     setShowModal(false);
@@ -101,25 +112,39 @@ export const AdminCouponsView: React.FC = () => {
   };
 
   const handleToggleCoupon = async (id: string) => {
+    const prevCoupons = [...coupons];
     const nextCoupons = coupons.map((c) => (c.id === id ? { ...c, isActive: !c.isActive } : c));
     syncLocalCoupons(nextCoupons);
 
     try {
-      await fetch(`/api/coupons/${id}/toggle`, { method: 'PATCH' });
-    } catch (err) {
-      console.warn('Backend sync toggle notice:', err);
+      const res = await fetch(`/api/coupons/${id}/toggle`, { method: 'PATCH' });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        syncLocalCoupons(prevCoupons);
+        console.error('Toggle coupon failed:', data.message || data.error);
+      }
+    } catch (err: any) {
+      syncLocalCoupons(prevCoupons);
+      console.error('Toggle coupon network error:', err.message);
     }
   };
 
   const handleDeleteCoupon = async (id: string) => {
     if (!confirm('Are you sure you want to delete this coupon code?')) return;
+    const prevCoupons = [...coupons];
     const nextCoupons = coupons.filter((c) => c.id !== id);
     syncLocalCoupons(nextCoupons);
 
     try {
-      await fetch(`/api/coupons/${id}`, { method: 'DELETE' });
-    } catch (err) {
-      console.warn('Backend sync delete notice:', err);
+      const res = await fetch(`/api/coupons/${id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        syncLocalCoupons(prevCoupons);
+        alert(`Failed to delete coupon: ${data.message || data.error || 'Server error'}`);
+      }
+    } catch (err: any) {
+      syncLocalCoupons(prevCoupons);
+      alert(`Network error deleting coupon: ${err.message}`);
     }
   };
 
