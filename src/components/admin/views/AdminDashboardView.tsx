@@ -32,12 +32,46 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   setActiveTab,
   onOpenAddProductModal
 }) => {
-  const paidOrders = orders.filter((o) => o.paymentStatus === 'SUCCESS');
-  const pendingOrders = orders.filter((o) => o.paymentStatus !== 'SUCCESS');
+  const [liveStats, setLiveStats] = React.useState<any>(null);
 
-  const totalRevenue = paidOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const fetchLiveStats = React.useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/dashboard-stats?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.stats) {
+          setLiveStats(data.stats);
+        }
+      }
+    } catch (e) {
+      console.warn('Dashboard stats fetch notice:', e);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchLiveStats();
+    const interval = setInterval(fetchLiveStats, 30000);
+    return () => clearInterval(interval);
+  }, [fetchLiveStats]);
+
+  const paidOrders = orders.filter((o) => o.paymentStatus === 'SUCCESS' || o.status === 'completed');
+  const pendingOrders = orders.filter((o) => o.paymentStatus !== 'SUCCESS' && o.status !== 'completed');
+
+  const calcRevenue = paidOrders.reduce((sum, o) => sum + (o.total || o.totalAmount || 0), 0);
   const digitalProductsCount = products.filter((p) => p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))).length;
   const storeProductsCount = products.filter((p) => p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card'))).length;
+
+  const displayCustomers = liveStats?.customers ?? registeredUsersCount;
+  const displayTotalOrders = liveStats?.totalOrders ?? orders.length;
+  const displayTotalRevenue = liveStats?.totalRevenue ?? calcRevenue;
+  const displayPaidOrders = liveStats?.paidOrders ?? paidOrders.length;
+  const displayDigitalCatalog = liveStats?.digitalProducts ?? digitalProductsCount;
+  const displayStoreProducts = liveStats?.storeProducts ?? storeProductsCount;
+  const displayRemoteSupport = liveStats?.remoteSupport ?? bookings.length;
+  const displayPendingVerification = liveStats?.pendingVerification ?? pendingOrders.length;
 
   return (
     <div className="space-y-6">
@@ -77,7 +111,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-extrabold font-mono text-slate-900">{registeredUsersCount}</span>
+            <span className="text-2xl font-extrabold font-mono text-slate-900">{displayCustomers}</span>
             <span className="text-[10px] text-emerald-600 font-mono font-bold flex items-center gap-0.5">
               <TrendingUp className="w-3 h-3" />
               <span>Active</span>
@@ -96,8 +130,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-extrabold font-mono text-slate-900">{orders.length}</span>
-            <span className="text-[10px] text-emerald-600 font-mono font-bold">{paidOrders.length} Paid</span>
+            <span className="text-2xl font-extrabold font-mono text-slate-900">{displayTotalOrders}</span>
+            <span className="text-[10px] text-emerald-600 font-mono font-bold">{displayPaidOrders} Paid</span>
           </div>
         </div>
 
@@ -112,7 +146,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-extrabold font-mono text-slate-900">₹{totalRevenue.toLocaleString()}</span>
+            <span className="text-2xl font-extrabold font-mono text-slate-900">₹{displayTotalRevenue.toLocaleString()}</span>
             <span className="text-[10px] text-slate-400 font-mono">Verified</span>
           </div>
         </div>
@@ -128,7 +162,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-extrabold font-mono text-slate-900">{paidOrders.length}</span>
+            <span className="text-2xl font-extrabold font-mono text-slate-900">{displayPaidOrders}</span>
             <span className="text-[10px] text-emerald-600 font-mono font-bold">100% Verified</span>
           </div>
         </div>
@@ -144,7 +178,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-extrabold font-mono text-slate-900">{digitalProductsCount}</span>
+            <span className="text-2xl font-extrabold font-mono text-slate-900">{displayDigitalCatalog}</span>
             <span className="text-[10px] text-slate-400 font-mono">Instant Keys</span>
           </div>
         </div>
@@ -160,7 +194,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-extrabold font-mono text-slate-900">{storeProductsCount}</span>
+            <span className="text-2xl font-extrabold font-mono text-slate-900">{displayStoreProducts}</span>
             <span className="text-[10px] text-slate-400 font-mono">Live Catalog</span>
           </div>
         </div>
@@ -176,7 +210,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-extrabold font-mono text-slate-900">{bookings.length}</span>
+            <span className="text-2xl font-extrabold font-mono text-slate-900">{displayRemoteSupport}</span>
             <span className="text-[10px] text-emerald-600 font-mono font-bold">AnyDesk</span>
           </div>
         </div>
@@ -192,11 +226,12 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-extrabold font-mono text-slate-900">{pendingOrders.length}</span>
+            <span className="text-2xl font-extrabold font-mono text-slate-900">{displayPendingVerification}</span>
             <span className="text-[10px] text-slate-400 font-mono">Pending</span>
           </div>
         </div>
       </div>
+
 
       {/* Main Grid: Recent Orders & Top Products */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
