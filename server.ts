@@ -871,50 +871,79 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
-  // Admin Product DELETE endpoints (Store & Digital)
-  app.delete('/api/admin/digital-products/:id', (req: Request, res: Response) => {
+  // Unified Universal Product DELETE handler (Store & Digital)
+  const handleDeleteProductRequest = (req: Request, res: Response) => {
     try {
-      const prodId = req.params.id;
-      const permanent = req.query.permanent === 'true';
-      const idx = dynamicProductsStore.findIndex(p => p.id === prodId);
-      if (idx !== -1) {
-        if (permanent) {
-          dynamicProductsStore.splice(idx, 1);
-        } else {
-          dynamicProductsStore[idx].status = 'ARCHIVED';
-        }
-        try {
-          fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2));
-        } catch (e) {}
-        autoPublishToGitHub('Delete digital product ' + prodId);
-      }
-      res.json({ success: true, deleted: true, permanent });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+      const rawTargetId = req.params.id;
+      const cleanId = decodeURIComponent(rawTargetId || '').trim();
+      const isPermanent = req.query.permanent === 'true';
 
-  app.delete('/api/admin/store-products/:id', (req: Request, res: Response) => {
-    try {
-      const prodId = req.params.id;
-      const permanent = req.query.permanent === 'true';
-      const idx = dynamicProductsStore.findIndex(p => p.id === prodId);
-      if (idx !== -1) {
-        if (permanent) {
-          dynamicProductsStore.splice(idx, 1);
-        } else {
-          dynamicProductsStore[idx].status = 'ARCHIVED';
-        }
-        try {
-          fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2));
-        } catch (e) {}
-        autoPublishToGitHub('Delete store product ' + prodId);
+      let idx = dynamicProductsStore.findIndex(p => p.id === cleanId);
+      if (idx === -1) {
+        idx = dynamicProductsStore.findIndex(p => (p.id || '').toLowerCase() === cleanId.toLowerCase());
       }
-      res.json({ success: true, deleted: true, permanent });
+      if (idx === -1) {
+        idx = dynamicProductsStore.findIndex(p => p.slug === cleanId || (p.slug || '').toLowerCase() === cleanId.toLowerCase());
+      }
+
+      if (idx === -1) {
+        return res.json({
+          success: true,
+          deleted: true,
+          alreadyDeleted: true,
+          message: `Product '${cleanId}' is already removed from catalog.`
+        });
+      }
+
+      const prod = dynamicProductsStore[idx];
+      const hasPurchases = Array.from(ordersStore.values()).some((o: any) =>
+        Array.isArray(o.items) && o.items.some((i: any) => i.productId === prod.id || i.productId === cleanId)
+      );
+
+      let actionTaken = 'DELETED';
+      if (!isPermanent || (hasPurchases && !isPermanent)) {
+        actionTaken = 'ARCHIVED';
+        prod.status = 'ARCHIVED';
+        prod.updatedAt = new Date().toISOString();
+      } else {
+        actionTaken = 'DELETED';
+        dynamicProductsStore.splice(idx, 1);
+      }
+
+      currentCatalogVersion = Date.now();
+      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
+      } catch (e) {
+        console.error('[SERVER] Failed to save products.json to disk:', e);
+      }
+
+      commitFileToGitHubApi(
+        'src/data/products.json',
+        dynamicProductsStore,
+        `${actionTaken === 'DELETED' ? 'Permanently delete' : 'Archive'} product: ${prod.name || cleanId}`
+      ).catch(e => console.warn('[SERVER] GitHub API commit note:', e));
+
+      return res.json({
+        success: true,
+        deleted: actionTaken === 'DELETED',
+        archived: actionTaken === 'ARCHIVED',
+        action: actionTaken,
+        permanent: isPermanent,
+        product: prod,
+        version: currentCatalogVersion
+      });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.error('[SERVER] Delete product error:', err);
+      return res.status(500).json({ success: false, error: err.message || 'Failed to delete product' });
     }
-  });
+  };
+
+  app.delete('/api/products/:id', handleDeleteProductRequest);
+  app.delete('/api/digital-products/:id', handleDeleteProductRequest);
+  app.delete('/api/store-products/:id', handleDeleteProductRequest);
+  app.delete('/api/admin/digital-products/:id', handleDeleteProductRequest);
+  app.delete('/api/admin/store-products/:id', handleDeleteProductRequest);
 
   // Server-Side Production Publish Endpoint (Direct GitHub REST API commit on main branch)
   app.post('/api/admin/publish', async (req: Request, res: Response) => {
@@ -1037,7 +1066,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     const search = (req.query.q as string || '').toLowerCase();
     const sort = req.query.sort as string;
 
-    let filtered = [...dynamicProductsStore];
+    let filtered = dynamicProductsStore.filter(p => (p.status || 'PUBLISHED') === 'PUBLISHED');
 
     if (category && category !== 'All') {
       filtered = filtered.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
@@ -1342,67 +1371,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
-  // Delete / Archive Store Product
-  app.delete('/api/admin/store-products/:id', (req: Request, res: Response) => {
-    try {
-      const isPermanent = req.query.permanent === 'true';
-      const idx = dynamicProductsStore.findIndex(p => p.id === req.params.id);
-      if (idx === -1) return res.status(404).json({ error: 'Store product not found' });
 
-      const prod = dynamicProductsStore[idx];
-      const hasPurchases = Array.from(ordersStore.values()).some(o => o.items && o.items.some((i: any) => i.productId === prod.id));
-
-      if (hasPurchases || !isPermanent) {
-        prod.status = 'ARCHIVED';
-        currentCatalogVersion = Date.now();
-        const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
-        fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
-        autoPublishToGitHub('Archive store product: ' + prod.name);
-        return res.json({ success: true, archived: true, message: 'Store product archived to preserve customer order history.' });
-      }
-
-      dynamicProductsStore.splice(idx, 1);
-      currentCatalogVersion = Date.now();
-      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
-      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
-      autoPublishToGitHub('Permanently delete store product: ' + req.params.id);
-
-      res.json({ success: true, deleted: true, message: 'Store product permanently deleted.' });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // Delete / Archive Digital Product
-  app.delete('/api/admin/digital-products/:id', (req: Request, res: Response) => {
-    try {
-      const isPermanent = req.query.permanent === 'true';
-      const idx = dynamicProductsStore.findIndex(p => p.id === req.params.id);
-      if (idx === -1) return res.status(404).json({ error: 'Digital product not found' });
-
-      const prod = dynamicProductsStore[idx];
-      const hasPurchases = Array.from(ordersStore.values()).some(o => o.items && o.items.some((i: any) => i.productId === prod.id));
-
-      if (hasPurchases || !isPermanent) {
-        prod.status = 'ARCHIVED';
-        currentCatalogVersion = Date.now();
-        const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
-        fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
-        autoPublishToGitHub('Archive digital product: ' + prod.name);
-        return res.json({ success: true, archived: true, message: 'Digital product archived to preserve customer order history.' });
-      }
-
-      dynamicProductsStore.splice(idx, 1);
-      currentCatalogVersion = Date.now();
-      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
-      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
-      autoPublishToGitHub('Permanently delete digital product: ' + req.params.id);
-
-      res.json({ success: true, deleted: true, message: 'Digital product permanently deleted.' });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
 
   // Legacy git-CLI push replaced by REST API — kept as thin wrapper for backward compat
   const pushProductsToGitHub = (): Promise<{ success: boolean; message: string }> => {

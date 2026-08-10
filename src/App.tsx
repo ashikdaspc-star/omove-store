@@ -202,31 +202,8 @@ export default function App() {
         }
       } catch (e) {}
 
-      // Fallback polling check directly from GitHub Raw CDN
-      if (Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) {
-        return;
-      }
-      try {
-        const ghRes = await fetch(`https://raw.githubusercontent.com/ashikdaspc-star/omove-store/main/src/data/products.json?v=${Date.now()}`, {
-          cache: 'no-store'
-        });
-        if (ghRes.ok) {
-          const ghProducts = await ghRes.json();
-          if (Array.isArray(ghProducts) && ghProducts.length > 0) {
-            setProducts((current) => {
-              if (JSON.stringify(current) !== JSON.stringify(ghProducts)) {
-                console.log('[OMOVE SYNC] GitHub Raw CDN updated catalog detected! Auto-updating UI...');
-                try {
-                  localStorage.setItem('omove_products', JSON.stringify(ghProducts));
-                } catch (e) {}
-                return ghProducts;
-              }
-              return current;
-            });
-          }
-        }
-      } catch (e) {}
-    }, 30000); // 30-second poll interval to reduce API pressure
+      // Fallback: If catalog version is not updated, no changes needed from server
+    }, 30000); // 30-second poll interval to check catalog version
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
@@ -700,15 +677,15 @@ export default function App() {
     const prevProducts = [...products];
 
     // Optimistically update React state based on permanent/archive status
-    if (!permanent) {
-      setProducts((prev) => prev.map((p) => p.id === prodId ? { ...p, status: 'ARCHIVED' } : p));
-    } else {
-      setProducts((prev) => prev.filter((p) => p.id !== prodId));
-    }
+    const optimisticList = !permanent
+      ? prevProducts.map((p) => (p.id === prodId ? { ...p, status: 'ARCHIVED' } : p))
+      : prevProducts.filter((p) => p.id !== prodId);
+    setProducts(optimisticList);
 
     try {
       const res = await fetch(`/api/products/${encodeURIComponent(prodId)}?permanent=${permanent}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
       });
       const data = await res.json().catch(() => ({}));
       if (!data.success) {
@@ -717,7 +694,14 @@ export default function App() {
         broadcastCatalogUpdate(prevProducts);
         alert(`Failed to delete product: ${data.message || data.error || 'Server error'}`);
       } else {
-        console.log('[OMOVE SYNC] Product deletion/archive successful. Action:', data.action, 'Commit:', data.sync?.commitSha);
+        const actionTaken = data.action || (permanent ? 'DELETED' : 'ARCHIVED');
+        const finalizedList = actionTaken === 'ARCHIVED'
+          ? prevProducts.map((p) => (p.id === prodId ? { ...p, status: 'ARCHIVED' } : p))
+          : prevProducts.filter((p) => p.id !== prodId);
+
+        console.log('[OMOVE SYNC] Product deletion/archive successful. Action:', actionTaken, 'Commit:', data.sync?.commitSha || data.version);
+        setProducts(finalizedList);
+        broadcastCatalogUpdate(finalizedList);
       }
     } catch (e: any) {
       console.error('[OMOVE SYNC] Product deletion network error:', e.message);

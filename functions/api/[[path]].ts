@@ -502,7 +502,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         if (Array.isArray(fresh) && fresh.length > 0) dynamicProductsStore = fresh;
 
         const typeFilter = url.searchParams.get('type');
+        const isAdminPath = path.includes('/admin/');
         let list = [...dynamicProductsStore];
+        if (!isAdminPath) {
+          list = list.filter(p => (p.status || 'PUBLISHED') === 'PUBLISHED');
+        }
         if (path === '/api/store-products' || path === '/api/admin/store-products' || typeFilter === 'STORE') {
           list = list.filter(p => p.productType === 'STORE' || p.tags?.includes('Store Card'));
         } else if (path === '/api/digital-products' || path === '/api/admin/digital-products' || typeFilter === 'DIGITAL') {
@@ -648,7 +652,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               )
             );
 
-            if (hasOrders && !forcePermanent) {
+            if (!forcePermanent) {
               actionTaken = 'ARCHIVED';
               const newList = [...products];
               newList[idx] = {
