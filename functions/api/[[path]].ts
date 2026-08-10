@@ -435,7 +435,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   let path = rawPath;
   if (!path.startsWith('/api')) {
-    path = '/api' + (path.startsWith('/') ? path : '/' + path);
+    return context.next();
   }
 
   // CORS Preflight
