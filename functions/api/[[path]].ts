@@ -345,7 +345,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     // 2.5 Live Dedicated Dashboard Stats API Endpoint
-    if (path === '/api/admin/dashboard-stats' || path === '/api/admin/analytics') {
+    if (path.includes('dashboard-stats') || path.includes('analytics')) {
       try {
         const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
         if (Array.isArray(freshOrders)) {
