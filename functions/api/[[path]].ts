@@ -532,6 +532,43 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
     }
 
+    // Universal Product Matcher Helper
+    function findProductIndexInCatalog(products: any[], targetId: string): number {
+      const cleanId = decodeURIComponent(targetId || '').trim();
+      if (!cleanId) return -1;
+      const lowerId = cleanId.toLowerCase();
+
+      // 1. Exact ID match
+      let idx = products.findIndex((p: any) => p.id === cleanId);
+      if (idx !== -1) return idx;
+
+      // 2. Case-insensitive ID match
+      idx = products.findIndex((p: any) => (p.id || '').toLowerCase() === lowerId);
+      if (idx !== -1) return idx;
+
+      // 3. Exact Slug match
+      idx = products.findIndex((p: any) => p.slug === cleanId);
+      if (idx !== -1) return idx;
+
+      // 4. Case-insensitive Slug match
+      idx = products.findIndex((p: any) => (p.slug || '').toLowerCase() === lowerId);
+      if (idx !== -1) return idx;
+
+      // 5. Slugified Name match
+      idx = products.findIndex((p: any) => (p.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-') === lowerId);
+      if (idx !== -1) return idx;
+
+      // 6. Numeric timestamp ID suffix match (e.g. 1786345973260)
+      const numMatch = lowerId.match(/\d{6,}/);
+      if (numMatch) {
+        const numStr = numMatch[0];
+        idx = products.findIndex((p: any) => (p.id || '').includes(numStr) || (p.createdAt || '').includes(numStr));
+        if (idx !== -1) return idx;
+      }
+
+      return -1;
+    }
+
     // Single Product Route: GET / PUT / DELETE /api/products/:id
     const prodIdMatch = path.match(/^\/api\/(?:admin\/)?(?:store-products|digital-products|products)\/([^\/]+)$/);
     if (prodIdMatch) {
@@ -541,9 +578,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const fresh = await fetchFileFromGitHub('src/data/products.json', env);
         if (Array.isArray(fresh) && fresh.length > 0) dynamicProductsStore = fresh;
 
-        const found = dynamicProductsStore.find(p => p.id === pId || p.slug === pId);
-        if (!found) return jsonResponse({ success: false, error: 'Product not found' }, 404);
-        return jsonResponse(found);
+        const idx = findProductIndexInCatalog(dynamicProductsStore, pId);
+        if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
+        return jsonResponse(dynamicProductsStore[idx]);
       }
 
       if (method === 'PUT') {
@@ -554,7 +591,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const result = await atomicFileMutation(
           'src/data/products.json',
           (products) => {
-            const idx = products.findIndex((p: any) => p.id === pId || p.slug === pId);
+            const idx = findProductIndexInCatalog(products, pId);
             if (idx === -1) return products;
             updatedProduct = {
               ...products[idx],
@@ -583,31 +620,71 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       if (method === 'DELETE') {
-        let deletedName = '';
+        const permanentParam = url.searchParams.get('permanent');
+        const forcePermanent = permanentParam === 'true';
+
+        let targetProduct: any = null;
+        let actionTaken = 'DELETED';
+
+        const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
+        if (Array.isArray(freshOrders)) {
+          freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
+        }
+
         const result = await atomicFileMutation(
           'src/data/products.json',
           (products) => {
-            const idx = products.findIndex((p: any) => p.id === pId || p.slug === pId);
+            const idx = findProductIndexInCatalog(products, pId);
             if (idx === -1) return products;
-            deletedName = products[idx].name;
-            const newList = [...products];
-            newList.splice(idx, 1);
-            return newList;
+
+            targetProduct = products[idx];
+
+            // Purchase Safeguard check against Orders Store
+            const hasOrders = Array.from(ordersStore.values()).some((ord: any) =>
+              Array.isArray(ord.items) && ord.items.some((it: any) =>
+                it.productId === targetProduct.id ||
+                it.productId === pId ||
+                (it.productName || '').toLowerCase() === (targetProduct.name || '').toLowerCase()
+              )
+            );
+
+            if (hasOrders && !forcePermanent) {
+              actionTaken = 'ARCHIVED';
+              const newList = [...products];
+              newList[idx] = {
+                ...products[idx],
+                status: 'ARCHIVED',
+                updatedAt: new Date().toISOString()
+              };
+              return newList;
+            } else {
+              actionTaken = 'DELETED';
+              const newList = [...products];
+              newList.splice(idx, 1);
+              return newList;
+            }
           },
-          `Delete product: ${pId}`,
+          `Delete/Archive product ${pId}`,
           env
         );
 
-        if (!deletedName) {
-          return jsonResponse({ success: false, error: 'Product not found' }, 404);
+        if (!targetProduct) {
+          return jsonResponse({ success: false, error: 'PRODUCT_NOT_FOUND', message: `Product '${pId}' not found in catalog.` }, 404);
         }
 
         if (!result.success) {
-          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to delete product on GitHub' }, 500);
+          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to sync deletion to GitHub' }, 500);
         }
 
         dynamicProductsStore = result.data;
-        return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: result.commitSha } });
+        return jsonResponse({
+          success: true,
+          action: actionTaken,
+          deleted: actionTaken === 'DELETED',
+          archived: actionTaken === 'ARCHIVED',
+          product: targetProduct,
+          sync: { success: true, commitSha: result.commitSha }
+        });
       }
     }
 

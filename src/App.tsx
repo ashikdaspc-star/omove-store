@@ -695,29 +695,34 @@ export default function App() {
     }
   };
 
-  const handleDeleteProduct = async (prodId: string) => {
+  const handleDeleteProduct = async (prodId: string, permanent = false) => {
     lastLocalEditRef.current = Date.now();
-    const updated = products.filter((p) => p.id !== prodId);
-    setProducts(updated);
-    broadcastCatalogUpdate(updated);
+    const prevProducts = [...products];
+
+    // Optimistically update React state based on permanent/archive status
+    if (!permanent) {
+      setProducts((prev) => prev.map((p) => p.id === prodId ? { ...p, status: 'ARCHIVED' } : p));
+    } else {
+      setProducts((prev) => prev.filter((p) => p.id !== prodId));
+    }
 
     try {
-      const res = await fetch(`/api/products/${encodeURIComponent(prodId)}`, {
+      const res = await fetch(`/api/products/${encodeURIComponent(prodId)}?permanent=${permanent}`, {
         method: 'DELETE'
       });
       const data = await res.json().catch(() => ({}));
       if (!data.success) {
         console.error('[OMOVE SYNC] Product deletion failed on server:', data.message || data.error);
-        setProducts(products);
-        broadcastCatalogUpdate(products);
+        setProducts(prevProducts);
+        broadcastCatalogUpdate(prevProducts);
         alert(`Failed to delete product: ${data.message || data.error || 'Server error'}`);
       } else {
-        console.log('[OMOVE SYNC] Product deleted successfully on server. Commit:', data.sync?.commitSha);
+        console.log('[OMOVE SYNC] Product deletion/archive successful. Action:', data.action, 'Commit:', data.sync?.commitSha);
       }
     } catch (e: any) {
       console.error('[OMOVE SYNC] Product deletion network error:', e.message);
-      setProducts(products);
-      broadcastCatalogUpdate(products);
+      setProducts(prevProducts);
+      broadcastCatalogUpdate(prevProducts);
       alert(`Network error deleting product: ${e.message}`);
     }
   };
