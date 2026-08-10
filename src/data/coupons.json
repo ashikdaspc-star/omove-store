@@ -1,5 +1,15 @@
 [
   {
+    "id": "cpn-1786284125172",
+    "code": "OMOVE100",
+    "discountType": "percentage",
+    "discountValue": 100,
+    "minOrderAmount": 0,
+    "description": "Discount Code OMOVE100",
+    "isActive": true,
+    "usageCount": 0
+  },
+  {
     "id": "cpn-1",
     "code": "OMOVE15",
     "discountType": "percentage",
@@ -18,15 +28,5 @@
     "description": "Flat ₹50 Instant Discount",
     "isActive": true,
     "usageCount": 18
-  },
-  {
-    "id": "cpn-3",
-    "code": "ASHIK20",
-    "discountType": "percentage",
-    "discountValue": 20,
-    "minOrderAmount": 199,
-    "description": "VIP 20% OFF Special Code",
-    "isActive": true,
-    "usageCount": 9
   }
 ]

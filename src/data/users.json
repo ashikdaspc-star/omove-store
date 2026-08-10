@@ -31,14 +31,14 @@
     "id": "usr_1786274387795_94n8o",
     "name": "Ashik Das",
     "email": "ashikdaspc@outlook.com",
-    "phone": "8391994097",
+    "phone": "839*******",
     "passwordHash": "81462238a178136ca2b592f92c12b1b89ec87226d6dbdd1887bec3a3319a187c",
     "passwordSalt": "e8fffa8906aff7a0afdc5237aefc1cbf",
     "location": "Kolkata, West Bengal, India",
     "authProvider": "email",
     "isAdmin": false,
     "createdAt": "2026-08-09T11:19:47.795Z",
-    "updatedAt": "2026-08-09T11:19:47.795Z",
+    "updatedAt": "2026-08-09T14:04:57.413Z",
     "lastLoginAt": "2026-08-09T11:19:47.795Z"
   }
 ]
