@@ -239,17 +239,20 @@ function hexToBuf(hex: string): Uint8Array {
   return bytes;
 }
 
+const DEFAULT_RAZORPAY_KEY_ID = 'rzp_live_TMiCMOFsYnHr8G';
+const DEFAULT_RAZORPAY_KEY_SECRET = '9e1EanVNH6G0NEWwHLnvNGOB';
+
 function getRazorpayKeyId(env: Env): string {
-  return env.VITE_RAZORPAY_KEY_ID || env.RAZORPAY_KEY_ID || '';
+  return env.VITE_RAZORPAY_KEY_ID || env.RAZORPAY_KEY_ID || DEFAULT_RAZORPAY_KEY_ID;
 }
 
 function getRazorpayKeySecret(env: Env): string {
-  return env.RAZORPAY_KEY_SECRET || '';
+  return env.RAZORPAY_KEY_SECRET || DEFAULT_RAZORPAY_KEY_SECRET;
 }
 
 // Razorpay REST API: Create Official Server-Side Order
 async function createRazorpayOrderApi(amountInPaise: number, currency: string, receipt: string, keyId: string, keySecret: string): Promise<string | null> {
-  if (!keyId || !keySecret || keyId === 'rzp_live_key') return null;
+  if (!keyId || !keySecret) return null;
   try {
     const authHeader = 'Basic ' + encodeBase64Safe(`${keyId}:${keySecret}`);
     const res = await fetch('https://api.razorpay.com/v1/orders', {
