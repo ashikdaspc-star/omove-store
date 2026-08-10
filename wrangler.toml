@@ -1,0 +1,10 @@
+name = "omove-store"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+NODE_VERSION = "20"
+GITHUB_OWNER = "ashikdaspc-star"
+GITHUB_REPO = "omove-store"
+GITHUB_BRANCH = "main"
