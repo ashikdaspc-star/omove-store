@@ -1,4 +1,4 @@
-// Cloudflare Pages Functions Handler for Omove Store API (/api/*)
+// Cloudflare Pages Functions Handler for Omove Store API (/api/*) v2026.8.10-live-rzp-v2
 // Handles all /api/* routes on Cloudflare Edge Runtime with full GitHub REST API persistence
 
 import productsData from '../../src/data/products.json';
