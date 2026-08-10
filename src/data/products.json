@@ -1,35 +1,46 @@
 [
   {
-    "id": "prod-1786326671380",
-    "name": "test ",
-    "slug": "test-",
+    "id": "prod-1786327030103",
+    "name": "Cloudflare Test Store Product",
+    "slug": "cloudflare-test-store-product",
     "productType": "STORE",
-    "price": 499,
-    "originalPrice": 999,
-    "rating": 4.9,
-    "reviewsCount": 0,
-    "isFeatured": false,
-    "isActive": true,
-    "inStock": true,
-    "badge": "",
     "category": "Software",
     "tags": [
-      "Software",
-      "Store Card"
+      "Store Card",
+      "Software"
     ],
-    "shortDescription": "High performance software solution.",
-    "fullDescription": "Full digital product package.",
-    "imageUrl": "https://images.unsplash.com/photo-1563770660941-20978e870e26?auto=format&fit=crop&q=80&w=800",
-    "galleryImages": [],
-    "licenseDuration": "1 Year",
-    "deviceCount": 1,
-    "digitalFileType": "License Key",
+    "shortDescription": "Test product for Cloudflare Pages",
+    "fullDescription": "Test product for Cloudflare Pages",
+    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800",
+    "price": 799,
+    "originalPrice": 1499,
+    "discountPercent": 0,
+    "licenseType": "Lifetime License",
+    "version": "v2026.1",
+    "downloadSize": "50 MB",
+    "compatibility": [
+      "Windows 11",
+      "Windows 10"
+    ],
     "features": [
       "Instant Product Access Key",
       "Official Setup Package"
     ],
-    "downloadsCount": 0,
-    "updatedAt": "2026-08-10T01:48:53.972Z"
+    "screenshots": [],
+    "requirements": [
+      "Windows 10/11"
+    ],
+    "versionHistory": [],
+    "fileUrl": "/api/downloads/setup",
+    "instantKeyAvailable": true,
+    "rating": 4.9,
+    "reviewCount": 1,
+    "salesCount": 0,
+    "isBestSeller": false,
+    "isFeatured": false,
+    "status": "PUBLISHED",
+    "createdAt": "2026-08-10T01:57:10.103Z",
+    "updatedAt": "2026-08-10T01:57:10.104Z"
   },
   {
     "id": "dig-1786276814406",
