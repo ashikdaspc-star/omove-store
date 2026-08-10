@@ -44,7 +44,7 @@
   },
   {
     "id": "prod-1786329839405",
-    "name": "Cloudflare Master Test Store Product",
+    "name": "Cloudflare Master Test Store Product (UPDATED)",
     "slug": "cloudflare-master-test-store-product",
     "productType": "STORE",
     "category": "Software",
@@ -55,7 +55,7 @@
     "shortDescription": "Master test store product",
     "fullDescription": "Master test store product",
     "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800",
-    "price": 899,
+    "price": 999,
     "originalPrice": 1799,
     "discountPercent": 0,
     "licenseType": "Lifetime License",
@@ -83,7 +83,7 @@
     "isFeatured": false,
     "status": "PUBLISHED",
     "createdAt": "2026-08-10T02:43:59.405Z",
-    "updatedAt": "2026-08-10T02:43:59.405Z"
+    "updatedAt": "2026-08-10T02:52:39.465Z"
   },
   {
     "id": "dig-1786276814406",
