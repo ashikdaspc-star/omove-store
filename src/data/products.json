@@ -1,5 +1,48 @@
 [
   {
+    "id": "dig-1786345973260",
+    "name": "Test 2",
+    "slug": "test-2",
+    "productType": "DIGITAL",
+    "category": "Digital Software",
+    "tags": [
+      "Digital Key",
+      "Instant Download"
+    ],
+    "shortDescription": "High performance software solution.",
+    "fullDescription": "Full digital product package.",
+    "image": "/uploads/chatgpt_image_aug_9__2026__05_22_26_pm_png.png",
+    "price": 499,
+    "originalPrice": 999,
+    "discountPercent": 50,
+    "licenseType": "Instant Digital Key",
+    "version": "v2026.1",
+    "downloadSize": "50 MB",
+    "compatibility": [
+      "Windows 11",
+      "Windows 10"
+    ],
+    "features": [
+      "Instant Product Access Key",
+      "Official Setup Package"
+    ],
+    "screenshots": [],
+    "requirements": [
+      "Windows 10/11"
+    ],
+    "versionHistory": [],
+    "fileUrl": "/api/downloads/setup",
+    "instantKeyAvailable": true,
+    "rating": 4.9,
+    "reviewCount": 1,
+    "salesCount": 0,
+    "isBestSeller": false,
+    "isFeatured": false,
+    "status": "PUBLISHED",
+    "createdAt": "2026-08-10T07:12:53.260Z",
+    "updatedAt": "2026-08-10T07:10:35.411Z"
+  },
+  {
     "id": "dig-1786329557934",
     "name": "test",
     "slug": "test",
