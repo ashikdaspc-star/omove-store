@@ -1,7 +1,7 @@
 [
   {
     "id": "prod-1786327030103",
-    "name": "Cloudflare Test Store Product",
+    "name": "Cloudflare Test Store Product (EDITED)",
     "slug": "cloudflare-test-store-product",
     "productType": "STORE",
     "category": "Software",
@@ -12,7 +12,7 @@
     "shortDescription": "Test product for Cloudflare Pages",
     "fullDescription": "Test product for Cloudflare Pages",
     "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800",
-    "price": 799,
+    "price": 899,
     "originalPrice": 1499,
     "discountPercent": 0,
     "licenseType": "Lifetime License",
@@ -40,7 +40,7 @@
     "isFeatured": false,
     "status": "PUBLISHED",
     "createdAt": "2026-08-10T01:57:10.103Z",
-    "updatedAt": "2026-08-10T01:57:10.104Z"
+    "updatedAt": "2026-08-10T01:59:04.036Z"
   },
   {
     "id": "dig-1786276814406",
