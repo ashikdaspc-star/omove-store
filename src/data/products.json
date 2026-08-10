@@ -12,7 +12,7 @@
     "shortDescription": "High performance software solution.",
     "fullDescription": "Full digital product package.",
     "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80",
-    "price": 10,
+    "price": 1,
     "originalPrice": 999,
     "discountPercent": 50,
     "licenseType": "Instant Digital Key",
@@ -39,8 +39,8 @@
     "isBestSeller": false,
     "isFeatured": false,
     "status": "PUBLISHED",
-    "createdAt": "2026-08-10T03:10:45.544Z",
-    "updatedAt": "2026-08-10T03:08:28.036Z"
+    "createdAt": "2026-08-10T03:47:44.985Z",
+    "updatedAt": "2026-08-10T03:45:27.415Z"
   },
   {
     "id": "dig-1786276814406",
