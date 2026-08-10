@@ -1,0 +1,25 @@
+[
+  {
+    "id": "ord_test_9999",
+    "orderNumber": "OMV-ORD-7935",
+    "razorpayOrderId": "rzp_order_1786331815713_601c",
+    "customerName": "Stat Test Customer",
+    "customerEmail": "stattest@omovestore.shop",
+    "customerPhone": "+91 8345968169",
+    "items": [
+      {
+        "productId": "dig-1786276814406",
+        "quantity": 1
+      }
+    ],
+    "subtotal": 1499,
+    "discount": 0,
+    "tax": 0,
+    "total": 1499,
+    "totalAmount": 1499,
+    "paymentMethod": "Razorpay UPI",
+    "paymentStatus": "PENDING",
+    "status": "pending",
+    "createdAt": "2026-08-10T03:16:55.713Z"
+  }
+]
