@@ -14,7 +14,7 @@
         "quantity": 1,
         "fileSize": "3 GB",
         "fileUrl": "/api/downloads/setup",
-        "licenseKey": "",
+        "licenseKey": "OMV-A7SP-S3R4-9460",
         "downloadLimit": 5,
         "downloadsCount": 0
       }
@@ -26,9 +26,13 @@
     "total": 130,
     "totalAmount": 130,
     "paymentMethod": "Razorpay UPI",
-    "paymentStatus": "PENDING",
-    "status": "pending",
-    "createdAt": "2026-08-10T12:57:14.381Z"
+    "paymentStatus": "SUCCESS",
+    "status": "completed",
+    "createdAt": "2026-08-10T12:57:14.381Z",
+    "paymentId": "pay_TO4hsok6Z18zPC",
+    "razorpayPaymentId": "pay_TO4hsok6Z18zPC",
+    "paymentVerifiedAt": "2026-08-10T12:57:49.460Z",
+    "updatedAt": "2026-08-10T12:57:49.460Z"
   },
   {
     "id": "ord-1786352325907",
