@@ -1,15 +1,15 @@
-// Cloudflare Pages Functions Handler for Omove Store API
+// Cloudflare Pages Functions Catch-All Edge Handler for Omove Store API (/api/*)
 // Handles all /api/* routes on Cloudflare Edge Runtime with full GitHub REST API persistence
 
-import productsData from '../../src/data/products.json';
-import couponsData from '../../src/data/coupons.json';
-import servicesData from '../../src/data/services.json';
-import usersData from '../../src/data/users.json';
-import blogsData from '../../src/data/blogs.json';
-import sessionsData from '../../src/data/sessions.json';
-import ordersData from '../../src/data/orders.json';
-import bookingsData from '../../src/data/bookings.json';
-import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS, MOCK_COUPONS } from '../../src/data/mockData';
+import productsData from '../src/data/products.json';
+import couponsData from '../src/data/coupons.json';
+import servicesData from '../src/data/services.json';
+import usersData from '../src/data/users.json';
+import blogsData from '../src/data/blogs.json';
+import sessionsData from '../src/data/sessions.json';
+import ordersData from '../src/data/orders.json';
+import bookingsData from '../src/data/bookings.json';
+import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS, MOCK_COUPONS } from '../src/data/mockData';
 
 export interface Env {
   GITHUB_TOKEN?: string;
@@ -316,12 +316,15 @@ function buildProductObject(body: any, isDigital = false): any {
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
-  let path = url.pathname.replace(/\/$/, '') || '/';
-  if (!path.startsWith('/api')) {
-    path = '/api' + (path.startsWith('/') ? path : '/' + path);
-  }
+  const rawPath = url.pathname.replace(/\/$/, '') || '/';
   const method = request.method.toUpperCase();
 
+  // If request is NOT for /api/*, pass through to static frontend assets
+  if (!rawPath.startsWith('/api')) {
+    return context.next();
+  }
+
+  const path = rawPath;
   console.log(`[API REQUEST ROUTE] Method: ${method} | Path: ${path}`);
 
   // CORS Preflight
@@ -348,7 +351,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     // 2.5 Live Dedicated Dashboard Stats API Endpoint
-    if (url.pathname.includes('dashboard-stats') || url.pathname.includes('analytics') || path.includes('dashboard-stats') || path.includes('analytics')) {
+    if (path === '/api/admin/dashboard-stats' || path === '/api/admin/analytics') {
       try {
         const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
         if (Array.isArray(freshOrders)) {
