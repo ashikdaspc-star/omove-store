@@ -2,26 +2,23 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { CartItem, Order } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
-import { validateAndApplyCoupon, validateAndApplyCouponAsync, fetchAndCacheCoupons } from '../utils/couponManager';
+import { validateAndApplyCouponAsync, fetchAndCacheCoupons } from '../utils/couponManager';
 import {
   X,
-  ShieldCheck,
-  CreditCard,
-  Smartphone,
-  Building,
-  Wallet,
   Lock,
   CheckCircle2,
   Download,
   Copy,
   Check,
-  FileText,
-  Zap,
   Printer,
-  Phone,
   Tag,
   WifiOff,
-  AlertTriangle
+  AlertTriangle,
+  MessageSquare,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck
 } from 'lucide-react';
 import { useOnlineStatus } from './OfflineBanner';
 
@@ -48,20 +45,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 }) => {
   const isOnline = useOnlineStatus();
 
-  const [paymentMethod, setPaymentMethod] = useState<'Razorpay UPI' | 'Credit / Debit Card' | 'NetBanking' | 'Wallet'>('Razorpay UPI');
-  const [customerName, setCustomerName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
+  // Customer WhatsApp Phone State
   const [customerPhone, setCustomerPhone] = useState('');
-  const [upiVpa, setUpiVpa] = useState('');
+  const [phoneTouched, setPhoneTouched] = useState(false);
+
+  // Processing & Delivery State
   const [isProcessing, setIsProcessing] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
   const [copiedKeyIndex, setCopiedKeyIndex] = useState<number | null>(null);
-  const [showTestGateway, setShowTestGateway] = useState(false);
-  const [pendingOrder, setPendingOrder] = useState<Order | null>(null);
-  const [simulatingSuccess, setSimulatingSuccess] = useState(false);
   const [paymentFailedNotice, setPaymentFailedNotice] = useState('');
 
-  // Coupon state inside Checkout Modal
+  // Expandable Coupon State
+  const [showCouponInput, setShowCouponInput] = useState(false);
   const [couponInput, setCouponInput] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<number>(discountAmount || 0);
   const [appliedCode, setAppliedCode] = useState<string>(discountCode || '');
@@ -73,12 +68,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
     if (discountCode) {
       setAppliedCode(discountCode);
+      setShowCouponInput(true);
     }
   }, [discountAmount, discountCode]);
-
-  const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
-  const taxAmount = 0;
-  const finalTotal = Math.max(0, Number((subtotal - appliedDiscount).toFixed(2)));
 
   useEffect(() => {
     if (isOpen) {
@@ -86,14 +78,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   }, [isOpen]);
 
+  const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+  const finalTotal = Math.max(0, Number((subtotal - appliedDiscount).toFixed(2)));
+
+  // Phone Number Validation: 10-digit Indian Mobile Number
+  const cleanPhone = customerPhone.replace(/\D/g, '').slice(-10);
+  const isPhoneValid = cleanPhone.length === 10 && /^[6-9]\d{9}$/.test(cleanPhone);
+  const phoneErrorMessage =
+    phoneTouched && !isPhoneValid
+      ? cleanPhone.length < 10
+        ? 'Please enter complete 10-digit mobile number'
+        : 'Please enter a valid Indian mobile number starting with 6, 7, 8, or 9'
+      : '';
+
   const handleApplyCouponCode = async (codeToApply?: string) => {
     const code = (codeToApply || couponInput).trim();
     if (!code) {
-      setCouponStatus({ valid: false, message: 'Please enter a promo coupon code.' });
+      setCouponStatus({ valid: false, message: 'Please enter a coupon code.' });
       return;
     }
 
-    setCouponStatus({ valid: true, message: 'Validating coupon...' });
+    setCouponStatus({ valid: true, message: 'Validating code...' });
     const res = await validateAndApplyCouponAsync(code, subtotal);
     if (res.valid) {
       setAppliedDiscount(res.discountAmount);
@@ -105,7 +110,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
-
   const handleRemoveCouponCode = () => {
     setAppliedDiscount(0);
     setAppliedCode('');
@@ -113,14 +117,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setTimeout(() => setCouponStatus(null), 3000);
   };
 
-  if (!isOpen) return null;
-
   const handleProcessPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-      setPaymentFailedNotice('You are currently offline. Please reconnect to the internet to purchase this product.');
+    setPhoneTouched(true);
+
+    if (!isPhoneValid) {
+      setPaymentFailedNotice('Please enter a valid 10-digit WhatsApp number to continue.');
       return;
     }
+
+    if (!isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+      setPaymentFailedNotice('You are currently offline. Please reconnect to the internet to complete your order.');
+      return;
+    }
+
     if (!cart || cart.length === 0) {
       setPaymentFailedNotice('Your cart is empty. Please select a product to purchase.');
       return;
@@ -129,8 +139,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsProcessing(true);
     setPaymentFailedNotice('');
 
+    const formattedPhone = `+91 ${cleanPhone}`;
+    const generatedEmail = `wa_${cleanPhone}@omovestore.shop`;
+    const generatedName = `WhatsApp Customer (${cleanPhone})`;
+
     try {
-      // Send cart items + coupon code to server for SERVER-SIDE price calculation
       const payload = {
         items: cart.map((it) => ({
           productId: it.product.id,
@@ -140,11 +153,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           fileSize: it.product.downloadSize || '45 MB',
           fileUrl: it.product.fileUrl || '/api/downloads/setup'
         })),
-        customerName,
-        customerEmail,
-        customerPhone,
-        paymentMethod,
-        couponCode: appliedCode || '' // Send coupon code, NOT browser-calculated amount
+        customerName: generatedName,
+        customerEmail: generatedEmail,
+        customerPhone: formattedPhone,
+        paymentMethod: 'Razorpay UPI',
+        couponCode: appliedCode || ''
       };
 
       let orderObj: Order | null = null;
@@ -161,7 +174,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           const data = await res.json().catch(() => ({}));
           if (data.success && data.order) {
             orderObj = data.order;
-            // Use server-calculated totals
             if (data.order.discount !== undefined) {
               setAppliedDiscount(data.order.discount);
             }
@@ -177,7 +189,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           return;
         }
       } catch (e) {
-        console.warn('Backend order creation notice:', e);
         setPaymentFailedNotice('Network error creating order. Please check your connection.');
         setIsProcessing(false);
         return;
@@ -189,9 +200,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         return;
       }
 
-      // Zero-total 100% coupon order verification — Instant Delivery Transition
+      // Zero-total 100% Coupon Order Transition
       if (orderObj.total <= 0) {
-        const verifiedOrder = {
+        const verifiedOrder: Order = {
           ...orderObj,
           paymentStatus: 'SUCCESS',
           status: 'completed',
@@ -208,9 +219,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         onClearCart();
         sendAdminOrderNotificationEmail({
           type: 'PRODUCT_PURCHASE',
-          customerName: verifiedOrder.customerName || customerName,
-          email: verifiedOrder.customerEmail || customerEmail,
-          phone: verifiedOrder.customerPhone || customerPhone,
+          customerName: generatedName,
+          email: generatedEmail,
+          phone: formattedPhone,
           title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name || 'Digital Item').join(', ') || 'Digital Product',
           amount: 0,
           paymentId: 'FREE (100% Coupon Discount)',
@@ -221,7 +232,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         return;
       }
 
-      // Paid Order via Razorpay Checkout Modal
+      // Paid Order via Official Razorpay Checkout Modal
       if (typeof (window as any).Razorpay === 'undefined') {
         await new Promise<void>((resolve) => {
           const script = document.createElement('script');
@@ -240,10 +251,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           return;
         }
 
-        // Use SERVER-CALCULATED total for Razorpay (never trust browser amount)
         const serverTotal = orderObj.total;
-
-        // Stop showing processing spinner — Razorpay modal is now in control
         setIsProcessing(false);
 
         const options = {
@@ -251,17 +259,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           amount: Math.round(serverTotal * 100),
           currency: 'INR',
           name: 'OMOVE STORE',
-          description: `Order ${orderObj.orderNumber} - Digital Products`,
+          description: `Order ${orderObj.orderNumber} - Instant Access`,
           order_id: serverRzpOrderId,
           image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80',
           prefill: {
-            name: customerName,
-            email: customerEmail,
-            contact: customerPhone
+            name: generatedName,
+            email: generatedEmail,
+            contact: formattedPhone
           },
-          theme: { color: '#059669' },
+          theme: { color: '#0ea5e9' },
           handler: async function (response: any) {
-            // Razorpay payment succeeded — now verify server-side
             setIsProcessing(true);
             setPaymentFailedNotice('');
             try {
@@ -283,10 +290,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 onClearCart();
                 sendAdminOrderNotificationEmail({
                   type: 'PRODUCT_PURCHASE',
-                  customerName: verifiedOrder.customerName || customerName,
-                  email: verifiedOrder.customerEmail || customerEmail,
-                  phone: verifiedOrder.customerPhone || customerPhone,
-                  title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name).join(', ') || 'Digital Software',
+                  customerName: generatedName,
+                  email: generatedEmail,
+                  phone: formattedPhone,
+                  title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name).join(', ') || 'Digital Product',
                   amount: verifiedOrder.total || verifiedOrder.totalAmount || serverTotal,
                   paymentId: response.razorpay_payment_id || 'VERIFIED',
                   orderOrBookingId: verifiedOrder.orderNumber || orderObj!.orderNumber
@@ -303,7 +310,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           },
           modal: {
             ondismiss: function () {
-              // User closed the Razorpay modal without paying
               setIsProcessing(false);
             }
           }
@@ -311,7 +317,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
         const rzp1 = new (window as any).Razorpay(options);
         rzp1.open();
-        // DO NOT set isProcessing=false here — Razorpay modal is open and handler will manage state
       } else {
         setPaymentFailedNotice('Razorpay payment gateway SDK unavailable. Please check your internet connection.');
         setIsProcessing(false);
@@ -321,35 +326,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setPaymentFailedNotice('Failed to process payment. Please check your internet connection.');
       setIsProcessing(false);
     }
-    // NO finally block here — the Razorpay handler callback manages isProcessing state asynchronously
-  };
-
-  const handleConfirmTestPayment = () => {
-    setSimulatingSuccess(true);
-    setTimeout(() => {
-      if (pendingOrder) {
-        setCreatedOrder(pendingOrder);
-        onOrderSuccess(pendingOrder);
-        onClearCart();
-        sendAdminOrderNotificationEmail({
-          type: 'PRODUCT_PURCHASE',
-          customerName: pendingOrder.customerName,
-          email: pendingOrder.customerEmail,
-          phone: pendingOrder.customerPhone,
-          title: pendingOrder.items.map((i) => i.productName).join(', '),
-          amount: pendingOrder.total,
-          paymentId: pendingOrder.razorpayPaymentId || 'TEST_SIMULATED',
-          orderOrBookingId: pendingOrder.orderNumber
-        });
-        confetti({
-          particleCount: 120,
-          spread: 80,
-          origin: { y: 0.6 }
-        });
-      }
-      setSimulatingSuccess(false);
-      setShowTestGateway(false);
-    }, 1000);
   };
 
   const handleCopyKey = (key: string, idx: number) => {
@@ -358,150 +334,90 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setTimeout(() => setCopiedKeyIndex(null), 3000);
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
+      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-4 transition-all">
+        
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-slate-800">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" />
+        <div className="flex items-center justify-between px-5 py-4 bg-slate-900/90 border-b border-slate-800/80">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30">
+              <Sparkles className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white font-mono">
-                {createdOrder ? 'ORDER COMPLETED' : 'RAZORPAY SECURE CHECKOUT'}
+              <h3 className="font-extrabold text-sm text-white font-sans tracking-tight">
+                {createdOrder ? 'ORDER COMPLETED' : 'Secure Checkout'}
               </h3>
-              <p className="text-[10px] text-slate-400">256-Bit SSL Encrypted Payment Gateway</p>
+              <p className="text-[10px] text-slate-400 font-mono">
+                {createdOrder ? 'Instant Delivery Ready' : 'Complete your order in seconds'}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
-            <X className="w-5 h-5" />
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Test Gateway Screen */}
-        {showTestGateway ? (
-          <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-            <div className="p-5 rounded-2xl bg-indigo-950/60 border border-indigo-500/40 space-y-3 relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-md bg-indigo-600 text-white font-mono text-[10px] font-bold tracking-wider uppercase">
-                    RAZORPAY TEST GATEWAY
-                  </span>
-                  <span className="text-[11px] text-indigo-300 font-mono">Interactive Demo Mode</span>
-                </div>
-                <span className="text-xl font-mono font-extrabold text-cyan-400">₹{finalTotal.toFixed(2)}</span>
+        {createdOrder ? (
+          /* Final Delivery / Output Page View */
+          <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
+            <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-2">
+              <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                <CheckCircle2 className="w-7 h-7" />
               </div>
+              <h3 className="text-lg font-extrabold text-white">Payment Successful!</h3>
               <p className="text-xs text-slate-300">
-                Simulating secure payment gateway transaction. Click below to verify payment and receive your digital license keys.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 font-mono text-xs">
-              <div className="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                <span>Customer Name</span>
-                <span className="text-white font-bold">{customerName}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                <span>Payment Method</span>
-                <span className="text-indigo-400 font-bold">{paymentMethod}</span>
-              </div>
-              {paymentMethod === 'Razorpay UPI' && (
-                <div className="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                  <span>UPI VPA ID</span>
-                  <span className="text-cyan-300">{upiVpa}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-slate-400">
-                <span>Order Reference</span>
-                <span className="text-slate-300">{pendingOrder?.orderNumber}</span>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={handleConfirmTestPayment}
-                disabled={simulatingSuccess}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-500 hover:from-emerald-500 hover:to-cyan-400 text-slate-950 font-extrabold text-sm font-mono tracking-wider shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
-              >
-                {simulatingSuccess ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    <span>AUTHENTICATING TEST PAYMENT...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>COMPLETE SIMULATED PAYMENT (₹{finalTotal.toFixed(2)})</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowTestGateway(false)}
-                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono font-bold"
-              >
-                CANCEL & RETURN TO CHECKOUT
-              </button>
-            </div>
-          </div>
-        ) : createdOrder ? (
-          <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-            <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-3">
-              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-extrabold text-white">Payment Successful!</h3>
-              <p className="text-xs text-slate-300">
-                Order <strong className="font-mono text-cyan-400">{createdOrder.orderNumber}</strong> has been processed. Your software license keys are generated below and sent to{' '}
-                <strong className="text-white">{createdOrder.customerEmail}</strong>.
+                Order <strong className="font-mono text-cyan-400">{createdOrder.orderNumber}</strong> processed. Your instant access keys and downloads are ready below.
               </p>
             </div>
 
             {/* License Keys & Downloads Box */}
-            <div className="space-y-4">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-400 font-mono">
-                Your Digital Products & License Keys
+            <div className="space-y-3">
+              <h4 className="font-bold text-[11px] uppercase tracking-wider text-slate-400 font-mono">
+                Digital Products & Activation Keys
               </h4>
 
               {createdOrder.items.map((item, idx) => (
                 <div key={idx} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-bold text-sm text-white">{item.productName}</h5>
+                    <div className="min-w-0 pr-2">
+                      <h5 className="font-bold text-xs text-white truncate">{item.productName}</h5>
                       <span className="text-[10px] text-slate-400 font-mono">Size: {item.fileSize}</span>
                     </div>
                     <a
                       href={item.fileUrl}
                       download
-                      className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-cyan-600/20"
+                      className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-cyan-600/20 shrink-0"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>Download Now</span>
+                      <span>Download</span>
                     </a>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2">
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="text-[10px] uppercase text-slate-500 font-bold block">License Activation Key</span>
+                      <span className="text-[9px] uppercase text-slate-500 font-bold block">Activation Key</span>
                       <span className="font-mono font-bold text-xs text-indigo-300 select-all truncate block">
                         {item.licenseKey}
                       </span>
                     </div>
                     <button
                       onClick={() => handleCopyKey(item.licenseKey, idx)}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-mono flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-mono flex items-center gap-1 shrink-0"
                     >
                       {copiedKeyIndex === idx ? (
                         <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <Check className="w-3 h-3 text-emerald-400" />
                           <span className="text-emerald-400">Copied</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="w-3.5 h-3.5" />
+                          <Copy className="w-3 h-3" />
                           <span>Copy</span>
                         </>
                       )}
@@ -512,228 +428,222 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
 
             {/* Print Invoice Button */}
-            <div className="pt-2 flex items-center justify-between gap-4">
+            <div className="pt-2 flex items-center justify-between gap-3">
               <button
                 onClick={() => onOpenInvoiceModal(createdOrder)}
-                className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold font-mono flex items-center gap-2 border border-slate-700"
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold font-mono flex items-center gap-2 border border-slate-700"
               >
-                <Printer className="w-4 h-4 text-cyan-400" />
-                <span>VIEW / PRINT OFFICIAL INVOICE (PDF)</span>
+                <Printer className="w-3.5 h-3.5 text-cyan-400" />
+                <span>PRINT INVOICE</span>
               </button>
 
               <button
                 onClick={onClose}
-                className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold font-mono"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold font-mono"
               >
-                CLOSE WINDOW
+                CLOSE
               </button>
             </div>
           </div>
         ) : (
-          /* Checkout Form */
-          <form onSubmit={handleProcessPayment} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+          /* Redesigned Minimal Checkout Form */
+          <form onSubmit={handleProcessPayment} className="p-5 space-y-4 max-h-[82vh] overflow-y-auto">
+            
             {!isOnline && (
-              <div className="p-4 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-center gap-2.5 shadow-lg animate-fadeIn">
-                <WifiOff className="w-5 h-5 text-rose-400 shrink-0 animate-pulse" />
-                <div>
-                  <strong className="block text-rose-300 font-bold">You are currently offline</strong>
-                  <span className="text-[11px] text-rose-200">Please reconnect to the internet to purchase this product.</span>
-                </div>
+              <div className="p-3 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-center gap-2 shadow-lg">
+                <WifiOff className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
+                <span>You are offline. Reconnect to complete purchase.</span>
               </div>
             )}
 
             {paymentFailedNotice && (
-              <div className="p-4 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-center gap-2.5 shadow-lg animate-fadeIn">
-                <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+              <div className="p-3 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-center gap-2 shadow-lg">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                 <span>{paymentFailedNotice}</span>
               </div>
             )}
 
-            {/* Customer Details */}
-            <div className="space-y-3">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-400 font-mono">
-                Customer Information
-              </h4>
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[11px] text-slate-400 block mb-1">Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter Full Name"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-400 block mb-1">Email Address *</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="name@example.com"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-400 block mb-1 flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-emerald-400" />
-                    <span>WhatsApp Number *</span>
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+91 9876543210"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
-                  />
-                </div>
+            {/* Product & Order Summary Section (Compact) */}
+            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-mono font-bold">
+                  Order Summary
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  {cart.length} {cart.length === 1 ? 'item' : 'items'}
+                </span>
               </div>
-            </div>
 
-            {/* Payment Method Selector */}
-            <div className="space-y-3">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-400 font-mono">
-                Select Razorpay Payment Method
-              </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { id: 'Razorpay UPI', label: 'UPI / QR', icon: Smartphone },
-                  { id: 'Credit / Debit Card', label: 'Cards', icon: CreditCard },
-                  { id: 'NetBanking', label: 'NetBanking', icon: Building },
-                  { id: 'Wallet', label: 'Wallet', icon: Wallet }
-                ].map((pm) => {
-                  const Icon = pm.icon;
-                  const selected = paymentMethod === pm.id;
-                  return (
-                    <button
-                      type="button"
-                      key={pm.id}
-                      onClick={() => setPaymentMethod(pm.id as any)}
-                      className={`p-3 rounded-2xl border text-left flex flex-col items-center justify-center gap-1.5 transition-all ${
-                        selected
-                          ? 'bg-indigo-600/20 border-indigo-500 text-white'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      <Icon className={`w-5 h-5 ${selected ? 'text-cyan-400' : ''}`} />
-                      <span className="text-[11px] font-bold font-mono">{pm.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Promo Coupon Apply Section */}
-            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-300 font-mono flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Apply Promo Coupon</span>
-                </h4>
-                {appliedCode && (
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
-                    <Check className="w-3 h-3 text-emerald-400" />
-                    Code '{appliedCode}' Active (-₹{appliedDiscount})
+              {cart.map((item) => (
+                <div key={item.product.id} className="flex items-center justify-between text-xs">
+                  <div className="min-w-0 pr-3">
+                    <p className="font-bold text-slate-200 truncate">{item.product.name}</p>
+                    <p className="text-[10px] text-slate-400 font-mono">Qty: {item.quantity}</p>
+                  </div>
+                  <span className="font-mono text-slate-300 shrink-0 font-bold">
+                    ₹{(item.product.price * item.quantity).toFixed(2)}
                   </span>
-                )}
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="ENTER COUPON CODE (e.g. OMOVE15)"
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white uppercase font-mono placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleApplyCouponCode()}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold font-mono text-xs shadow-md shadow-amber-500/20 shrink-0 transition-all active:scale-95"
-                >
-                  APPLY
-                </button>
-                {appliedCode && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveCouponCode}
-                    className="px-3 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-mono font-bold transition-all"
-                  >
-                    REMOVE
-                  </button>
-                )}
-              </div>
-
-              {couponStatus && (
-                <div className={`p-2.5 rounded-xl border text-xs font-mono ${
-                  couponStatus.valid ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40' : 'bg-rose-950/70 text-rose-300 border-rose-500/40'
-                }`}>
-                  {couponStatus.message}
                 </div>
-              )}
-            </div>
+              ))}
 
-            {/* Order Total Breakdown */}
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
-              <div className="flex justify-between text-slate-400">
-                <span>Subtotal ({cart.length} items)</span>
-                <span className="font-mono text-white">₹{subtotal.toFixed(2)}</span>
-              </div>
               {appliedDiscount > 0 && (
-                <div className="flex justify-between text-emerald-400 font-mono font-bold">
-                  <span>Coupon Discount ({appliedCode || 'PROMO'})</span>
+                <div className="flex justify-between text-xs text-emerald-400 font-mono font-bold pt-1 border-t border-slate-800/60">
+                  <span>Discount ({appliedCode || 'PROMO'})</span>
                   <span>-₹{appliedDiscount.toFixed(2)}</span>
                 </div>
               )}
 
-              <div className="flex justify-between text-sm font-bold text-white pt-2 border-t border-slate-800">
-                <span>Total Payable</span>
-                <span className="font-mono text-cyan-400 text-base">₹{finalTotal.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* 100% Refund Guarantee */}
-            <div className="p-3.5 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-emerald-400 font-bold block text-xs">100% Refund Guarantee</strong>
-                <span className="text-[11px] text-slate-300 leading-snug block mt-0.5">
-                  If we're unable to resolve your issue, your payment will be automatically refunded within 2–3 business days.
+              <div className="flex justify-between items-center text-sm font-bold text-white pt-2 border-t border-slate-800">
+                <span className="text-xs text-slate-300">Total Payable</span>
+                <span className="font-mono text-cyan-400 text-base font-extrabold">
+                  ₹{finalTotal.toFixed(2)}
                 </span>
               </div>
             </div>
 
-            {/* Submit CTA */}
+            {/* WhatsApp Number Section (Mandatory Single Field) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                <span>WhatsApp Number *</span>
+              </label>
+
+              <div className="relative flex items-center">
+                <div className="absolute left-3 flex items-center gap-1 text-slate-400 text-xs font-mono font-bold border-r border-slate-800 pr-2">
+                  <span className="text-emerald-400">🇮🇳</span>
+                  <span>+91</span>
+                </div>
+                <input
+                  type="tel"
+                  required
+                  placeholder="Enter 10-digit WhatsApp number"
+                  value={customerPhone}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value);
+                    if (!phoneTouched) setPhoneTouched(true);
+                  }}
+                  onBlur={() => setPhoneTouched(true)}
+                  className={`w-full pl-20 pr-3.5 py-3 rounded-2xl bg-slate-950 border text-xs text-white placeholder-slate-500 font-mono focus:outline-none transition-colors ${
+                    phoneTouched && !isPhoneValid
+                      ? 'border-rose-500/80 focus:border-rose-500'
+                      : isPhoneValid
+                      ? 'border-emerald-500/60 focus:border-emerald-500'
+                      : 'border-slate-800 focus:border-cyan-500'
+                  }`}
+                />
+              </div>
+
+              {phoneErrorMessage ? (
+                <p className="text-[11px] text-rose-400 font-mono">{phoneErrorMessage}</p>
+              ) : (
+                <p className="text-[10px] text-slate-400 font-mono leading-tight">
+                  Your order details and instant delivery information will be sent to this WhatsApp number.
+                </p>
+              )}
+            </div>
+
+            {/* Expandable Promo Coupon Section */}
+            <div className="pt-1">
+              {!showCouponInput ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCouponInput(true)}
+                  className="text-xs font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold transition-colors"
+                >
+                  <Tag className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Have a coupon code?</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2.5 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-300 font-mono flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-amber-400" />
+                      <span>Apply Promo Coupon</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowCouponInput(false)}
+                      className="text-slate-400 hover:text-white p-0.5"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter coupon code"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                      className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white uppercase font-mono placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCouponCode()}
+                      className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold font-mono text-xs transition-all active:scale-95"
+                    >
+                      APPLY
+                    </button>
+                    {appliedCode && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveCouponCode}
+                        className="px-2.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-mono font-bold"
+                      >
+                        REMOVE
+                      </button>
+                    )}
+                  </div>
+
+                  {couponStatus && (
+                    <div className={`p-2 rounded-xl border text-[11px] font-mono ${
+                      couponStatus.valid ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40' : 'bg-rose-950/70 text-rose-300 border-rose-500/40'
+                    }`}>
+                      {couponStatus.message}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Main Submit CTA */}
             <button
               type="submit"
-              disabled={isProcessing || !isOnline}
-              className={`w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all ${
-                !isOnline
-                  ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
-                  : 'bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white shadow-indigo-600/30 hover:scale-[1.01] disabled:opacity-50'
+              disabled={isProcessing || !isOnline || (!isPhoneValid && phoneTouched)}
+              className={`w-full py-3.5 rounded-2xl font-extrabold text-xs font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all ${
+                !isOnline || (!isPhoneValid && phoneTouched)
+                  ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed shadow-none'
+                  : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-cyan-500/25 hover:scale-[1.01] active:scale-95'
               }`}
             >
               {!isOnline ? (
                 <>
                   <WifiOff className="w-4 h-4 text-rose-400" />
-                  <span>YOU ARE OFFLINE — PURCHASES DISABLED</span>
+                  <span>YOU ARE OFFLINE</span>
                 </>
               ) : isProcessing ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>VERIFYING RAZORPAY TRANSACTION...</span>
+                  <span>INITIALIZING PAYMENT...</span>
                 </>
               ) : (
                 <>
-                  <Lock className="w-4 h-4" />
-                  <span>PAY ₹{finalTotal.toFixed(2)} & GET INSTANT KEYS</span>
+                  <Lock className="w-3.5 h-3.5 text-cyan-200" />
+                  <span>
+                    {finalTotal <= 0
+                      ? 'GET INSTANT ACCESS'
+                      : `PAY ₹${finalTotal.toFixed(2)} & GET INSTANT ACCESS`}
+                  </span>
                 </>
               )}
             </button>
+
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400 font-mono pt-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Razorpay 256-Bit SSL Encrypted Payment</span>
+            </div>
+
           </form>
         )}
       </div>
