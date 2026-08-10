@@ -191,11 +191,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           const verifyRes = await fetch('/api/orders/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId: orderObj.id })
+            body: JSON.stringify({
+              orderId: orderObj.id,
+              order: orderObj,
+              total: 0
+            })
           });
           const verifyData = await verifyRes.json();
           if (verifyRes.ok && verifyData.success && verifyData.verified) {
-            const verifiedOrder = verifyData.order;
+            const verifiedOrder = verifyData.order || orderObj;
             setCreatedOrder(verifiedOrder);
             onOrderSuccess(verifiedOrder);
             onClearCart();

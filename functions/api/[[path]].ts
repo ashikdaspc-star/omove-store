@@ -1119,6 +1119,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         order = allOrders.find(o => o.id === orderId || (bodyRzpOrderId && o.razorpayOrderId === bodyRzpOrderId));
       }
 
+      if (!order && body.order) {
+        order = body.order;
+      }
+
       const canonicalRzpOrderId = order?.razorpayOrderId || bodyRzpOrderId;
 
       console.log(`[PAYMENT VERIFY DIAGNOSTIC] InternalOrderId: ${orderId} | CanonicalRzpOrderId: ${canonicalRzpOrderId} | RzpPaymentId: ${rzpPaymentId} | HasSig: ${Boolean(rzpSignature)} | HasSecret: ${Boolean(secret)}`);
@@ -1160,8 +1164,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
       }
 
-      // 4. Zero-total / free order (100% coupon discount)
-      if (!isVerified && order && (order.total <= 0 || order.totalAmount <= 0)) {
+      // 4. Zero-total / free order (100% coupon discount e.g. OMOVE100)
+      const isZeroTotal = (order && (order.total <= 0 || order.totalAmount <= 0)) || body.total === 0 || body.order?.total === 0;
+      if (!isVerified && isZeroTotal) {
         isVerified = true;
         console.log(`[PAYMENT VERIFY FREE ORDER] PASS — zero total order`);
       }
