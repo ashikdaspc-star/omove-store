@@ -335,6 +335,7 @@ function jsonResponse(data: any, status = 200, headersObj: Record<string, string
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
       'Cache-Control': 'no-store, no-cache, must-revalidate',
       'X-Engine-Version': 'v2026.8.10-dashboard-stats-v2',
+      'X-Payment-Version': 'v2026.8.10-live-rzp-v1',
       ...headersObj
     }
   });
