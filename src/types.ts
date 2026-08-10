@@ -127,7 +127,10 @@ export interface Order {
   total: number;
   paymentMethod: 'Razorpay UPI' | 'Credit / Debit Card' | 'NetBanking' | 'Wallet';
   paymentStatus: 'SUCCESS' | 'PENDING' | 'FAILED';
+  paymentId?: string;
   razorpayPaymentId?: string;
+  razorpayOrderId?: string;
+  status?: string;
   createdAt: string;
 }
 

@@ -233,8 +233,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           key: rzpKey,
           amount: Math.round(orderObj.total * 100),
           currency: 'INR',
-          name: 'OMOVE TECH',
+          name: 'OMOVE STORE',
           description: `Order ${orderObj.orderNumber} - Digital Products`,
+          order_id: ((orderObj as any).razorpayOrderId && (orderObj as any).razorpayOrderId.startsWith('order_')) ? (orderObj as any).razorpayOrderId : undefined,
           image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80',
           prefill: {
             name: customerName,
