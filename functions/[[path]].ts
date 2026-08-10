@@ -7,9 +7,10 @@ import servicesData from '../src/data/services.json';
 import usersData from '../src/data/users.json';
 import blogsData from '../src/data/blogs.json';
 import sessionsData from '../src/data/sessions.json';
-import ordersData from '../src/data/orders.json';
-import bookingsData from '../src/data/bookings.json';
 import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS, MOCK_COUPONS } from '../src/data/mockData';
+
+const ordersData: any[] = [];
+const bookingsData: any[] = [];
 
 export interface Env {
   GITHUB_TOKEN?: string;
