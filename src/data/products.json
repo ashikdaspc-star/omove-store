@@ -43,49 +43,6 @@
     "updatedAt": "2026-08-10T02:52:47.075Z"
   },
   {
-    "id": "prod-1786329839405",
-    "name": "Cloudflare Master Test Store Product (UPDATED)",
-    "slug": "cloudflare-master-test-store-product",
-    "productType": "STORE",
-    "category": "Software",
-    "tags": [
-      "Store Card",
-      "Software"
-    ],
-    "shortDescription": "Master test store product",
-    "fullDescription": "Master test store product",
-    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800",
-    "price": 999,
-    "originalPrice": 1799,
-    "discountPercent": 0,
-    "licenseType": "Lifetime License",
-    "version": "v2026.1",
-    "downloadSize": "50 MB",
-    "compatibility": [
-      "Windows 11",
-      "Windows 10"
-    ],
-    "features": [
-      "Instant Product Access Key",
-      "Official Setup Package"
-    ],
-    "screenshots": [],
-    "requirements": [
-      "Windows 10/11"
-    ],
-    "versionHistory": [],
-    "fileUrl": "/api/downloads/setup",
-    "instantKeyAvailable": true,
-    "rating": 4.9,
-    "reviewCount": 1,
-    "salesCount": 0,
-    "isBestSeller": false,
-    "isFeatured": false,
-    "status": "PUBLISHED",
-    "createdAt": "2026-08-10T02:43:59.405Z",
-    "updatedAt": "2026-08-10T02:52:39.465Z"
-  },
-  {
     "id": "dig-1786276814406",
     "name": "Professional Website ",
     "slug": "professional-website",
