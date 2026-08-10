@@ -1,6 +1,6 @@
 [
   {
-    "id": "dig-1786330933703",
+    "id": "dig-1786329557934",
     "name": "test",
     "slug": "test",
     "productType": "DIGITAL",
@@ -12,7 +12,7 @@
     "shortDescription": "High performance software solution.",
     "fullDescription": "Full digital product package.",
     "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80",
-    "price": 1,
+    "price": 499,
     "originalPrice": 999,
     "discountPercent": 50,
     "licenseType": "Instant Digital Key",
@@ -39,8 +39,8 @@
     "isBestSeller": false,
     "isFeatured": false,
     "status": "PUBLISHED",
-    "createdAt": "2026-08-10T03:47:44.985Z",
-    "updatedAt": "2026-08-10T03:45:27.415Z"
+    "createdAt": "2026-08-10T02:39:17.934Z",
+    "updatedAt": "2026-08-10T02:37:00.410Z"
   },
   {
     "id": "dig-1786276814406",
