@@ -18,8 +18,10 @@
     "total": 1499,
     "totalAmount": 1499,
     "paymentMethod": "Razorpay UPI",
-    "paymentStatus": "PENDING",
-    "status": "pending",
-    "createdAt": "2026-08-10T03:16:55.713Z"
+    "paymentStatus": "SUCCESS",
+    "status": "completed",
+    "createdAt": "2026-08-10T03:16:55.713Z",
+    "paymentId": "pay_test_8888",
+    "updatedAt": "2026-08-10T03:17:44.850Z"
   }
 ]
