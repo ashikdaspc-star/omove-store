@@ -49,9 +49,27 @@ const ordersStore: Map<string, any> = new Map();
 const bookingsStore: Map<string, any> = new Map();
 const ticketsStore: Map<string, any> = new Map();
 
+let lastProductsRefresh = 0;
+
 // Helper: Get GitHub Token (Server-side only)
 function getGitHubToken(env: Env): string {
   return env.GITHUB_TOKEN || env.VITE_GITHUB_TOKEN || DEFAULT_GITHUB_TOKEN;
+}
+
+// Universal Base64 Encoder (Safe for 4MB+ JSON strings and binary media)
+function encodeBase64Safe(jsonText: string): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(jsonText, 'utf-8').toString('base64');
+  }
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(jsonText);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk as any);
+  }
+  return btoa(binary);
 }
 
 // GitHub REST API Integration Engine
@@ -61,10 +79,10 @@ async function commitFileToGitHubApi(filePath: string, data: any, commitMessage:
   const repo = env.GITHUB_REPO || 'omove-store';
   const branch = env.GITHUB_BRANCH || env.CF_PAGES_BRANCH || 'main';
 
-  console.log(`[GITHUB SYNC] Initiating commit for ${filePath} on repo ${owner}/${repo} branch ${branch}`);
+  console.log(`[GITHUB SYNC REQUEST] Target File: ${filePath} | Repo: ${owner}/${repo} | Branch: ${branch}`);
 
   if (!token) {
-    console.error(`[GITHUB SYNC ERROR] No GitHub token configured.`);
+    console.error(`[GITHUB SYNC FAIL] No GitHub token configured.`);
     return { success: false, message: 'No GitHub token configured' };
   }
 
@@ -82,23 +100,18 @@ async function commitFileToGitHubApi(filePath: string, data: any, commitMessage:
       if (getRes.ok) {
         const fileData: any = await getRes.json();
         sha = fileData.sha;
-        console.log(`[GITHUB SYNC] Retrieved existing file SHA: ${sha.substring(0, 7)}`);
+        console.log(`[GITHUB SYNC GET SHA] Success | SHA: ${sha.substring(0, 7)}`);
       }
     } catch (e: any) {
-      console.warn(`[GITHUB SYNC] GET SHA note: ${e.message}`);
+      console.warn(`[GITHUB SYNC GET SHA NOTE] ${e.message}`);
     }
 
     let base64Content = '';
     if (typeof data === 'string') {
-      base64Content = data.startsWith('data:') ? data.split(',')[1] : btoa(data);
+      base64Content = data.startsWith('data:') ? data.split(',')[1] : encodeBase64Safe(data);
     } else {
       const jsonText = JSON.stringify(data, null, 2);
-      // Use Node Buffer (supported via nodejs_compat in wrangler.toml) for fast large-payload encoding
-      if (typeof Buffer !== 'undefined') {
-        base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
-      } else {
-        base64Content = btoa(unescape(encodeURIComponent(jsonText)));
-      }
+      base64Content = encodeBase64Safe(jsonText);
     }
 
     const putRes = await fetch(url, {
@@ -119,13 +132,14 @@ async function commitFileToGitHubApi(filePath: string, data: any, commitMessage:
 
     if (!putRes.ok) {
       const errBody: any = await putRes.json().catch(() => ({}));
-      console.error(`[GITHUB SYNC ERROR] GitHub API HTTP ${putRes.status}: ${JSON.stringify(errBody)}`);
-      return { success: false, message: errBody.message || `GitHub API HTTP ${putRes.status}` };
+      const errMsg = errBody.message || `GitHub API HTTP ${putRes.status}`;
+      console.error(`[GITHUB SYNC PUT FAIL] Status: ${putRes.status} | Error: ${errMsg}`);
+      return { success: false, message: errMsg };
     }
 
     const resBody: any = await putRes.json();
     const commitSha = resBody.commit?.sha || 'committed';
-    console.log(`[GITHUB SYNC SUCCESS] Successfully committed ${filePath} to ${owner}/${repo}#${branch} (${commitSha.substring(0, 7)})`);
+    console.log(`[GITHUB SYNC SUCCESS] Committed ${filePath} to ${owner}/${repo}#${branch} | Commit SHA: ${commitSha.substring(0, 7)}`);
     return { success: true, commitSha };
   } catch (e: any) {
     console.error(`[GITHUB SYNC EXCEPTION] ${e.message}`);
@@ -163,6 +177,18 @@ async function fetchFileFromGitHub(filePath: string, env: Env): Promise<any | nu
     }
   } catch (e) {}
   return null;
+}
+
+async function refreshProductsFromGitHub(env: Env) {
+  const now = Date.now();
+  if (now - lastProductsRefresh < 10000) return; // Refresh throttle 10s
+  lastProductsRefresh = now;
+  try {
+    const fresh = await fetchFileFromGitHub('src/data/products.json', env);
+    if (Array.isArray(fresh) && fresh.length > 0) {
+      dynamicProductsStore = fresh;
+    }
+  } catch (e) {}
 }
 
 // Password Hashing via Web Crypto API (PBKDF2)
@@ -240,7 +266,7 @@ function getSessionFromRequest(request: Request): any | null {
   return sess;
 }
 
-// Product Construction Helper
+// Product Construction Helper matching exact Product interface
 function buildProductObject(body: any, isDigital = false): any {
   return {
     id: body.id || `${isDigital ? 'dig' : 'prod'}-${Date.now()}`,
@@ -283,6 +309,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const path = url.pathname;
   const method = request.method.toUpperCase();
 
+  console.log(`[API REQUEST ROUTE] Method: ${method} | Path: ${path}`);
+
   // CORS Preflight
   if (method === 'OPTIONS') {
     return new Response(null, {
@@ -309,6 +337,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // 3. Products Endpoints
     if (path === '/api/products' || path === '/api/store-products' || path === '/api/digital-products' || path === '/api/admin/store-products' || path === '/api/admin/digital-products') {
       if (method === 'GET') {
+        await refreshProductsFromGitHub(env);
         const typeFilter = url.searchParams.get('type');
         let list = [...dynamicProductsStore];
         if (path === '/api/store-products' || path === '/api/admin/store-products' || typeFilter === 'STORE') {
@@ -324,14 +353,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const isDigital = path.includes('digital') || body.productType === 'DIGITAL';
         const newProd = buildProductObject(body, isDigital);
 
+        await refreshProductsFromGitHub(env);
         dynamicProductsStore.unshift(newProd);
         const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Create ${isDigital ? 'digital' : 'store'} product: ${newProd.name}`, env);
 
         if (!syncRes.success) {
-          console.warn(`[CREATE PRODUCT WARNING] Local product created but GitHub sync note: ${syncRes.message}`);
+          console.error(`[CREATE PRODUCT FAIL] GitHub sync failed: ${syncRes.message}`);
+          return jsonResponse({ success: false, error: syncRes.message || 'Failed to sync new product to GitHub repository' }, 500);
         }
 
-        return jsonResponse({ success: true, product: newProd, sync: syncRes });
+        return jsonResponse({ success: true, product: newProd, sync: { success: true, commitSha: syncRes.commitSha } });
       }
     }
 
@@ -341,15 +372,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const pId = decodeURIComponent(prodIdMatch[1]);
 
       if (method === 'GET') {
+        await refreshProductsFromGitHub(env);
         const found = dynamicProductsStore.find(p => p.id === pId || p.slug === pId);
-        if (!found) return jsonResponse({ error: 'Product not found' }, 404);
+        if (!found) return jsonResponse({ success: false, error: 'Product not found' }, 404);
         return jsonResponse(found);
       }
 
       if (method === 'PUT') {
         const body: any = await request.json().catch(() => ({}));
+        await refreshProductsFromGitHub(env);
         const idx = dynamicProductsStore.findIndex(p => p.id === pId || p.slug === pId);
-        if (idx === -1) return jsonResponse({ error: 'Product not found' }, 404);
+        if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
 
         const isDigital = path.includes('digital') || body.productType === 'DIGITAL';
         dynamicProductsStore[idx] = {
@@ -360,17 +393,26 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         };
 
         const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Edit product: ${dynamicProductsStore[idx].name}`, env);
-        return jsonResponse({ success: true, product: dynamicProductsStore[idx], sync: syncRes });
+        if (!syncRes.success) {
+          return jsonResponse({ success: false, error: syncRes.message || 'Failed to update product on GitHub' }, 500);
+        }
+
+        return jsonResponse({ success: true, product: dynamicProductsStore[idx], sync: { success: true, commitSha: syncRes.commitSha } });
       }
 
       if (method === 'DELETE') {
+        await refreshProductsFromGitHub(env);
         const idx = dynamicProductsStore.findIndex(p => p.id === pId || p.slug === pId);
-        if (idx === -1) return jsonResponse({ error: 'Product not found' }, 404);
+        if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
 
         const deletedName = dynamicProductsStore[idx].name;
         dynamicProductsStore.splice(idx, 1);
         const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Delete product: ${deletedName}`, env);
-        return jsonResponse({ success: true, deleted: true, sync: syncRes });
+        if (!syncRes.success) {
+          return jsonResponse({ success: false, error: syncRes.message || 'Failed to delete product on GitHub' }, 500);
+        }
+
+        return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: syncRes.commitSha } });
       }
     }
 
@@ -378,8 +420,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const duplicateMatch = path.match(/^\/api\/products\/([^\/]+)\/duplicate$/);
     if (duplicateMatch && method === 'POST') {
       const pId = decodeURIComponent(duplicateMatch[1]);
+      await refreshProductsFromGitHub(env);
       const existing = dynamicProductsStore.find(p => p.id === pId || p.slug === pId);
-      if (!existing) return jsonResponse({ error: 'Product not found' }, 404);
+      if (!existing) return jsonResponse({ success: false, error: 'Product not found' }, 404);
 
       const isDigital = existing.productType === 'DIGITAL';
       const duplicated = {
@@ -393,13 +436,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       dynamicProductsStore.unshift(duplicated);
       const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Duplicate product: ${duplicated.name}`, env);
-      return jsonResponse({ success: true, product: duplicated, sync: syncRes });
+      if (!syncRes.success) {
+        return jsonResponse({ success: false, error: syncRes.message || 'Failed to duplicate product on GitHub' }, 500);
+      }
+
+      return jsonResponse({ success: true, product: duplicated, sync: { success: true, commitSha: syncRes.commitSha } });
     }
 
     // Publish & Sync Endpoints
     if (path === '/api/admin/publish' || path === '/api/products/sync' || path === '/api/products/publish') {
-      const res = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, 'Sync products via Cloudflare Admin', env);
-      return jsonResponse({ success: res.success, message: res.message, commitSha: res.commitSha });
+      const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, 'Sync products via Cloudflare Admin', env);
+      if (!syncRes.success) {
+        return jsonResponse({ success: false, error: syncRes.message || 'Failed to publish products to GitHub' }, 500);
+      }
+      return jsonResponse({ success: true, message: 'Products published to GitHub', sync: { success: true, commitSha: syncRes.commitSha } });
     }
 
     // 4. Coupons Endpoints
@@ -412,7 +462,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
         const code = (body.code || '').trim().toUpperCase();
-        if (!code) return jsonResponse({ error: 'Code required' }, 400);
+        if (!code) return jsonResponse({ success: false, error: 'Code required' }, 400);
         const newCpn = {
           id: `cpn-${Date.now()}`,
           code,
@@ -425,7 +475,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         };
         dynamicCouponsStore.unshift(newCpn);
         const syncRes = await commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Create coupon ${code}`, env);
-        return jsonResponse({ success: true, coupon: newCpn, sync: syncRes });
+        if (!syncRes.success) {
+          return jsonResponse({ success: false, error: syncRes.message || 'Failed to save coupon to GitHub' }, 500);
+        }
+        return jsonResponse({ success: true, coupon: newCpn, sync: { success: true, commitSha: syncRes.commitSha } });
       }
     }
 
@@ -462,20 +515,26 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (cpnToggleMatch && method === 'PATCH') {
       const cId = cpnToggleMatch[1];
       const cpn = dynamicCouponsStore.find(c => c.id === cId || c.code.toUpperCase() === cId.toUpperCase());
-      if (!cpn) return jsonResponse({ error: 'Coupon not found' }, 404);
+      if (!cpn) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
       cpn.isActive = !cpn.isActive;
       const syncRes = await commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Toggle coupon ${cId}`, env);
-      return jsonResponse({ success: true, coupon: cpn, sync: syncRes });
+      if (!syncRes.success) {
+        return jsonResponse({ success: false, error: syncRes.message || 'Failed to toggle coupon on GitHub' }, 500);
+      }
+      return jsonResponse({ success: true, coupon: cpn, sync: { success: true, commitSha: syncRes.commitSha } });
     }
 
     const cpnDeleteMatch = path.match(/^\/api\/coupons\/([^\/]+)$/);
     if (cpnDeleteMatch && method === 'DELETE') {
       const cId = cpnDeleteMatch[1];
       const idx = dynamicCouponsStore.findIndex(c => c.id === cId || c.code.toUpperCase() === cId.toUpperCase());
-      if (idx === -1) return jsonResponse({ error: 'Coupon not found' }, 404);
+      if (idx === -1) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
       dynamicCouponsStore.splice(idx, 1);
       const syncRes = await commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Delete coupon ${cId}`, env);
-      return jsonResponse({ success: true, deleted: true, sync: syncRes });
+      if (!syncRes.success) {
+        return jsonResponse({ success: false, error: syncRes.message || 'Failed to delete coupon on GitHub' }, 500);
+      }
+      return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: syncRes.commitSha } });
     }
 
     // 5. Services & Blogs Endpoints
@@ -486,7 +545,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const newSrv = { id: `srv-${Date.now()}`, ...body };
         dynamicServicesStore.unshift(newSrv);
         const syncRes = await commitFileToGitHubApi('src/data/services.json', dynamicServicesStore, `Create service`, env);
-        return jsonResponse({ success: true, service: newSrv, sync: syncRes });
+        if (!syncRes.success) {
+          return jsonResponse({ success: false, error: syncRes.message || 'Failed to save service to GitHub' }, 500);
+        }
+        return jsonResponse({ success: true, service: newSrv, sync: { success: true, commitSha: syncRes.commitSha } });
       }
     }
 
@@ -517,7 +579,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       usersStore.delete(emailToDelete);
       const userList = Array.from(usersStore.values());
       const syncRes = await commitFileToGitHubApi('src/data/users.json', userList, `Delete customer ${emailToDelete}`, env);
-      return jsonResponse({ success: true, deletedEmail: emailToDelete, sync: syncRes });
+      if (!syncRes.success) {
+        return jsonResponse({ success: false, error: syncRes.message || 'Failed to delete customer on GitHub' }, 500);
+      }
+      return jsonResponse({ success: true, deletedEmail: emailToDelete, sync: { success: true, commitSha: syncRes.commitSha } });
     }
 
     // 7. Media Upload Endpoint
@@ -592,10 +657,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === '/api/auth/register' && method === 'POST') {
       const body: any = await request.json().catch(() => ({}));
       const { name, email, password, phone, location } = body;
-      if (!email || !password) return jsonResponse({ error: 'Email and password required' }, 400);
+      if (!email || !password) return jsonResponse({ success: false, error: 'Email and password required' }, 400);
 
       const normEmail = email.trim().toLowerCase();
-      if (usersStore.has(normEmail)) return jsonResponse({ error: 'Account already exists' }, 400);
+      if (usersStore.has(normEmail)) return jsonResponse({ success: false, error: 'Account already exists' }, 400);
 
       const { hash, salt } = await hashPasswordWebCrypto(password);
       const newUser = {
@@ -629,7 +694,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === '/api/auth/login' && method === 'POST') {
       const body: any = await request.json().catch(() => ({}));
       const { email, password } = body;
-      if (!email || !password) return jsonResponse({ error: 'Email and password required' }, 400);
+      if (!email || !password) return jsonResponse({ success: false, error: 'Email and password required' }, 400);
 
       const normEmail = email.trim().toLowerCase();
       let user = usersStore.get(normEmail);
@@ -642,10 +707,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
       }
 
-      if (!user) return jsonResponse({ error: 'Invalid credentials' }, 401);
+      if (!user) return jsonResponse({ success: false, error: 'Invalid credentials' }, 401);
 
       const { hash } = await hashPasswordWebCrypto(password, user.passwordSalt);
-      if (hash !== user.passwordHash) return jsonResponse({ error: 'Incorrect password!' }, 401);
+      if (hash !== user.passwordHash) return jsonResponse({ success: false, error: 'Incorrect password!' }, 401);
 
       const sessId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       const session = { sessionId: sessId, userId: user.id, userEmail: normEmail, isAdmin: Boolean(user.isAdmin), createdAt: new Date().toISOString(), expiresAt: Date.now() + 7 * 86400000 };
