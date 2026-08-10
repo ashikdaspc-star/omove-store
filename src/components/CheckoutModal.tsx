@@ -209,13 +209,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             onClearCart();
             sendAdminOrderNotificationEmail({
               type: 'PRODUCT_PURCHASE',
-              customerName: verifiedOrder.customerName,
-              email: verifiedOrder.customerEmail,
-              phone: verifiedOrder.customerPhone,
-              title: verifiedOrder.items.map((i: any) => i.productName).join(', '),
+              customerName: verifiedOrder.customerName || customerName,
+              email: verifiedOrder.customerEmail || customerEmail,
+              phone: verifiedOrder.customerPhone || customerPhone,
+              title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name || 'Digital Item').join(', ') || 'Digital Product',
               amount: 0,
               paymentId: 'FREE (100% Coupon Discount)',
-              orderOrBookingId: verifiedOrder.orderNumber
+              orderOrBookingId: verifiedOrder.orderNumber || orderObj.orderNumber
             });
             confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
           } else {
