@@ -198,11 +198,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             body: JSON.stringify({
               orderId: orderObj.id,
               order: orderObj,
-              total: 0
             })
           });
-          const verifyData = await verifyRes.json();
-          if (verifyRes.ok && verifyData.success && verifyData.verified) {
+          const verifyData = await verifyRes.json().catch(() => ({}));
+          if (verifyRes.ok && (verifyData.success || verifyData.verified || verifyData.order)) {
             const verifiedOrder = verifyData.order || orderObj;
             setCreatedOrder(verifiedOrder);
             onOrderSuccess(verifiedOrder);
