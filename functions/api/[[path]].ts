@@ -115,26 +115,27 @@ async function getFileFromGitHub(filePath: string, env: Env): Promise<{ data: an
 
   if (!token) return null;
   try {
-    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}&v=${Date.now()}`;
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'OmoveStore-CloudflareSync/2.0',
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
+        'User-Agent': 'OmoveStore-CloudflareSync/2.0'
       }
     });
     if (!res.ok) return null;
     const fileData: any = await res.json();
-    if (fileData.content) {
-      const cleanBase64 = fileData.content.replace(/\s/g, '');
+    if (fileData && fileData.sha) {
+      const cleanBase64 = (fileData.content || '').replace(/\s/g, '');
       let decoded = '';
-      if (typeof Buffer !== 'undefined') {
-        decoded = Buffer.from(cleanBase64, 'base64').toString('utf-8');
-      } else {
-        decoded = decodeURIComponent(escape(atob(cleanBase64)));
+      if (cleanBase64) {
+        if (typeof Buffer !== 'undefined') {
+          decoded = Buffer.from(cleanBase64, 'base64').toString('utf-8');
+        } else {
+          decoded = decodeURIComponent(escape(atob(cleanBase64)));
+        }
       }
-      return { data: JSON.parse(decoded), sha: fileData.sha };
+      return { data: decoded ? JSON.parse(decoded) : [], sha: fileData.sha };
     }
   } catch (e) {}
   return null;
@@ -166,7 +167,26 @@ async function atomicFileMutation(
     try {
       const fileResult = await getFileFromGitHub(filePath, env);
       let currentArray = fileResult ? fileResult.data : [];
-      const sha = fileResult ? fileResult.sha : '';
+      let sha = fileResult ? fileResult.sha : '';
+
+      if (!sha) {
+        try {
+          const fallbackUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+          const fbRes = await fetch(fallbackUrl, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/vnd.github.v3+json',
+              'User-Agent': 'OmoveStore-CloudflareSync/2.0'
+            }
+          });
+          if (fbRes.ok) {
+            const fbData: any = await fbRes.json();
+            if (fbData && fbData.sha) {
+              sha = fbData.sha;
+            }
+          }
+        } catch (e) {}
+      }
 
       if (!Array.isArray(currentArray)) currentArray = [];
 
@@ -176,6 +196,15 @@ async function atomicFileMutation(
       const jsonText = JSON.stringify(mutatedArray, null, 2);
       const base64Content = encodeBase64Safe(jsonText);
 
+      const bodyObj: any = {
+        message: commitMessage,
+        content: base64Content,
+        branch
+      };
+      if (sha) {
+        bodyObj.sha = sha;
+      }
+
       const putRes = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -184,12 +213,7 @@ async function atomicFileMutation(
           'Content-Type': 'application/json',
           'User-Agent': 'OmoveStore-CloudflareSync/2.0'
         },
-        body: JSON.stringify({
-          message: commitMessage,
-          content: base64Content,
-          sha: sha || undefined,
-          branch
-        })
+        body: JSON.stringify(bodyObj)
       });
 
       if (putRes.status === 409) {

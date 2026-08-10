@@ -532,17 +532,46 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'OmoveStore-AutoSync/1.0'
+            'User-Agent': 'OmoveStore-AutoSync/2.0'
           }
         });
         if (getRes.ok) {
           const fileData: any = await getRes.json();
-          sha = fileData.sha;
+          if (fileData && fileData.sha) {
+            sha = fileData.sha;
+          }
         }
       } catch (e) {}
 
+      if (!sha) {
+        try {
+          const fbRes = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/vnd.github.v3+json',
+              'User-Agent': 'OmoveStore-AutoSync/2.0'
+            }
+          });
+          if (fbRes.ok) {
+            const fbData: any = await fbRes.json();
+            if (fbData && fbData.sha) {
+              sha = fbData.sha;
+            }
+          }
+        } catch (e) {}
+      }
+
       const jsonText = JSON.stringify(data, null, 2);
       const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
+
+      const bodyObj: any = {
+        message,
+        content: base64Content,
+        branch
+      };
+      if (sha) {
+        bodyObj.sha = sha;
+      }
 
       const putRes = await fetch(url, {
         method: 'PUT',
@@ -550,14 +579,9 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/vnd.github.v3+json',
           'Content-Type': 'application/json',
-          'User-Agent': 'OmoveStore-AutoSync/1.0'
+          'User-Agent': 'OmoveStore-AutoSync/2.0'
         },
-        body: JSON.stringify({
-          message,
-          content: base64Content,
-          sha: sha || undefined,
-          branch
-        })
+        body: JSON.stringify(bodyObj)
       });
 
       if (!putRes.ok) {
@@ -970,67 +994,13 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       }
 
       // 2. Try GitHub REST API commit
-      const token = getGitHubToken();
-      const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
-      const repo = process.env.GITHUB_REPO || 'omove-store';
-      const branch = process.env.GITHUB_BRANCH || 'main';
+      const commitMsg = `Live Production Catalog Sync via Admin Command Center [${nowStr}]`;
+      const prodRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, commitMsg);
+      const srvRes = await commitFileToGitHubApi('src/data/services.json', dynamicServicesStore, commitMsg);
 
-      if (token) {
-        try {
-          const commitFileToGitHub = async (filePath: string, contentData: any, message: string) => {
-            const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
-
-            let sha = '';
-            try {
-              const getRes = await fetch(`${url}?ref=${branch}`, {
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Accept': 'application/vnd.github.v3+json',
-                  'User-Agent': 'OmoveStore-Publish/1.0'
-                }
-              });
-              if (getRes.ok) {
-                const fileData: any = await getRes.json();
-                sha = fileData.sha;
-              }
-            } catch (e) {}
-
-            const jsonText = JSON.stringify(contentData, null, 2);
-            const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
-
-            const putRes = await fetch(url, {
-              method: 'PUT',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'OmoveStore-Publish/1.0'
-              },
-              body: JSON.stringify({
-                message: message,
-                content: base64Content,
-                sha: sha || undefined,
-                branch: branch
-              })
-            });
-
-            if (!putRes.ok) {
-              const errBody: any = await putRes.json().catch(() => ({}));
-              throw new Error(errBody.message || `GitHub HTTP ${putRes.status} for ${filePath}`);
-            }
-
-            const resBody: any = await putRes.json();
-            return resBody.commit?.sha || 'committed';
-          };
-
-          const commitMsg = `Live Production Catalog Sync via Admin Command Center [${nowStr}]`;
-          const productsSha = await commitFileToGitHub('src/data/products.json', dynamicProductsStore, commitMsg);
-          const servicesSha = await commitFileToGitHub('src/data/services.json', dynamicServicesStore, commitMsg);
-          commitSha = productsSha || servicesSha;
-          gitHubSynced = true;
-        } catch (ghErr: any) {
-          console.warn('[ADMIN PUBLISH GITHUB SYNC NOTICE]', ghErr.message);
-        }
+      if (prodRes.success || srvRes.success) {
+        gitHubSynced = true;
+        commitSha = prodRes.commitSha || srvRes.commitSha || 'committed';
       }
 
       res.json({
