@@ -1,48 +1,5 @@
 [
   {
-    "id": "prod-1786327030103",
-    "name": "Cloudflare Test Store Product (EDITED)",
-    "slug": "cloudflare-test-store-product",
-    "productType": "STORE",
-    "category": "Software",
-    "tags": [
-      "Store Card",
-      "Software"
-    ],
-    "shortDescription": "Test product for Cloudflare Pages",
-    "fullDescription": "Test product for Cloudflare Pages",
-    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800",
-    "price": 899,
-    "originalPrice": 1499,
-    "discountPercent": 0,
-    "licenseType": "Lifetime License",
-    "version": "v2026.1",
-    "downloadSize": "50 MB",
-    "compatibility": [
-      "Windows 11",
-      "Windows 10"
-    ],
-    "features": [
-      "Instant Product Access Key",
-      "Official Setup Package"
-    ],
-    "screenshots": [],
-    "requirements": [
-      "Windows 10/11"
-    ],
-    "versionHistory": [],
-    "fileUrl": "/api/downloads/setup",
-    "instantKeyAvailable": true,
-    "rating": 4.9,
-    "reviewCount": 1,
-    "salesCount": 0,
-    "isBestSeller": false,
-    "isFeatured": false,
-    "status": "PUBLISHED",
-    "createdAt": "2026-08-10T01:57:10.103Z",
-    "updatedAt": "2026-08-10T01:59:04.036Z"
-  },
-  {
     "id": "dig-1786276814406",
     "name": "Professional Website ",
     "slug": "professional-website",
