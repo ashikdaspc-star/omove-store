@@ -121,6 +121,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setPaymentFailedNotice('You are currently offline. Please reconnect to the internet to purchase this product.');
       return;
     }
+    if (!cart || cart.length === 0) {
+      setPaymentFailedNotice('Your cart is empty. Please select a product to purchase.');
+      return;
+    }
 
     setIsProcessing(true);
     setPaymentFailedNotice('');

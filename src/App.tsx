@@ -529,7 +529,11 @@ export default function App() {
       alert("You’re offline. Please reconnect to the internet to purchase this product.");
       return;
     }
-    handleAddToCart(product);
+    setCart((prev) => {
+      const existing = prev.find((item) => item.product.id === product.id);
+      if (existing) return prev;
+      return [{ product, quantity: 1 }];
+    });
     setIsCartOpen(false);
     if (!isLoggedIn) {
       setPendingCheckoutAfterAuth(true);

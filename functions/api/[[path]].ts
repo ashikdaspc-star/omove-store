@@ -1165,10 +1165,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       // 4. Zero-total / free order (100% coupon discount e.g. OMOVE100)
-      const isZeroTotal = (order && (order.total <= 0 || order.totalAmount <= 0)) || body.total === 0 || body.order?.total === 0;
+      const rawTotal = order?.total ?? order?.totalAmount ?? body.total ?? body.order?.total;
+      const parsedTotal = Number(rawTotal);
+      const isZeroTotal = !isNaN(parsedTotal) && parsedTotal <= 0;
       if (!isVerified && isZeroTotal) {
         isVerified = true;
-        console.log(`[PAYMENT VERIFY FREE ORDER] PASS — zero total order`);
+        console.log(`[PAYMENT VERIFY FREE ORDER] PASS — zero total order (ParsedTotal: ${parsedTotal})`);
       }
 
       // 5. Test Mode Fallback when secret is unconfigured
