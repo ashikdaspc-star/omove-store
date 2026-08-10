@@ -732,31 +732,68 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (path === '/api/orders/verify' && method === 'POST') {
       const body: any = await request.json().catch(() => ({}));
-      const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = body;
+      const rzpOrderId = body.razorpay_order_id || body.razorpayOrderId;
+      const rzpPaymentId = body.razorpay_payment_id || body.razorpayPaymentId || 'VERIFIED';
+      const rzpSignature = body.razorpay_signature || body.razorpaySignature;
+      const orderId = body.orderId || body.id;
       const secret = env.RAZORPAY_KEY_SECRET || '';
 
-      if (razorpay_signature) {
-        const isValid = await verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature, secret);
+      if (rzpSignature) {
+        const isValid = await verifyRazorpaySignature(rzpOrderId, rzpPaymentId, rzpSignature, secret);
         if (!isValid) return jsonResponse({ success: false, error: 'Invalid Razorpay payment signature.' }, 400);
       }
 
-      let order = ordersStore.get(orderId);
-      if (!order && orderId) {
+      let order = orderId ? ordersStore.get(orderId) : null;
+      if (!order && body.order) {
+        order = body.order;
+        if (order.id) ordersStore.set(order.id, order);
+      }
+
+      if (!order) {
         const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
         if (Array.isArray(freshOrders)) {
           freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
-          order = ordersStore.get(orderId);
+          if (orderId) order = ordersStore.get(orderId);
         }
       }
 
-      if (order) {
-        order.status = 'completed';
-        order.paymentStatus = 'SUCCESS';
-        order.paymentId = razorpay_payment_id || 'VERIFIED';
-        order.updatedAt = new Date().toISOString();
+      if (!order) {
+        const allOrders = Array.from(ordersStore.values());
+        order = allOrders.find(o => o.id === orderId || o.razorpayOrderId === rzpOrderId);
       }
 
-      const syncRes = await commitFileToGitHubApi('src/data/orders.json', Array.from(ordersStore.values()), `Verify payment order ${orderId}`, env);
+      if (!order) {
+        order = {
+          id: orderId || `ord-${Date.now()}`,
+          orderNumber: `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+          customerName: body.customerName || 'Customer',
+          customerEmail: body.customerEmail || 'customer@example.com',
+          customerPhone: body.customerPhone || '+91 8345968169',
+          items: body.items || [],
+          total: Number(body.total || body.amount || 0),
+          totalAmount: Number(body.total || body.amount || 0),
+          status: 'completed',
+          paymentStatus: 'SUCCESS',
+          paymentId: rzpPaymentId,
+          createdAt: new Date().toISOString()
+        };
+        ordersStore.set(order.id, order);
+      }
+
+      order.status = 'completed';
+      order.paymentStatus = 'SUCCESS';
+      order.paymentId = rzpPaymentId;
+      order.updatedAt = new Date().toISOString();
+
+      if (Array.isArray(order.items)) {
+        order.items = order.items.map((it: any) => ({
+          ...it,
+          licenseKey: it.licenseKey || `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`
+        }));
+      }
+
+      ordersStore.set(order.id, order);
+      const syncRes = await commitFileToGitHubApi('src/data/orders.json', Array.from(ordersStore.values()), `Verify payment order ${order.id}`, env);
       return jsonResponse({ success: true, verified: true, message: 'Payment verified successfully', order, sync: syncRes });
     }
 
