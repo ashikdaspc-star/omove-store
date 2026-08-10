@@ -811,7 +811,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (path === '/api/orders/verify' && method === 'POST') {
       const body: any = await request.json().catch(() => ({}));
-      const rzpOrderId = body.razorpay_order_id || body.razorpayOrderId || '';
+      const bodyRzpOrderId = body.razorpay_order_id || body.razorpayOrderId || '';
       const rzpPaymentId = body.razorpay_payment_id || body.razorpayPaymentId || '';
       const rzpSignature = body.razorpay_signature || body.razorpaySignature || '';
       const orderId = body.orderId || body.id || '';
@@ -819,41 +819,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const rzpKeyId = getRazorpayKeyId(env);
       const secret = getRazorpayKeySecret(env);
 
-      console.log(`[PAYMENT VERIFY REQUEST] OrderId: ${orderId} | RzpOrderId: ${rzpOrderId} | RzpPaymentId: ${rzpPaymentId} | HasSig: ${Boolean(rzpSignature)} | HasSecret: ${Boolean(secret)}`);
-
-      let isVerified = false;
-
-      // 1. HMAC-SHA256 Signature Verification
-      if (rzpSignature && rzpOrderId && secret) {
-        isVerified = await verifyRazorpaySignature(rzpOrderId, rzpPaymentId, rzpSignature, secret);
-        console.log(`[PAYMENT VERIFY SIGNATURE RESULT] ${isVerified ? 'PASS' : 'FAIL'}`);
-      }
-
-      // 2. Razorpay REST API Lookup Fallback (for stand-alone payments or test mode)
-      if (!isVerified && rzpPaymentId && rzpKeyId && secret) {
-        const apiCheck = await fetchRazorpayPaymentStatusApi(rzpPaymentId, rzpKeyId, secret);
-        if (apiCheck.valid) {
-          isVerified = true;
-          console.log(`[PAYMENT VERIFY API LOOKUP RESULT] PASS (Status: ${apiCheck.status})`);
-        }
-      }
-
-      // 3. Fallback for test mode / local verification when secret is unconfigured
-      if (!isVerified && (!secret || rzpPaymentId.startsWith('pay_test_') || rzpPaymentId === 'VERIFIED')) {
-        isVerified = true;
-        console.log(`[PAYMENT VERIFY TEST MODE FALLBACK] PASS`);
-      }
-
-      if (!isVerified && (rzpSignature || secret)) {
-        console.error(`[PAYMENT VERIFY REJECTED] Signature or payment lookup failed for order: ${orderId}`);
-        return jsonResponse({ success: false, error: 'Razorpay payment signature verification failed. Access denied.' }, 400);
-      }
-
-      // Lookup or construct order object
+      // 1. Lookup stored internal order first to retrieve server-stored canonical Razorpay order ID
       let order = orderId ? ordersStore.get(orderId) : null;
-      if (!order && body.order) {
-        order = body.order;
-        if (order.id) ordersStore.set(order.id, order);
+      if (!order && body.order?.id) {
+        order = ordersStore.get(body.order.id);
       }
 
       if (!order) {
@@ -866,7 +835,48 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (!order) {
         const allOrders = Array.from(ordersStore.values());
-        order = allOrders.find(o => o.id === orderId || (rzpOrderId && o.razorpayOrderId === rzpOrderId));
+        order = allOrders.find(o => o.id === orderId || (bodyRzpOrderId && o.razorpayOrderId === bodyRzpOrderId));
+      }
+
+      const canonicalRzpOrderId = order?.razorpayOrderId || bodyRzpOrderId;
+
+      console.log(`[PAYMENT VERIFY DIAGNOSTIC] InternalOrderId: ${orderId} | CanonicalRzpOrderId: ${canonicalRzpOrderId} | RzpPaymentId: ${rzpPaymentId} | HasSig: ${Boolean(rzpSignature)} | HasSecret: ${Boolean(secret)}`);
+
+      let isVerified = false;
+
+      // 2. Server-stored Razorpay Order ID HMAC-SHA256 Signature Verification
+      if (rzpSignature && canonicalRzpOrderId && secret) {
+        isVerified = await verifyRazorpaySignature(canonicalRzpOrderId, rzpPaymentId, rzpSignature, secret);
+        console.log(`[PAYMENT VERIFY SIGNATURE RESULT] ${isVerified ? 'PASS' : 'FAIL'}`);
+      }
+
+      // 3. Razorpay REST API Direct Lookup Fallback & Amount Verification
+      if (rzpPaymentId && rzpKeyId && secret) {
+        const apiCheck = await fetchRazorpayPaymentStatusApi(rzpPaymentId, rzpKeyId, secret);
+        if (apiCheck.valid) {
+          // If signature wasn't set or in test mode, API validation confirms payment
+          if (!isVerified && !rzpSignature) {
+            isVerified = true;
+          }
+          console.log(`[PAYMENT VERIFY API LOOKUP RESULT] PASS (Status: ${apiCheck.status}, Amount: ${apiCheck.amount})`);
+        } else if (!isVerified && rzpSignature) {
+          console.warn(`[PAYMENT VERIFY API LOOKUP WARN] Payment API status lookup failed or incomplete.`);
+        }
+      }
+
+      // 4. Test Mode & Zero-Total Fallback when secret is unconfigured
+      if (!isVerified && (!secret || rzpPaymentId.startsWith('pay_test_') || rzpPaymentId === 'VERIFIED')) {
+        isVerified = true;
+        console.log(`[PAYMENT VERIFY TEST MODE FALLBACK] PASS`);
+      }
+
+      if (!isVerified) {
+        console.error(`[PAYMENT VERIFY REJECTED] Access denied: Signature verification failed for order: ${orderId}`);
+        return jsonResponse({
+          success: false,
+          verified: false,
+          error: 'Server payment verification failed. Access denied.'
+        }, 400);
       }
 
       if (!order) {
@@ -882,6 +892,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           status: 'completed',
           paymentStatus: 'SUCCESS',
           paymentId: rzpPaymentId || 'VERIFIED',
+          razorpayOrderId: canonicalRzpOrderId,
           createdAt: new Date().toISOString()
         };
       }

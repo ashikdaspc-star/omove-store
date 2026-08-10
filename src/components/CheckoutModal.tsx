@@ -257,13 +257,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 })
               });
               const verifyData = await verifyRes.json();
-              if ((verifyRes.ok && verifyData.success && verifyData.verified) || response.razorpay_payment_id) {
-                const verifiedOrder = verifyData.order || {
-                  ...orderObj,
-                  status: 'completed',
-                  paymentStatus: 'SUCCESS',
-                  paymentId: response.razorpay_payment_id || 'VERIFIED'
-                };
+              if (verifyRes.ok && verifyData.success && verifyData.verified) {
+                const verifiedOrder = verifyData.order || orderObj;
                 setCreatedOrder(verifiedOrder);
                 onOrderSuccess(verifiedOrder);
                 onClearCart();
