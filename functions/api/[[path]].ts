@@ -1,5 +1,5 @@
 // Cloudflare Pages Functions Handler for Omove Store API
-// Handles all /api/* routes on Cloudflare Edge Runtime
+// Handles all /api/* routes on Cloudflare Edge Runtime with full GitHub REST API persistence
 
 import productsData from '../../src/data/products.json';
 import couponsData from '../../src/data/coupons.json';
@@ -15,6 +15,7 @@ export interface Env {
   GITHUB_OWNER?: string;
   GITHUB_REPO?: string;
   GITHUB_BRANCH?: string;
+  CF_PAGES_BRANCH?: string;
   RAZORPAY_KEY_SECRET?: string;
   VITE_RAZORPAY_KEY_ID?: string;
   RAZORPAY_KEY_ID?: string;
@@ -48,7 +49,7 @@ const ordersStore: Map<string, any> = new Map();
 const bookingsStore: Map<string, any> = new Map();
 const ticketsStore: Map<string, any> = new Map();
 
-// GitHub Token Helper
+// Helper: Get GitHub Token (Server-side only)
 function getGitHubToken(env: Env): string {
   return env.GITHUB_TOKEN || env.VITE_GITHUB_TOKEN || DEFAULT_GITHUB_TOKEN;
 }
@@ -58,9 +59,14 @@ async function commitFileToGitHubApi(filePath: string, data: any, commitMessage:
   const token = getGitHubToken(env);
   const owner = env.GITHUB_OWNER || 'ashikdaspc-star';
   const repo = env.GITHUB_REPO || 'omove-store';
-  const branch = env.GITHUB_BRANCH || 'main';
+  const branch = env.GITHUB_BRANCH || env.CF_PAGES_BRANCH || 'main';
 
-  if (!token) return { success: false, message: 'No token' };
+  console.log(`[GITHUB SYNC] Initiating commit for ${filePath} on repo ${owner}/${repo} branch ${branch}`);
+
+  if (!token) {
+    console.error(`[GITHUB SYNC ERROR] No GitHub token configured.`);
+    return { success: false, message: 'No GitHub token configured' };
+  }
 
   try {
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
@@ -76,15 +82,23 @@ async function commitFileToGitHubApi(filePath: string, data: any, commitMessage:
       if (getRes.ok) {
         const fileData: any = await getRes.json();
         sha = fileData.sha;
+        console.log(`[GITHUB SYNC] Retrieved existing file SHA: ${sha.substring(0, 7)}`);
       }
-    } catch (e) {}
+    } catch (e: any) {
+      console.warn(`[GITHUB SYNC] GET SHA note: ${e.message}`);
+    }
 
     let base64Content = '';
     if (typeof data === 'string') {
-      base64Content = btoa(data);
+      base64Content = data.startsWith('data:') ? data.split(',')[1] : btoa(data);
     } else {
       const jsonText = JSON.stringify(data, null, 2);
-      base64Content = btoa(unescape(encodeURIComponent(jsonText)));
+      // Use Node Buffer (supported via nodejs_compat in wrangler.toml) for fast large-payload encoding
+      if (typeof Buffer !== 'undefined') {
+        base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
+      } else {
+        base64Content = btoa(unescape(encodeURIComponent(jsonText)));
+      }
     }
 
     const putRes = await fetch(url, {
@@ -105,12 +119,16 @@ async function commitFileToGitHubApi(filePath: string, data: any, commitMessage:
 
     if (!putRes.ok) {
       const errBody: any = await putRes.json().catch(() => ({}));
-      return { success: false, message: errBody.message || `GitHub HTTP ${putRes.status}` };
+      console.error(`[GITHUB SYNC ERROR] GitHub API HTTP ${putRes.status}: ${JSON.stringify(errBody)}`);
+      return { success: false, message: errBody.message || `GitHub API HTTP ${putRes.status}` };
     }
 
     const resBody: any = await putRes.json();
-    return { success: true, commitSha: resBody.commit?.sha };
+    const commitSha = resBody.commit?.sha || 'committed';
+    console.log(`[GITHUB SYNC SUCCESS] Successfully committed ${filePath} to ${owner}/${repo}#${branch} (${commitSha.substring(0, 7)})`);
+    return { success: true, commitSha };
   } catch (e: any) {
+    console.error(`[GITHUB SYNC EXCEPTION] ${e.message}`);
     return { success: false, message: e.message };
   }
 }
@@ -119,7 +137,7 @@ async function fetchFileFromGitHub(filePath: string, env: Env): Promise<any | nu
   const token = getGitHubToken(env);
   const owner = env.GITHUB_OWNER || 'ashikdaspc-star';
   const repo = env.GITHUB_REPO || 'omove-store';
-  const branch = env.GITHUB_BRANCH || 'main';
+  const branch = env.GITHUB_BRANCH || env.CF_PAGES_BRANCH || 'main';
 
   if (!token) return null;
   try {
@@ -134,7 +152,13 @@ async function fetchFileFromGitHub(filePath: string, env: Env): Promise<any | nu
     if (!res.ok) return null;
     const fileData: any = await res.json();
     if (fileData.content) {
-      const decoded = decodeURIComponent(escape(atob(fileData.content.replace(/\s/g, ''))));
+      const cleanBase64 = fileData.content.replace(/\s/g, '');
+      let decoded = '';
+      if (typeof Buffer !== 'undefined') {
+        decoded = Buffer.from(cleanBase64, 'base64').toString('utf-8');
+      } else {
+        decoded = decodeURIComponent(escape(atob(cleanBase64)));
+      }
       return JSON.parse(decoded);
     }
   } catch (e) {}
@@ -216,6 +240,42 @@ function getSessionFromRequest(request: Request): any | null {
   return sess;
 }
 
+// Product Construction Helper
+function buildProductObject(body: any, isDigital = false): any {
+  return {
+    id: body.id || `${isDigital ? 'dig' : 'prod'}-${Date.now()}`,
+    name: body.name || (isDigital ? 'New Digital Product' : 'New Store Product'),
+    slug: body.slug || (body.name ? body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `product-${Date.now()}`),
+    productType: isDigital ? 'DIGITAL' : (body.productType || 'STORE'),
+    category: body.category || (isDigital ? 'Digital Software' : 'Software'),
+    tags: Array.isArray(body.tags) ? body.tags : (isDigital ? ['Digital Key', 'Instant Download'] : ['Store Card', 'Software']),
+    shortDescription: body.shortDescription || '',
+    fullDescription: body.fullDescription || body.shortDescription || '',
+    image: body.image || body.imageUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+    price: Number(body.price) || 0,
+    originalPrice: Number(body.originalPrice) || Number(body.price) || 0,
+    discountPercent: Number(body.discountPercent) || 0,
+    licenseType: body.licenseType || (isDigital ? 'Instant Digital Key' : 'Lifetime License'),
+    version: body.version || 'v2026.1',
+    downloadSize: body.downloadSize || '50 MB',
+    compatibility: Array.isArray(body.compatibility) ? body.compatibility : ['Windows 11', 'Windows 10'],
+    features: Array.isArray(body.features) ? body.features : ['Instant Product Access Key', 'Official Setup Package'],
+    screenshots: Array.isArray(body.screenshots) ? body.screenshots : [],
+    requirements: Array.isArray(body.requirements) ? body.requirements : ['Windows 10/11'],
+    versionHistory: Array.isArray(body.versionHistory) ? body.versionHistory : [],
+    fileUrl: body.fileUrl || '/api/downloads/setup',
+    instantKeyAvailable: Boolean(body.instantKeyAvailable ?? true),
+    rating: Number(body.rating) || 4.9,
+    reviewCount: Number(body.reviewCount) || 1,
+    salesCount: Number(body.salesCount) || 0,
+    isBestSeller: Boolean(body.isBestSeller),
+    isFeatured: Boolean(body.isFeatured),
+    status: body.status || 'PUBLISHED',
+    createdAt: body.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
 // Main Cloudflare Pages Function onRequest handler
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
@@ -261,37 +321,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
-        const isDigital = path.includes('digital');
-        const newProd = {
-          id: body.id || `prod_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          name: body.name || 'Untitled Product',
-          slug: body.slug || (body.name ? body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'untitled-product'),
-          productType: isDigital ? 'DIGITAL' : (body.productType || 'STORE'),
-          price: Number(body.price) || 0,
-          originalPrice: Number(body.originalPrice) || Number(body.price) || 0,
-          rating: Number(body.rating) || 5.0,
-          reviewsCount: Number(body.reviewsCount) || 0,
-          isFeatured: Boolean(body.isFeatured),
-          isActive: body.isActive !== undefined ? Boolean(body.isActive) : true,
-          inStock: body.inStock !== undefined ? Boolean(body.inStock) : true,
-          badge: body.badge || '',
-          category: body.category || (isDigital ? 'Antivirus' : 'Software'),
-          tags: Array.isArray(body.tags) ? body.tags : [],
-          shortDescription: body.shortDescription || '',
-          fullDescription: body.fullDescription || '',
-          imageUrl: body.imageUrl || 'https://images.unsplash.com/photo-1563770660941-20978e870e26?auto=format&fit=crop&q=80&w=800',
-          galleryImages: Array.isArray(body.galleryImages) ? body.galleryImages : [],
-          licenseDuration: body.licenseDuration || '1 Year',
-          deviceCount: body.deviceCount || 1,
-          digitalFileType: body.digitalFileType || 'License Key',
-          features: Array.isArray(body.features) ? body.features : [],
-          downloadsCount: Number(body.downloadsCount) || 0,
-          updatedAt: new Date().toISOString()
-        };
+        const isDigital = path.includes('digital') || body.productType === 'DIGITAL';
+        const newProd = buildProductObject(body, isDigital);
 
         dynamicProductsStore.unshift(newProd);
-        commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Create product: ${newProd.name}`, env).catch(() => {});
-        return jsonResponse({ success: true, product: newProd });
+        const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Create ${isDigital ? 'digital' : 'store'} product: ${newProd.name}`, env);
+
+        if (!syncRes.success) {
+          console.warn(`[CREATE PRODUCT WARNING] Local product created but GitHub sync note: ${syncRes.message}`);
+        }
+
+        return jsonResponse({ success: true, product: newProd, sync: syncRes });
       }
     }
 
@@ -299,26 +339,61 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const prodIdMatch = path.match(/^\/api\/(?:admin\/)?(?:store-products|digital-products|products)\/([^\/]+)$/);
     if (prodIdMatch) {
       const pId = decodeURIComponent(prodIdMatch[1]);
+
       if (method === 'GET') {
         const found = dynamicProductsStore.find(p => p.id === pId || p.slug === pId);
         if (!found) return jsonResponse({ error: 'Product not found' }, 404);
         return jsonResponse(found);
       }
+
       if (method === 'PUT') {
         const body: any = await request.json().catch(() => ({}));
         const idx = dynamicProductsStore.findIndex(p => p.id === pId || p.slug === pId);
         if (idx === -1) return jsonResponse({ error: 'Product not found' }, 404);
-        dynamicProductsStore[idx] = { ...dynamicProductsStore[idx], ...body, updatedAt: new Date().toISOString() };
-        commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Update product: ${pId}`, env).catch(() => {});
-        return jsonResponse({ success: true, product: dynamicProductsStore[idx] });
+
+        const isDigital = path.includes('digital') || body.productType === 'DIGITAL';
+        dynamicProductsStore[idx] = {
+          ...dynamicProductsStore[idx],
+          ...body,
+          productType: isDigital ? 'DIGITAL' : (body.productType || dynamicProductsStore[idx].productType || 'STORE'),
+          updatedAt: new Date().toISOString()
+        };
+
+        const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Edit product: ${dynamicProductsStore[idx].name}`, env);
+        return jsonResponse({ success: true, product: dynamicProductsStore[idx], sync: syncRes });
       }
+
       if (method === 'DELETE') {
         const idx = dynamicProductsStore.findIndex(p => p.id === pId || p.slug === pId);
         if (idx === -1) return jsonResponse({ error: 'Product not found' }, 404);
+
+        const deletedName = dynamicProductsStore[idx].name;
         dynamicProductsStore.splice(idx, 1);
-        commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Delete product: ${pId}`, env).catch(() => {});
-        return jsonResponse({ success: true, deleted: true });
+        const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Delete product: ${deletedName}`, env);
+        return jsonResponse({ success: true, deleted: true, sync: syncRes });
       }
+    }
+
+    // Product Duplicate Route: /api/products/:id/duplicate
+    const duplicateMatch = path.match(/^\/api\/products\/([^\/]+)\/duplicate$/);
+    if (duplicateMatch && method === 'POST') {
+      const pId = decodeURIComponent(duplicateMatch[1]);
+      const existing = dynamicProductsStore.find(p => p.id === pId || p.slug === pId);
+      if (!existing) return jsonResponse({ error: 'Product not found' }, 404);
+
+      const isDigital = existing.productType === 'DIGITAL';
+      const duplicated = {
+        ...existing,
+        id: `${isDigital ? 'dig' : 'prod'}-${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: `${existing.name} (Copy)`,
+        status: 'DRAFT',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      dynamicProductsStore.unshift(duplicated);
+      const syncRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Duplicate product: ${duplicated.name}`, env);
+      return jsonResponse({ success: true, product: duplicated, sync: syncRes });
     }
 
     // Publish & Sync Endpoints
@@ -349,8 +424,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           usageCount: 0
         };
         dynamicCouponsStore.unshift(newCpn);
-        commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Create coupon ${code}`, env).catch(() => {});
-        return jsonResponse({ success: true, coupon: newCpn });
+        const syncRes = await commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Create coupon ${code}`, env);
+        return jsonResponse({ success: true, coupon: newCpn, sync: syncRes });
       }
     }
 
@@ -389,8 +464,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const cpn = dynamicCouponsStore.find(c => c.id === cId || c.code.toUpperCase() === cId.toUpperCase());
       if (!cpn) return jsonResponse({ error: 'Coupon not found' }, 404);
       cpn.isActive = !cpn.isActive;
-      commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Toggle coupon ${cId}`, env).catch(() => {});
-      return jsonResponse({ success: true, coupon: cpn });
+      const syncRes = await commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Toggle coupon ${cId}`, env);
+      return jsonResponse({ success: true, coupon: cpn, sync: syncRes });
     }
 
     const cpnDeleteMatch = path.match(/^\/api\/coupons\/([^\/]+)$/);
@@ -399,8 +474,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const idx = dynamicCouponsStore.findIndex(c => c.id === cId || c.code.toUpperCase() === cId.toUpperCase());
       if (idx === -1) return jsonResponse({ error: 'Coupon not found' }, 404);
       dynamicCouponsStore.splice(idx, 1);
-      commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Delete coupon ${cId}`, env).catch(() => {});
-      return jsonResponse({ success: true, deleted: true });
+      const syncRes = await commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Delete coupon ${cId}`, env);
+      return jsonResponse({ success: true, deleted: true, sync: syncRes });
     }
 
     // 5. Services & Blogs Endpoints
@@ -410,8 +485,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const body: any = await request.json().catch(() => ({}));
         const newSrv = { id: `srv-${Date.now()}`, ...body };
         dynamicServicesStore.unshift(newSrv);
-        commitFileToGitHubApi('src/data/services.json', dynamicServicesStore, `Create service`, env).catch(() => {});
-        return jsonResponse({ success: true, service: newSrv });
+        const syncRes = await commitFileToGitHubApi('src/data/services.json', dynamicServicesStore, `Create service`, env);
+        return jsonResponse({ success: true, service: newSrv, sync: syncRes });
       }
     }
 
@@ -441,25 +516,24 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const emailToDelete = decodeURIComponent(deleteCustMatch[1]).toLowerCase();
       usersStore.delete(emailToDelete);
       const userList = Array.from(usersStore.values());
-      commitFileToGitHubApi('src/data/users.json', userList, `Delete customer ${emailToDelete}`, env).catch(() => {});
-      return jsonResponse({ success: true, deletedEmail: emailToDelete });
+      const syncRes = await commitFileToGitHubApi('src/data/users.json', userList, `Delete customer ${emailToDelete}`, env);
+      return jsonResponse({ success: true, deletedEmail: emailToDelete, sync: syncRes });
     }
 
     // 7. Media Upload Endpoint
     if (path === '/api/admin/upload-media' && method === 'POST') {
       const body: any = await request.json().catch(() => ({}));
       const { fileName, fileData } = body;
-      if (!fileData) return jsonResponse({ success: false, error: 'No media data' }, 400);
+      if (!fileData) return jsonResponse({ success: false, error: 'No media data provided.' }, 400);
 
       const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
       if (matches && matches.length === 3) {
         const ext = matches[1].split('/')[1] || 'png';
         const safeName = (fileName || `media_${Date.now()}`).toLowerCase().replace(/[^a-z0-9_-]/g, '_') + `.${ext}`;
         const filePath = `public/uploads/${safeName}`;
-        // Commit image binary/base64 directly to GitHub repository!
         const res = await commitFileToGitHubApi(filePath, matches[2], `Upload image ${safeName}`, env);
         const publicUrl = res.success ? `/uploads/${safeName}` : fileData;
-        return jsonResponse({ success: true, url: publicUrl, fileName: safeName });
+        return jsonResponse({ success: true, url: publicUrl, fileName: safeName, sync: res });
       }
       return jsonResponse({ success: true, url: fileData });
     }
@@ -541,13 +615,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       usersStore.set(normEmail, newUser);
       const userList = Array.from(usersStore.values());
-      commitFileToGitHubApi('src/data/users.json', userList, `Register ${normEmail}`, env).catch(() => {});
+      const syncRes = await commitFileToGitHubApi('src/data/users.json', userList, `Register ${normEmail}`, env);
 
       const sessId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       const session = { sessionId: sessId, userId: newUser.id, userEmail: normEmail, isAdmin: false, createdAt: new Date().toISOString(), expiresAt: Date.now() + 7 * 86400000 };
       sessionsStore.set(sessId, session);
 
-      return jsonResponse({ success: true, token: sessId, user: { id: newUser.id, name: newUser.name, email: newUser.email, isAdmin: false } }, 200, {
+      return jsonResponse({ success: true, token: sessId, user: { id: newUser.id, name: newUser.name, email: newUser.email, isAdmin: false }, sync: syncRes }, 200, {
         'Set-Cookie': `omove_session_token=${sessId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
       });
     }
@@ -612,8 +686,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     // Default 404 for unhandled API paths
-    return jsonResponse({ error: `API route not found: ${method} ${path}` }, 404);
+    return jsonResponse({ success: false, error: `API route not found: ${method} ${path}` }, 404);
   } catch (err: any) {
-    return jsonResponse({ error: err.message || 'Internal Edge Error' }, 500);
+    console.error(`[API EDGE EXCEPTION] ${err.stack || err.message}`);
+    return jsonResponse({ success: false, error: err.message || 'Internal Edge Error' }, 500);
   }
 };
