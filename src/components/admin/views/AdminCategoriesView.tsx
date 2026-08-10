@@ -9,14 +9,14 @@ interface AdminCategoriesViewProps {
 }
 
 export const AdminCategoriesView: React.FC<AdminCategoriesViewProps> = ({
-  products,
+  products = [],
   onSelectCategory
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const categoryStats = CATEGORIES.map((cat) => {
-    const matchingProducts = products.filter(
-      (p) => p.category.toLowerCase() === cat.name.toLowerCase()
+    const matchingProducts = (products || []).filter(
+      (p) => p && (p.category || '').toLowerCase() === cat.name.toLowerCase()
     );
     const storeCount = matchingProducts.filter((p) => p.productType === 'STORE').length;
     const digitalCount = matchingProducts.filter((p) => p.productType === 'DIGITAL').length;

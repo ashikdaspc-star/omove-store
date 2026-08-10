@@ -32,18 +32,18 @@ interface AdminStoreProductsViewProps {
 }
 
 export const AdminStoreProductsView: React.FC<AdminStoreProductsViewProps> = ({
-  products,
+  products = [],
   onOpenAddModal,
   onEditProduct,
   onDuplicateProduct,
   onTogglePublishStatus,
   onDeleteProduct,
-  onSelectProductPreview
+  onSelectProductPreview = (_prod: Product) => {}
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   // Delete confirmation modal state
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
@@ -65,18 +65,18 @@ export const AdminStoreProductsView: React.FC<AdminStoreProductsViewProps> = ({
   }, [menuAnchor]);
 
   // Strict Filter: STORE PRODUCTS ONLY
-  const storeProductsOnly = products.filter(
-    (p) => p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card'))
+  const storeProductsOnly = (products || []).filter(
+    (p) => p && (p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card')))
   );
 
   const filtered = storeProductsOnly.filter((p) => {
-    const matchesCat = categoryFilter === 'All' || p.category.toLowerCase() === categoryFilter.toLowerCase();
+    const matchesCat = categoryFilter === 'All' || (p.category || '').toLowerCase() === categoryFilter.toLowerCase();
     const matchesStatus = statusFilter === 'All' || (p.status || 'PUBLISHED') === statusFilter;
     const matchesQuery =
       !searchQuery ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchQuery.toLowerCase());
+      (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.shortDescription || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.id || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesStatus && matchesQuery;
   });
 

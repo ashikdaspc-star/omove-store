@@ -57,20 +57,20 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     return () => clearInterval(interval);
   }, [fetchLiveStats]);
 
-  const paidOrders = orders.filter((o) => o.paymentStatus === 'SUCCESS' || o.status === 'completed');
-  const pendingOrders = orders.filter((o) => o.paymentStatus !== 'SUCCESS' && o.status !== 'completed');
+  const paidOrders = (orders || []).filter((o) => o && (o.paymentStatus === 'SUCCESS' || o.status === 'completed'));
+  const pendingOrders = (orders || []).filter((o) => o && (o.paymentStatus !== 'SUCCESS' && o.status !== 'completed'));
 
-  const calcRevenue = paidOrders.reduce((sum, o) => sum + (o.total || o.totalAmount || 0), 0);
-  const digitalProductsCount = products.filter((p) => p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))).length;
-  const storeProductsCount = products.filter((p) => p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card'))).length;
+  const calcRevenue = paidOrders.reduce((sum, o) => sum + (o?.total || o?.totalAmount || 0), 0);
+  const digitalProductsCount = (products || []).filter((p) => p && (p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card')))).length;
+  const storeProductsCount = (products || []).filter((p) => p && (p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card')))).length;
 
   const displayCustomers = liveStats?.customers ?? registeredUsersCount;
-  const displayTotalOrders = liveStats?.totalOrders ?? orders.length;
+  const displayTotalOrders = liveStats?.totalOrders ?? (orders || []).length;
   const displayTotalRevenue = liveStats?.totalRevenue ?? calcRevenue;
   const displayPaidOrders = liveStats?.paidOrders ?? paidOrders.length;
   const displayDigitalCatalog = liveStats?.digitalProducts ?? digitalProductsCount;
   const displayStoreProducts = liveStats?.storeProducts ?? storeProductsCount;
-  const displayRemoteSupport = liveStats?.remoteSupport ?? bookings.length;
+  const displayRemoteSupport = liveStats?.remoteSupport ?? (bookings || []).length;
   const displayPendingVerification = liveStats?.pendingVerification ?? pendingOrders.length;
 
   return (

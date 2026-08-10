@@ -25,24 +25,26 @@ export const AdminGlobalSearchModal: React.FC<AdminGlobalSearchModalProps> = ({
   if (!isOpen) return null;
 
   const matchedProducts = query
-    ? products.filter(
-        (p) => p.name.toLowerCase().includes(query.toLowerCase()) || p.shortDescription.toLowerCase().includes(query.toLowerCase())
+    ? (products || []).filter(
+        (p) => p && ((p.name || '').toLowerCase().includes(query.toLowerCase()) || (p.shortDescription || '').toLowerCase().includes(query.toLowerCase()))
       )
     : [];
 
   const matchedOrders = query
-    ? orders.filter(
+    ? (orders || []).filter(
         (o) =>
-          o.orderNumber.toLowerCase().includes(query.toLowerCase()) ||
-          (o.customerEmail && o.customerEmail.toLowerCase().includes(query.toLowerCase()))
+          o &&
+          ((o.orderNumber || o.id || '').toLowerCase().includes(query.toLowerCase()) ||
+          (o.customerEmail && o.customerEmail.toLowerCase().includes(query.toLowerCase())))
       )
     : [];
 
   const matchedBookings = query
-    ? bookings.filter(
+    ? (bookings || []).filter(
         (b) =>
-          b.bookingNumber.toLowerCase().includes(query.toLowerCase()) ||
-          (b.email && b.email.toLowerCase().includes(query.toLowerCase()))
+          b &&
+          ((b.bookingNumber || b.id || '').toLowerCase().includes(query.toLowerCase()) ||
+          (b.email && b.email.toLowerCase().includes(query.toLowerCase())))
       )
     : [];
 

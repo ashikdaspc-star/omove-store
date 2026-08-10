@@ -31,7 +31,7 @@ interface AdminDigitalProductsViewProps {
 }
 
 export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> = ({
-  products,
+  products = [],
   onOpenAddModal,
   onEditProduct,
   onDuplicateProduct,
@@ -61,17 +61,17 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
   }, [menuAnchor]);
 
   // Filter EXCLUSIVELY Digital Products (productType === 'DIGITAL')
-  const digitalProductsOnly = products.filter(
-    (p) => p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))
+  const digitalProductsOnly = (products || []).filter(
+    (p) => p && (p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card')))
   );
 
   const filtered = digitalProductsOnly.filter((p) => {
     const matchesStatus = statusFilter === 'All' || (p.status || 'PUBLISHED') === statusFilter;
     const matchesSearch =
       !searchQuery ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchQuery.toLowerCase());
+      (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.shortDescription || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.id || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 

@@ -12,11 +12,12 @@ export const AdminOrdersView: React.FC<AdminOrdersViewProps> = ({ orders = [], o
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-  const filtered = orders.filter((ord) => {
+  const filtered = (orders || []).filter((ord) => {
+    if (!ord) return false;
     const matchesStatus = statusFilter === 'All' || ord.paymentStatus === statusFilter;
     const matchesQuery =
       !searchQuery ||
-      ord.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (ord.orderNumber || ord.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (ord.customerEmail && ord.customerEmail.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (ord.customerName && ord.customerName.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesStatus && matchesQuery;
@@ -87,7 +88,7 @@ export const AdminOrdersView: React.FC<AdminOrdersViewProps> = ({ orders = [], o
                   <td className="py-3.5 font-bold text-slate-900">{ord.orderNumber || ord.id}</td>
                   <td className="py-3.5 text-slate-700 font-sans">{ord.customerEmail || ord.customerName}</td>
                   <td className="py-3.5 text-slate-600">
-                    {ord.items.map((it) => it.productName).join(', ')}
+                    {(ord.items || []).map((it) => it?.productName || 'Product').join(', ')}
                   </td>
                   <td className="py-3.5 font-extrabold text-slate-900">₹{ord.total}</td>
                   <td className="py-3.5">

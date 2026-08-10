@@ -18,28 +18,6 @@
 
       gtag('config', 'G-ST07D2GYPK');
     </script>
-    <script>
-      (function() {
-        try {
-          var originalFetch = window.fetch;
-          if (originalFetch) {
-            var currentFetch = originalFetch;
-            Object.defineProperty(window, 'fetch', {
-              get: function() {
-                return currentFetch;
-              },
-              set: function(val) {
-                currentFetch = val;
-              },
-              configurable: true,
-              enumerable: true
-            });
-          }
-        } catch (e) {
-          console.warn('Fetch property wrapper warning:', e);
-        }
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>
