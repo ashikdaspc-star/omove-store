@@ -316,7 +316,10 @@ function buildProductObject(body: any, isDigital = false): any {
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
-  const path = url.pathname.replace(/\/$/, '') || '/';
+  let path = url.pathname.replace(/\/$/, '') || '/';
+  if (!path.startsWith('/api')) {
+    path = '/api' + (path.startsWith('/') ? path : '/' + path);
+  }
   const method = request.method.toUpperCase();
 
   console.log(`[API REQUEST ROUTE] Method: ${method} | Path: ${path}`);
