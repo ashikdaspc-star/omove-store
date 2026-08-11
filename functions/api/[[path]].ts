@@ -739,27 +739,30 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const numMatch = lowerId.match(/\d{6,}/);
       if (numMatch) {
         const numStr = numMatch[0];
-        idx = products.findIndex((p: any) => (p.id || '').includes(numStr) || (p.createdAt || '').includes(numStr));
+          idx = products.findIndex((p: any) => (p.id || '').includes(numStr) || (p.createdAt || '').includes(numStr));
         if (idx !== -1) return idx;
       }
 
       return -1;
     }
 
-    // Single Product Route: GET / PUT / DELETE /api/products/:id
+    // Single Product Route: GET / PUT / DELETE /api/products/:id or /api/digital-products/:id
     const prodIdMatch = path.match(/^\/api\/(?:admin\/)?(?:store-products|digital-products|products)\/([^\/]+)$/);
     if (prodIdMatch) {
       const pId = decodeURIComponent(prodIdMatch[1]);
       const isAdminPath = path.includes('/admin/');
+      const isDigitalRoute = path.includes('digital');
+
+      const targetFile = isDigitalRoute ? 'src/data/digital_products.json' : 'src/data/products.json';
 
       if (method === 'GET') {
-        const fresh = await fetchFileFromGitHub('src/data/products.json', env);
-        if (Array.isArray(fresh) && fresh.length > 0) dynamicProductsStore = fresh;
+        const fresh = await fetchFileFromGitHub(targetFile, env);
+        const list = Array.isArray(fresh) ? fresh : [];
 
-        const idx = findProductIndexInCatalog(dynamicProductsStore, pId);
+        const idx = findProductIndexInCatalog(list, pId);
         if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
 
-        const prod = { ...dynamicProductsStore[idx] };
+        const prod = { ...list[idx] };
         if (!isAdminPath) {
           delete prod.googleDriveUrl;
           delete prod.fileUrl;
@@ -767,23 +770,25 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return jsonResponse(prod);
       }
 
-      if (method === 'PUT') {
+      if (method === 'PUT' || method === 'PATCH') {
         const body: any = await request.json().catch(() => ({}));
-        const isDigital = path.includes('digital') || body.productType === 'DIGITAL';
+        const isDigital = isDigitalRoute || body.productType === 'DIGITAL';
+        const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
 
         let updatedProduct: any = null;
         const result = await atomicFileMutation(
-          'src/data/products.json',
+          fileToMutate,
           (products) => {
-            const idx = findProductIndexInCatalog(products, pId);
-            if (idx === -1) return products;
+            const list = Array.isArray(products) ? products : [];
+            const idx = findProductIndexInCatalog(list, pId);
+            if (idx === -1) return list;
             updatedProduct = {
-              ...products[idx],
+              ...list[idx],
               ...body,
-              productType: isDigital ? 'DIGITAL' : (body.productType || products[idx].productType || 'STORE'),
+              id: list[idx].id,
               updatedAt: new Date().toISOString()
             };
-            const newList = [...products];
+            const newList = [...list];
             newList[idx] = updatedProduct;
             return newList;
           },
@@ -799,13 +804,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to update product on GitHub' }, 500);
         }
 
-        dynamicProductsStore = result.data;
+        if (!isDigital) dynamicProductsStore = result.data;
         return jsonResponse({ success: true, product: updatedProduct, sync: { success: true, commitSha: result.commitSha } });
       }
 
       if (method === 'DELETE') {
         const permanentParam = url.searchParams.get('permanent');
         const forcePermanent = permanentParam === 'true';
+        const isDigital = isDigitalRoute;
+        const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
 
         let targetProduct: any = null;
         let actionTaken = 'DELETED';
@@ -816,14 +823,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
 
         const result = await atomicFileMutation(
-          'src/data/products.json',
+          fileToMutate,
           (products) => {
-            const idx = findProductIndexInCatalog(products, pId);
-            if (idx === -1) return products;
+            const list = Array.isArray(products) ? products : [];
+            const idx = findProductIndexInCatalog(list, pId);
+            if (idx === -1) return list;
 
-            targetProduct = products[idx];
+            targetProduct = list[idx];
 
-            // Purchase Safeguard check against Orders Store
             const hasOrders = Array.from(ordersStore.values()).some((ord: any) =>
               Array.isArray(ord.items) && ord.items.some((it: any) =>
                 it.productId === targetProduct.id ||
@@ -834,16 +841,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
             if (!forcePermanent) {
               actionTaken = 'ARCHIVED';
-              const newList = [...products];
+              const newList = [...list];
               newList[idx] = {
-                ...products[idx],
+                ...list[idx],
                 status: 'ARCHIVED',
                 updatedAt: new Date().toISOString()
               };
               return newList;
             } else {
               actionTaken = 'DELETED';
-              const newList = [...products];
+              const newList = [...list];
               newList.splice(idx, 1);
               return newList;
             }
@@ -858,7 +865,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             deleted: true,
             alreadyDeleted: true,
             message: `Product '${pId}' is already removed from catalog.`
-          }, 200);
+          });
         }
 
         if (!result.success) {

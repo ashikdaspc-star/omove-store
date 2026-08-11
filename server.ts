@@ -1234,14 +1234,14 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
-  app.put('/api/digital-products/:id', (req: Request, res: Response) => {
+  const handleUpdateDigitalProd = (req: Request, res: Response) => {
     try {
       const prodFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
       let list = [];
       if (fs.existsSync(prodFile)) {
         list = JSON.parse(fs.readFileSync(prodFile, 'utf-8'));
       }
-      let updatedProd = null;
+      let updatedProd: any = null;
       list = list.map((p: any) => {
         if (p.id === req.params.id || p.slug === req.params.id) {
           updatedProd = { ...p, ...req.body, id: p.id, updatedAt: new Date().toISOString() };
@@ -1250,13 +1250,16 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         return p;
       });
       fs.writeFileSync(prodFile, JSON.stringify(list, null, 2));
-      return res.json({ success: true, product: updatedProd });
+      if (updatedProd) {
+        return res.json({ success: true, product: updatedProd });
+      }
+      return res.status(404).json({ success: false, error: 'Product not found' });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
     }
-  });
+  };
 
-  app.delete('/api/digital-products/:id', (req: Request, res: Response) => {
+  const handleDeleteDigitalProd = (req: Request, res: Response) => {
     try {
       const prodFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
       let list = [];
@@ -1269,7 +1272,12 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
     }
-  });
+  };
+
+  app.put('/api/digital-products/:id', handleUpdateDigitalProd);
+  app.put('/api/admin/digital-products/:id', handleUpdateDigitalProd);
+  app.delete('/api/digital-products/:id', handleDeleteDigitalProd);
+  app.delete('/api/admin/digital-products/:id', handleDeleteDigitalProd);
 
   // Admin Registered Customer Accounts Directory & Deletion Endpoints
   app.get('/api/admin/customers', async (_req: Request, res: Response) => {
