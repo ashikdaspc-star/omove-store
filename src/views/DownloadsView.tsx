@@ -189,12 +189,12 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-extrabold text-slate-900 font-mono flex items-center gap-2">
-                <span>My Purchased Downloads & License Keys</span>
+                <span>My Purchased Downloads</span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold">
                   {purchasedItems.length}
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 font-mono">Software items you bought will show up here with instant activation keys</p>
+              <p className="text-xs text-slate-500 font-mono">Software items you bought will show up here with instant digital downloads</p>
             </div>
           </div>
         </div>
@@ -204,7 +204,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
             <ShoppingBag className="w-10 h-10 text-emerald-600 mx-auto" />
             <h3 className="font-bold text-slate-900 text-base font-mono">No Purchased Software Yet</h3>
             <p className="text-xs text-slate-600 max-w-md mx-auto font-sans">
-              When you buy software or digital tools from the Omove Store, your purchased installer downloads and license key activations will appear here automatically!
+              When you buy software or digital tools from the Omove Store, your purchased installer downloads will appear here automatically!
             </p>
           </div>
         ) : (
@@ -241,7 +241,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                     <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold">
                       <span className="flex items-center gap-1">
                         <Key className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>ACTIVATION LICENSE KEY:</span>
+                        <span>DIGITAL LICENSE / ACCESS CODE:</span>
                       </span>
                       <span className="text-[10px] text-emerald-400">GENUINE LICENSE</span>
                     </div>
@@ -446,8 +446,8 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
 
         <div className="grid sm:grid-cols-3 gap-6 text-xs text-slate-600 font-sans">
           <div className="space-y-1.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <span className="font-bold font-mono text-emerald-800 text-sm block">1. Purchase & Activation</span>
-            <p>Buy any digital product to instantly unlock your activation license key and setup installer right here.</p>
+            <span className="font-bold font-mono text-emerald-800 text-sm block">1. Purchase & Downloads</span>
+            <p>Buy any digital product to instantly unlock your setup installer right here.</p>
           </div>
 
           <div className="space-y-1.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">

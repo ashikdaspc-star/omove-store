@@ -78,10 +78,10 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
               DIGITAL PRODUCTS
             </span>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight font-sans">
-              Digital Products & License Keys
+              Digital Products
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 font-sans max-w-2xl">
-              Explore our digital products, genuine software license keys, and operating systems with instant access after purchase.
+              Explore our digital products, software tools, and operating systems with instant access after purchase.
             </p>
           </div>
 

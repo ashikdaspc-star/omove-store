@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { CartItem, Order } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
@@ -18,7 +19,8 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
-  ShieldCheck
+  ShieldCheck,
+  Package
 } from 'lucide-react';
 import { useOnlineStatus } from './OfflineBanner';
 
@@ -44,6 +46,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onOpenInvoiceModal
 }) => {
   const isOnline = useOnlineStatus();
+  const navigate = useNavigate();
 
   // Customer WhatsApp Phone State
   const [customerPhone, setCustomerPhone] = useState('');
@@ -54,6 +57,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
   const [copiedKeyIndex, setCopiedKeyIndex] = useState<number | null>(null);
   const [paymentFailedNotice, setPaymentFailedNotice] = useState('');
+
+  const handleGoToMyOrders = () => {
+    onClose();
+    navigate('/my-account?tab=orders');
+  };
+
+  const handleTriggerDownload = (fileUrl?: string, productName?: string) => {
+    if (!fileUrl || fileUrl.trim() === '' || fileUrl === '#') {
+      alert(`Download link for ${productName || 'this product'} is not available yet. Please contact support.`);
+      return;
+    }
+    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+      window.open(fileUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   // Expandable Coupon State
   const [showCouponInput, setShowCouponInput] = useState(false);
@@ -372,77 +398,63 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
               <h3 className="text-lg font-extrabold text-white">Payment Successful!</h3>
               <p className="text-xs text-slate-300">
-                Order <strong className="font-mono text-cyan-400">{createdOrder.orderNumber}</strong> processed. Your instant access keys and downloads are ready below.
+                Order <strong className="font-mono text-cyan-400">{createdOrder.orderNumber}</strong> processed. Your digital downloads and order details are ready below.
               </p>
             </div>
 
-            {/* License Keys & Downloads Box */}
+            {/* Downloads List Box */}
             <div className="space-y-3">
               <h4 className="font-bold text-[11px] uppercase tracking-wider text-slate-400 font-mono">
-                Digital Products & Activation Keys
+                Digital Products
               </h4>
 
               {createdOrder.items.map((item, idx) => (
-                <div key={idx} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 pr-2">
-                      <h5 className="font-bold text-xs text-white truncate">{item.productName}</h5>
-                      <span className="text-[10px] text-slate-400 font-mono">Size: {item.fileSize}</span>
-                    </div>
-                    <a
-                      href={item.fileUrl}
-                      download
-                      className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-cyan-600/20 shrink-0"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Download</span>
-                    </a>
+                <div key={idx} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
+                  <div className="min-w-0 pr-2">
+                    <h5 className="font-bold text-xs text-white truncate">{item.productName}</h5>
+                    <span className="text-[10px] text-slate-400 font-mono">Size: {item.fileSize}</span>
                   </div>
-
-                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <span className="text-[9px] uppercase text-slate-500 font-bold block">Activation Key</span>
-                      <span className="font-mono font-bold text-xs text-indigo-300 select-all truncate block">
-                        {item.licenseKey}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleCopyKey(item.licenseKey, idx)}
-                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-mono flex items-center gap-1 shrink-0"
-                    >
-                      {copiedKeyIndex === idx ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-400" />
-                          <span className="text-emerald-400">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3" />
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerDownload(item.fileUrl, item.productName)}
+                    className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-cyan-600/20 shrink-0"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download</span>
+                  </button>
                 </div>
               ))}
             </div>
 
-            {/* Print Invoice Button */}
-            <div className="pt-2 flex items-center justify-between gap-3">
+            {/* Action Buttons */}
+            <div className="pt-2 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
               <button
+                type="button"
                 onClick={() => onOpenInvoiceModal(createdOrder)}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold font-mono flex items-center gap-2 border border-slate-700"
+                className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold font-mono flex items-center gap-2 border border-slate-700"
               >
                 <Printer className="w-3.5 h-3.5 text-cyan-400" />
                 <span>PRINT INVOICE</span>
               </button>
 
-              <button
-                onClick={onClose}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold font-mono"
-              >
-                CLOSE
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleGoToMyOrders}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>My Orders</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold font-mono"
+                >
+                  CLOSE
+                </button>
+              </div>
             </div>
           </div>
         ) : (

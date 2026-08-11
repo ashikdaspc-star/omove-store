@@ -108,6 +108,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
   );
   const [version, setVersion] = useState(product?.version || 'v2026.1');
   const [downloadSize, setDownloadSize] = useState(product?.downloadSize || '50 MB');
+  const [fileUrl, setFileUrl] = useState(product?.fileUrl || '/api/downloads/setup');
   const [compatibilityInput, setCompatibilityInput] = useState(
     (product?.compatibility || ['Windows 11', 'Windows 10']).join(', ')
   );
@@ -145,6 +146,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
       );
       setVersion(product?.version || 'v2026.1');
       setDownloadSize(product?.downloadSize || '50 MB');
+      setFileUrl(product?.fileUrl || '/api/downloads/setup');
       setCompatibilityInput(
         (product?.compatibility || ['Windows 11', 'Windows 10']).join(', ')
       );
@@ -205,6 +207,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
       licenseType: licenseType || (activeType === 'DIGITAL' ? 'Instant Digital Key' : 'Lifetime License'),
       version: version || 'v2026.1',
       downloadSize: downloadSize || '50 MB',
+      fileUrl: fileUrl.trim() || '/api/downloads/setup',
       compatibility: compatibility.length > 0 ? compatibility : ['Windows 11', 'Windows 10'],
       features: features.length > 0 ? features : ['Instant Product Access Key', 'Official Setup Package'],
       instantKeyAvailable,
@@ -629,6 +632,25 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-600 text-xs"
                 />
               </div>
+
+              {activeType === 'DIGITAL' && (
+                <div className="p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 space-y-1.5">
+                  <label className="font-bold text-cyan-900 block text-xs flex items-center gap-1.5">
+                    <LinkIcon className="w-4 h-4 text-cyan-700" />
+                    <span>Digital Product Download URL *</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={fileUrl}
+                    onChange={(e) => setFileUrl(e.target.value)}
+                    placeholder="https://drive.google.com/... or https://domain.com/setup.zip"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-cyan-300 text-slate-900 focus:outline-none focus:border-cyan-600 text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-cyan-700 font-mono">
+                    This saved download URL will be used for the Download button on payment success and customer portal.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
