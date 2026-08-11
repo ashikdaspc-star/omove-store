@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { DigitalProduct, DigitalCategory } from '../types';
 import { DigitalProductCard } from '../components/DigitalProductCard';
-import { Search, Sparkles, FolderTree, ChevronRight, Layers, ArrowLeft, Filter, CheckCircle2 } from 'lucide-react';
+import { Search, Sparkles, FolderTree, ChevronRight, Layers, ArrowLeft, Filter, CheckCircle2, Zap, LayoutGrid } from 'lucide-react';
 
 interface DigitalProductsViewProps {
   products: any[];
@@ -103,124 +103,95 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
   }, [allDigitalProducts, activeCategory, activeSubcategory, digitalCats, searchQuery]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 font-sans">
-      {/* Top Banner & Header */}
-      <div className="p-8 rounded-3xl bg-slate-900 text-white relative overflow-hidden shadow-2xl border border-slate-800 space-y-4">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4 font-sans">
+      {/* Ultra-Compact & Eye-Catchy Unified Glassmorphic Control Bar */}
+      <div className="relative p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 text-white overflow-hidden shadow-xl border border-emerald-500/30 backdrop-blur-xl">
+        {/* Ambient Glow */}
+        <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/20 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-mono font-bold border border-emerald-400/30">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span>DIGITAL PRODUCTS MARKETPLACE</span>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Left: Title & Breadcrumbs */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-emerald-500/20 shrink-0">
+              <Sparkles className="w-4 h-4 fill-slate-950" />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-              {activeSubcategory
-                ? activeSubcategory.name
-                : activeCategory
-                ? activeCategory.name
-                : 'Premium Digital Files & Design Assets'}
-            </h1>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              {activeSubcategory?.description || activeCategory?.description || 'Browse high-quality digital templates, graphics, presets, software tools, and digital resources with instant Google Drive file delivery.'}
-            </p>
+            <div>
+              <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400">
+                <Link to="/" className="hover:underline">Home</Link>
+                <span>/</span>
+                <Link to="/digital-products" className="hover:underline">Digital</Link>
+                {activeCategory && (
+                  <>
+                    <span>/</span>
+                    <span className="font-bold text-white">{activeCategory.name}</span>
+                  </>
+                )}
+              </div>
+              <h1 className="text-sm sm:text-base font-extrabold text-white tracking-tight leading-none mt-0.5">
+                {activeSubcategory
+                  ? activeSubcategory.name
+                  : activeCategory
+                  ? activeCategory.name
+                  : 'Digital Marketplace'}
+              </h1>
+            </div>
           </div>
 
-          {/* Quick Search */}
-          <div className="relative min-w-[260px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          {/* Center: Inline Category Navigation Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+            <button
+              onClick={() => navigate('/digital-products')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                !categorySlug
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-extrabold shadow-md shadow-emerald-500/30 scale-105'
+                  : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>All Products</span>
+            </button>
+
+            {topLevelCategories.map((cat) => {
+              const isSelected = activeCategory?.id === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => navigate(`/digital-products/${cat.slug}`)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold whitespace-nowrap transition-all ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-extrabold shadow-md shadow-emerald-500/30 scale-105'
+                      : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60'
+                  }`}
+                >
+                  {cat.name}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: Slim Search Input */}
+          <div className="relative w-full md:w-52 shrink-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-emerald-400" />
             <input
               type="text"
-              placeholder="Search digital assets..."
+              placeholder="Search assets..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-800/90 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-sans shadow-inner"
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-900/90 border border-emerald-500/30 focus:border-emerald-400 text-xs text-white placeholder-slate-400 focus:outline-none font-sans transition-all shadow-inner"
             />
           </div>
         </div>
 
-        {/* Dynamic Breadcrumbs */}
-        <div className="relative z-10 pt-2 border-t border-slate-800 flex items-center gap-2 text-xs font-mono text-slate-400 overflow-x-auto">
-          <Link to="/" className="hover:text-emerald-400 transition-colors">Home</Link>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-          <Link to="/digital-products" className="hover:text-emerald-400 transition-colors">Digital Products</Link>
-
-          {activeCategory && (
-            <>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-              <Link to={`/digital-products/${activeCategory.slug}`} className={`hover:text-emerald-400 transition-colors ${!activeSubcategory ? 'text-emerald-400 font-bold' : ''}`}>
-                {activeCategory.name}
-              </Link>
-            </>
-          )}
-
-          {activeSubcategory && (
-            <>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-              <span className="text-emerald-400 font-bold">{activeSubcategory.name}</span>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Category Filter Pills Navigation */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-          <span className="font-bold text-slate-900 flex items-center gap-1.5">
-            <FolderTree className="w-4 h-4 text-emerald-600" />
-            <span>CATEGORIES</span>
-          </span>
-          {(activeCategory || activeSubcategory) && (
-            <button
-              onClick={() => navigate('/digital-products')}
-              className="text-emerald-600 hover:text-emerald-700 font-bold inline-flex items-center gap-1"
-            >
-              <span>View All Categories</span>
-            </button>
-          )}
-        </div>
-
-        {/* Top-Level Categories Selector */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          <button
-            onClick={() => navigate('/digital-products')}
-            className={`px-4 py-2 rounded-xl text-xs font-mono font-bold whitespace-nowrap transition-all ${
-              !categorySlug
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            All Products
-          </button>
-
-          {topLevelCategories.map((cat) => {
-            const isSelected = activeCategory?.id === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => navigate(`/digital-products/${cat.slug}`)}
-                className={`px-4 py-2 rounded-xl text-xs font-mono font-bold whitespace-nowrap transition-all ${
-                  isSelected
-                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {cat.name}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Subcategories Selector Bar (when a parent category is selected) */}
+        {/* Subcategories strip (only if active category has subcategories) */}
         {childSubcategories.length > 0 && (
-          <div className="pt-2 border-t border-slate-100 flex items-center gap-2 overflow-x-auto pb-1">
-            <span className="text-[11px] font-mono font-bold text-slate-400 uppercase shrink-0">Subcategories:</span>
+          <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto text-[11px] font-mono">
+            <span className="text-[10px] text-slate-400 uppercase font-bold shrink-0">Subcategories:</span>
             <button
               onClick={() => navigate(`/digital-products/${activeCategory?.slug}`)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all ${
+              className={`px-2.5 py-0.5 rounded-lg font-bold transition-all ${
                 !subcategorySlug
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               All {activeCategory?.name}
@@ -232,10 +203,10 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
                 <button
                   key={sub.id}
                   onClick={() => navigate(`/digital-products/${activeCategory?.slug}/${sub.slug}`)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all ${
+                  className={`px-2.5 py-0.5 rounded-lg font-bold transition-all ${
                     isSubSelected
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                      : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   {sub.name}
@@ -247,20 +218,20 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
       </div>
 
       {/* Product Catalog Grid */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex items-center justify-between font-mono text-xs text-slate-500">
-          <span className="font-bold text-slate-900">
+          <span className="font-bold text-slate-800 text-xs">
             Showing {filteredProducts.length} Digital Asset{filteredProducts.length === 1 ? '' : 's'}
           </span>
         </div>
 
         {filteredProducts.length === 0 ? (
-          <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-200 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-              <FolderTree className="w-6 h-6" />
+          <div className="p-10 text-center bg-white rounded-2xl border border-dashed border-slate-200 space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+              <FolderTree className="w-5 h-5 text-slate-400" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-base font-bold text-slate-800 font-mono">No Digital Files Found</h3>
+              <h3 className="text-sm font-bold text-slate-800 font-mono">No Digital Assets Found</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 No items match your selected category filter or search criteria.
               </p>
@@ -270,14 +241,14 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
                 setSearchQuery('');
                 navigate('/digital-products');
               }}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-mono text-xs font-bold inline-flex items-center gap-1.5 shadow-sm"
+              className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-mono text-xs font-bold inline-flex items-center gap-1.5 shadow-xs"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5" />
               <span>CLEAR FILTERS</span>
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filteredProducts.map((prod) => (
               <DigitalProductCard
                 key={prod.id}
