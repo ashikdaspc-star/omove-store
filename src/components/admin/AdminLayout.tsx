@@ -289,7 +289,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               onDeleteService={onDeleteService}
             />
           )}
-          {activeTab === 'remote-support' && <AdminRemoteSupportView bookings={bookings} onUpdateBooking={onUpdateBooking} />}
+          {activeTab === 'remote-support' && <AdminRemoteSupportView bookings={bookings} onUpdateBooking={onUpdateBooking} onDeleteBooking={onDeleteBooking} />}
           {activeTab === 'blog' && <AdminBlogView blogs={blogs} onDeleteBlog={onDeleteBlog} />}
           {activeTab === 'categories' && (
             <AdminCategoriesView

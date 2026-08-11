@@ -616,6 +616,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const prodIdMatch = path.match(/^\/api\/(?:admin\/)?(?:store-products|digital-products|products)\/([^\/]+)$/);
     if (prodIdMatch) {
       const pId = decodeURIComponent(prodIdMatch[1]);
+      const isAdminPath = path.includes('/admin/');
 
       if (method === 'GET') {
         const fresh = await fetchFileFromGitHub('src/data/products.json', env);

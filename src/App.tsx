@@ -197,7 +197,18 @@ export default function App() {
             console.log('[OMOVE SYNC] Server catalog version updated:', info.version, 'vs current:', catalogVersionRef.current);
             catalogVersionRef.current = info.version;
             loadLatestProductsFromServer();
-            return;
+          }
+        }
+      } catch (e) {}
+
+      // Poll Remote Support Bookings queue for real-time live admin updates
+      try {
+        const bRes = await fetch(`/api/bookings?t=${Date.now()}`, { cache: 'no-store' });
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          if (Array.isArray(bData)) {
+            setBookings(bData);
+            try { localStorage.setItem('omove_bookings', JSON.stringify(bData)); } catch (e) {}
           }
         }
       } catch (e) {}
@@ -398,6 +409,17 @@ export default function App() {
       })
       .catch(() => {});
 
+    // Fetch Live Remote Support Queue Bookings from server
+    fetch('/api/bookings?v=' + Date.now(), { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setBookings(data);
+          try { localStorage.setItem('omove_bookings', JSON.stringify(data)); } catch (e) {}
+        }
+      })
+      .catch(() => {});
+
     let token = '';
     let localSession = null;
     try {
@@ -591,7 +613,8 @@ export default function App() {
 
   const handleBookingSuccess = (newBooking: RemoteBooking) => {
     setBookings((prev) => {
-      const updated = [newBooking, ...prev];
+      const exists = prev.some((b) => b.id === newBooking.id || b.bookingNumber === newBooking.bookingNumber);
+      const updated = exists ? prev.map((b) => (b.id === newBooking.id ? newBooking : b)) : [newBooking, ...prev];
       try { localStorage.setItem('omove_bookings', JSON.stringify(updated)); } catch (e) {}
       return updated;
     });
@@ -815,17 +838,36 @@ export default function App() {
     }
   };
 
-  const handleUpdateBooking = (updatedBooking: RemoteBooking) => {
-    setBookings((prev) => prev.map((b) => (b.id === updatedBooking.id ? updatedBooking : b)));
+  const handleUpdateBooking = async (updatedBooking: RemoteBooking) => {
+    setBookings((prev) => {
+      const updated = prev.map((b) => (b.id === updatedBooking.id ? updatedBooking : b));
+      try { localStorage.setItem('omove_bookings', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
+    try {
+      await fetch(`/api/bookings/${encodeURIComponent(updatedBooking.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedBooking)
+      });
+    } catch (e) {
+      console.error('[OMOVE BOOKING] Error updating booking:', e);
+    }
   };
 
   const handleDeleteBooking = async (bookingId: string) => {
-    const prevBookings = [...bookings];
-    setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    setBookings((prev) => {
+      const updated = prev.filter((b) => b.id !== bookingId);
+      try { localStorage.setItem('omove_bookings', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
 
     try {
       await fetch(`/api/bookings/${encodeURIComponent(bookingId)}`, { method: 'DELETE' });
-    } catch (e) {}
+    } catch (e) {
+      console.error('[OMOVE BOOKING] Error deleting booking:', e);
+    }
   };
 
   const handleAddBlog = async (newBlog: BlogPost) => {

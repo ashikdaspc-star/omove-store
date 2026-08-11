@@ -144,62 +144,48 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
     const finalPrice = Math.max(0, activeBookingService.price - appliedDiscount);
 
-    const payload = {
-      customerName,
-      email,
-      phone,
+    const generatedBookingNum = 'OMV-BOOK-' + Math.floor(1000 + Math.random() * 9000);
+    const generatedId = 'bk-' + Date.now();
+
+    const fullClientBooking: RemoteBooking = {
+      id: generatedId,
+      bookingNumber: generatedBookingNum,
+      customerName: customerName || 'Client',
+      email: email || 'customer@example.com',
+      phone: phone || '+91 8345968169',
       serviceId: activeBookingService.id,
-      amount: finalPrice,
+      serviceTitle: activeBookingService.title,
       issueCategory: activeBookingService.category,
-      problemDescription,
+      problemDescription: problemDescription || 'Remote PC inspection & repair requested.',
       preferredDate: new Date().toISOString().split('T')[0],
       preferredTime: '10:00 AM',
-      remoteTool: 'AnyDesk' as const,
+      remoteTool: 'AnyDesk',
       remoteId: remoteId || '982 110 449',
-      remotePassword: ''
+      remotePassword: '',
+      amount: finalPrice,
+      paymentStatus: 'Paid',
+      status: 'Technician Assigned',
+      technicianName: 'David Chen (Cert #8821)',
+      createdAt: new Date().toISOString()
     };
 
-    let bookingObj: RemoteBooking | null = null;
+    let bookingObj: RemoteBooking = fullClientBooking;
 
     try {
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(fullClientBooking)
       });
 
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.booking) {
-          bookingObj = { ...(bookingObj || {}), ...data.booking };
+          bookingObj = { ...fullClientBooking, ...data.booking };
         }
       }
     } catch (err) {
       console.warn('Backend API unavailable, using client-side booking construction:', err);
-    }
-
-    if (!bookingObj) {
-      bookingObj = {
-        id: 'bk-' + Date.now(),
-        bookingNumber: 'OMV-BOOK-' + Math.floor(1000 + Math.random() * 9000),
-        customerName,
-        email,
-        phone,
-        serviceId: activeBookingService.id,
-        serviceTitle: activeBookingService.title,
-        issueCategory: activeBookingService.category,
-        problemDescription: problemDescription || 'Remote PC inspection & repair requested.',
-        preferredDate: new Date().toISOString().split('T')[0],
-        preferredTime: '10:00 AM',
-        remoteTool: 'AnyDesk',
-        remoteId: remoteId || '982 110 449',
-        remotePassword: '',
-        amount: finalPrice,
-        paymentStatus: 'Paid',
-        status: 'Technician Assigned',
-        technicianName: 'David Chen (Cert #8821)',
-        createdAt: new Date().toISOString()
-      };
     }
 
     if (finalPrice <= 0) {
