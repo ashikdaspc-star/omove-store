@@ -271,6 +271,15 @@ function recordDraftMutation(filePath: string, updatedData: any[]) {
   draftStore.workingData.set(filePath, updatedData);
 }
 
+async function getWorkingData(filePath: string, env: Env): Promise<any[]> {
+  if (draftStore.workingData.has(filePath)) {
+    return draftStore.workingData.get(filePath) || [];
+  }
+  const fresh = await fetchFileFromGitHub(filePath, env);
+  const list = Array.isArray(fresh) ? fresh : [];
+  return list;
+}
+
 function clearDraftStore() {
   draftStore.hasPendingChanges = false;
   draftStore.pendingFiles.clear();
@@ -1235,8 +1244,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
         return jsonResponse({ success: true, deleted: true, isDraft: true });
       }
-    }
-
     }
 
     // 6. Blogs Endpoints (GET, POST, PUT, DELETE)

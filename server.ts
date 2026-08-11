@@ -1029,17 +1029,6 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       res.status(500).json({ success: false, error: e.message });
     }
   });
-        commitSha: commitSha,
-        gitHubSynced: gitHubSynced,
-        publishedFiles: publishedFiles,
-        timestamp: nowStr,
-        productionUrl: 'https://www.omovestore.shop'
-      });
-    } catch (err: any) {
-      console.error('[ADMIN PUBLISH API ERROR]', err);
-      res.status(500).json({ success: false, error: err.message || 'Failed to publish live production data.' });
-    }
-  });
 
   // Catalog version endpoint for real-time background version checking
   app.get('/api/catalog-version', (_req: Request, res: Response) => {
