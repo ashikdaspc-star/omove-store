@@ -62,7 +62,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           author: 'Karan Patel',
           rating: 5,
           date: '1 week ago',
-          comment: 'License key was delivered instantly after Razorpay payment. Downloaded in under 1 minute.',
+          comment: 'Google Drive download link was delivered instantly after Razorpay payment. Downloaded in under 1 minute.',
           verifiedPurchase: true
         }
       ]);
@@ -190,9 +190,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     <span>{product.rating}</span>
                   </div>
                   <span className="text-xs text-slate-500">({product.reviewCount} customer reviews)</span>
-                  <span className="text-xs text-emerald-400 font-medium ml-auto flex items-center gap-1">
+                  <span className="text-xs text-emerald-400 font-medium ml-auto flex items-center gap-1 font-mono">
                     <Zap className="w-3.5 h-3.5" />
-                    Instant Key
+                    Google Drive File
                   </span>
                 </div>
 

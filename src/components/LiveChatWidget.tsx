@@ -94,10 +94,10 @@ export const LiveChatWidget: React.FC = () => {
               🔧 AnyDesk Fix
             </button>
             <button
-              onClick={() => setInputMessage('How do I download my key?')}
+              onClick={() => setInputMessage('How do I download my purchased file?')}
               className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono whitespace-nowrap"
             >
-              🔑 License Keys
+              📁 Digital Downloads
             </button>
             <button
               onClick={() => setInputMessage('Fix Blue Screen crash')}

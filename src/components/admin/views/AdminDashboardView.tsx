@@ -86,7 +86,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             Omove Store Administration Portal
           </h2>
           <p className="text-xs text-slate-300 font-sans max-w-xl">
-            Real-time server-authoritative e-commerce management. Manage software products, digital licenses, orders, customers, and payment verifications.
+            Real-time server-authoritative e-commerce management. Manage software products, digital downloads, orders, customers, and payment verifications.
           </p>
         </div>
 
@@ -179,7 +179,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           </div>
           <div className="flex items-baseline justify-between">
             <span className="text-2xl font-extrabold font-mono text-slate-900">{displayDigitalCatalog}</span>
-            <span className="text-[10px] text-slate-400 font-mono">Instant Keys</span>
+            <span className="text-[10px] text-slate-400 font-mono">Digital Files</span>
           </div>
         </div>
 

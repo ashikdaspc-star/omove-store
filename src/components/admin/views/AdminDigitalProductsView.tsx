@@ -93,9 +93,9 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
             <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
             <span>DIGITAL PRODUCTS CATALOG MANAGEMENT</span>
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Digital Products & Instant Keys</h2>
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Digital Products & File Downloads</h2>
           <p className="text-xs text-slate-500 font-sans">
-            Dedicated catalog management for software keys, instant access digital files, and version updates.
+            Dedicated catalog management for digital products, Google Drive file download links, and version updates.
           </p>
         </div>
 

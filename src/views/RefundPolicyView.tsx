@@ -28,7 +28,7 @@ export const RefundPolicyView: React.FC = () => {
             1. Digital Product Return Policy
           </h2>
           <p className="text-slate-600">
-            Due to the immediate digital nature of software license keys, digital activation codes, and downloadable installer packages, <strong>digital products are generally non-returnable and non-refundable</strong> once successfully delivered or displayed in your account portal.
+            Due to the immediate digital nature of direct downloadable installer packages and Google Drive files, <strong>digital products are generally non-returnable and non-refundable</strong> once successfully delivered or displayed in your account portal.
           </p>
         </section>
 
@@ -42,7 +42,7 @@ export const RefundPolicyView: React.FC = () => {
           </p>
           <ul className="space-y-2 text-slate-600 list-disc pl-5">
             <li>
-              <strong>Verified License Key Defect:</strong> If a delivered license key fails to activate and our technical team is unable to provide a replacement key within 24 hours.
+              <strong>Verified Digital File Defect:</strong> If a delivered download file is corrupt or broken and our technical team is unable to provide a functional replacement link within 24 hours.
             </li>
             <li>
               <strong>Non-Delivery or Access Failure:</strong> If a completed, payment-verified order fails to generate product access due to a system glitch and cannot be resolved by support.
@@ -62,7 +62,7 @@ export const RefundPolicyView: React.FC = () => {
             3. Non-Eligible Refund Conditions
           </h2>
           <ul className="space-y-2 text-slate-600 list-disc pl-5">
-            <li>Accidental purchase or change of mind after the digital key has been revealed or redeemed.</li>
+            <li>Accidental purchase or change of mind after the digital file download link has been accessed.</li>
             <li>Incompatibility caused by hardware/OS specifications below the explicitly stated system requirements.</li>
             <li>Third-party software modifications or OS corruptions outside the scope of the purchased product.</li>
           </ul>

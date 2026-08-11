@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Megaphone, Check } from 'lucide-react';
 
 export const AdminAnnouncementsView: React.FC = () => {
-  const [announcementText, setAnnouncementText] = useState('🔥 SPECIAL PROMO: Get Instant Access License Keys With 100% Refund Guarantee!');
+  const [announcementText, setAnnouncementText] = useState('🔥 SPECIAL PROMO: Get Instant Digital Product Downloads With 100% Refund Guarantee!');
   const [ctaText, setCtaText] = useState('SHOP NOW');
   const [ctaUrl, setCtaUrl] = useState('/store');
   const [enabled, setEnabled] = useState(true);

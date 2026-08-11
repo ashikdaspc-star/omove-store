@@ -86,8 +86,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   }, [tabParam]);
 
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
   // Edit profile state
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [name, setName] = useState(customerProfile.name || 'Customer');
@@ -192,12 +190,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       })
       .catch((err) => console.warn('Account bookings fetch note:', err));
   }, []);
-
-  const handleCopyKey = (key: string) => {
-    navigator.clipboard.writeText(key);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 3000);
-  };
 
   // Combine server-authoritative orders with prop fallback
   const combinedOrders = serverOrders.length > 0 ? serverOrders : orders;

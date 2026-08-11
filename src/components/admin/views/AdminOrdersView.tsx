@@ -151,13 +151,13 @@ export const AdminOrdersView: React.FC<AdminOrdersViewProps> = ({ orders = [], o
             </div>
 
             <div>
-              <strong className="text-slate-900 block mb-2 font-mono">Purchased License Items ({selectedOrder.items.length})</strong>
+              <strong className="text-slate-900 block mb-2 font-mono">Purchased Products ({selectedOrder.items.length})</strong>
               <div className="space-y-2">
                 {selectedOrder.items.map((it, idx) => (
                   <div key={idx} className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200/80 space-y-1">
                     <span className="font-bold text-slate-900 font-sans block">{it.productName}</span>
                     <div className="flex justify-between text-[11px] text-emerald-800">
-                      <span>Key: {it.licenseKey || 'OMV-XXXX-KEY'}</span>
+                      <span>Fulfillment: Google Drive Link</span>
                       <span>₹{it.price}</span>
                     </div>
                   </div>

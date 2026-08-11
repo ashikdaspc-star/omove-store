@@ -352,7 +352,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </h1>
 
               <p className="text-xs sm:text-base text-emerald-100/90 max-w-xl mx-auto lg:mx-0 leading-relaxed font-sans">
-                Fix Blue Screen crashes, driver failures, Windows activation, and malware remotely via AnyDesk. Plus genuine software keys delivered instantly.
+                Fix Blue Screen crashes, driver failures, Windows activation, and malware remotely via AnyDesk. Plus digital software tools delivered instantly.
               </p>
 
               {/* Action Buttons */}
@@ -389,7 +389,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   className="w-full sm:w-auto px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-mono font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all"
                 >
                   <Download className="w-4 h-4" />
-                  <span>BROWSE SOFTWARE KEYS</span>
+                  <span>BROWSE DIGITAL PRODUCTS</span>
                 </button>
               </div>
 

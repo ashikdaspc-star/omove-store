@@ -10,9 +10,6 @@ import {
   ExternalLink,
   HardDrive,
   Terminal,
-  Key,
-  Copy,
-  Check,
   ShoppingBag,
   Clock,
   Sparkles,
@@ -40,7 +37,6 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
   const isOnline = useOnlineStatus();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
   const [serverOrders, setServerOrders] = useState<Order[]>([]);
 
@@ -185,7 +181,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
         </div>
       </div>
 
-      {/* SECTION 1: MY PURCHASED SOFTWARE & LICENSE KEYS */}
+      {/* SECTION 1: MY PURCHASED DOWNLOADS */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
           <div className="flex items-center gap-2.5">
@@ -292,7 +288,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
           </div>
           <div>
             <h4 className="font-bold text-slate-900 text-sm">Automated Setup</h4>
-            <p className="text-xs text-slate-500">1-Click silent setup & license integration</p>
+            <p className="text-xs text-slate-500">1-Click setup & Google Drive file integration</p>
           </div>
         </div>
       </div>
@@ -353,7 +349,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 space-y-2">
-                  {prod.price > 0 && onBuyNow ? (
+                  {prod.price > 0 && onBuyNow && (
                     <button
                       disabled={!isOnline}
                       onClick={() => {
@@ -370,15 +366,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                       }`}
                     >
                       {isOnline ? <ShoppingBag className="w-4 h-4" /> : <WifiOff className="w-4 h-4 text-rose-400" />}
-                      <span>{isOnline ? `BUY NOW & GET DOWNLOAD KEY (₹${prod.price})` : 'OFFLINE — BUY UNAVAILABLE'}</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleTriggerDownload(prod.id, prod.name, prod.fileUrl)}
-                      className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>DOWNLOAD INSTALLER ({prod.downloadSize})</span>
+                      <span>{isOnline ? `BUY NOW & GET DIGITAL DOWNLOAD (₹${prod.price})` : 'OFFLINE — BUY UNAVAILABLE'}</span>
                     </button>
                   )}
 
@@ -392,16 +380,6 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                         <span>View Details</span>
                       </button>
                     )}
-
-                    <a
-                      href={prod.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-700 hover:underline font-bold flex items-center gap-1 ml-auto"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Official Repository</span>
-                    </a>
                   </div>
                 </div>
               </div>
@@ -410,30 +388,6 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
         )}
       </div>
 
-      {/* Download Instructions Section */}
-      <div className="p-8 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
-        <h3 className="font-bold text-lg text-slate-900 font-mono flex items-center gap-2">
-          <Terminal className="w-5 h-5 text-emerald-600" />
-          <span>Download & Installation Instructions</span>
-        </h3>
-
-        <div className="grid sm:grid-cols-3 gap-6 text-xs text-slate-600 font-sans">
-          <div className="space-y-1.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <span className="font-bold font-mono text-emerald-800 text-sm block">1. Purchase & Downloads</span>
-            <p>Buy any digital product to instantly unlock your setup installer right here.</p>
-          </div>
-
-          <div className="space-y-1.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <span className="font-bold font-mono text-emerald-800 text-sm block">2. Grant Administrator Access</span>
-            <p>Right-click the downloaded setup installer file and select "Run as administrator" to apply system optimizations.</p>
-          </div>
-
-          <div className="space-y-1.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <span className="font-bold font-mono text-emerald-800 text-sm block">3. Access Google Drive File</span>
-            <p>Click "Download" on your purchased file card above to instantly access your Google Drive download link.</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

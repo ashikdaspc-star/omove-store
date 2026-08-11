@@ -15,7 +15,7 @@ export const AboutView: React.FC = () => {
           Built for Students, Creators & PC Users
         </h1>
         <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mx-auto leading-relaxed">
-          Omove Store is a dedicated digital software catalog and certified remote PC support platform built to deliver genuine licenses, instant product access, and expert AnyDesk technical repairs.
+          Omove Store is a dedicated digital software catalog and certified remote PC support platform built to deliver genuine digital products, instant Google Drive downloads, and expert AnyDesk technical repairs.
         </p>
       </div>
 
@@ -27,7 +27,7 @@ export const AboutView: React.FC = () => {
           </div>
           <h3 className="font-bold text-slate-900 text-base">Digital Software Catalog</h3>
           <p className="text-xs text-slate-600 leading-relaxed">
-            Curated catalog of Windows tools, CAD software, and productivity suites with instant key delivery.
+            Curated catalog of Windows tools, CAD software, and productivity suites with instant Google Drive delivery.
           </p>
         </div>
 

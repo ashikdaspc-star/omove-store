@@ -286,7 +286,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
                   required
                   value={name}
                   onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder={activeType === 'DIGITAL' ? 'e.g. AutoCAD 2026 Instant Key' : 'e.g. OMOVE WinMaster Pro 2026'}
+                  placeholder={activeType === 'DIGITAL' ? 'e.g. AutoCAD 2026 Digital File' : 'e.g. OMOVE WinMaster Pro 2026'}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-600 text-xs"
                 />
               </div>
@@ -313,7 +313,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
                   <label className="font-bold text-slate-900 block mb-1">Catalog Section *</label>
                   <div className="px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 font-mono text-emerald-800 font-bold uppercase text-[11px] flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-emerald-600" />
-                    <span>{activeType === 'DIGITAL' ? 'DIGITAL CATALOG (INSTANT KEY)' : 'STORE CATALOG (PHYSICAL/SETUP)'}</span>
+                    <span>{activeType === 'DIGITAL' ? 'DIGITAL CATALOG (GOOGLE DRIVE LINK)' : 'STORE CATALOG (PHYSICAL/SETUP)'}</span>
                   </div>
                 </div>
               </div>

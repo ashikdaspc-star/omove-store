@@ -30,7 +30,7 @@ export const PrivacyPolicyView: React.FC = () => {
           </p>
           <ul className="space-y-2 text-slate-600 list-disc pl-5">
             <li><strong>Account & Contact Info:</strong> Your name, email address, and optional phone number.</li>
-            <li><strong>Order & License Logs:</strong> Purchase records, generated license keys, and order timestamps.</li>
+            <li><strong>Order Logs:</strong> Purchase records, digital product links, and order timestamps.</li>
             <li><strong>Support Session Details:</strong> Documented Remote Support issue notes and AnyDesk IDs shared during technical repair requests.</li>
             <li><strong>Technical Diagnostics:</strong> Anonymized browser type, IP address, and session traffic metrics for security audit logs.</li>
           </ul>
@@ -53,7 +53,7 @@ export const PrivacyPolicyView: React.FC = () => {
             3. How We Use Your Information
           </h2>
           <ul className="space-y-2 text-slate-600 list-disc pl-5">
-            <li>Delivering digital product software keys and installer setup packages.</li>
+            <li>Delivering digital product Google Drive links and installer setup packages.</li>
             <li>Verifying order authenticity and preventing fraudulent transactions.</li>
             <li>Connecting technicians for scheduled Remote PC Support sessions.</li>
             <li>Sending critical order confirmations and invoice records.</li>

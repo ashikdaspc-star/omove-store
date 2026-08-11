@@ -39,7 +39,7 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
     });
     // Include fallback defaults if none present yet
     if (subSet.size === 0) {
-      subSet.add('Software Keys');
+      subSet.add('Software Tools');
       subSet.add('Operating Systems');
       subSet.add('CAD & Design Tools');
       subSet.add('Antivirus & Security');

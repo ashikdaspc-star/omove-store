@@ -455,11 +455,20 @@ function buildProductObject(body: any, isDigital = false): any {
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
-  const rawPath = url.pathname.replace(/\/$/, '') || '/';
+  const path = url.pathname;
   const method = request.method.toUpperCase();
 
-  let path = rawPath;
-  if (!path.startsWith('/api')) {
+  // SECURITY BLOCK: Direct access to /api/downloads without verified purchase entitlement is DENIED.
+  if (path.startsWith('/api/downloads')) {
+    return jsonResponse({
+      success: false,
+      error: 'ACCESS_DENIED',
+      message: 'Verified purchase required. Direct access to digital download files is restricted.'
+    }, 403);
+  }
+
+  let rawPath = path.replace(/\/$/, '') || '/';
+  if (!rawPath.startsWith('/api')) {
     return context.next();
   }
 
@@ -537,6 +546,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         } else if (path === '/api/digital-products' || path === '/api/admin/digital-products' || typeFilter === 'DIGITAL') {
           list = list.filter(p => p.productType === 'DIGITAL' || !p.tags?.includes('Store Card'));
         }
+
+        // SECURITY ENFORCEMENT: Strip googleDriveUrl and fileUrl from public API catalog responses
+        if (!isAdminPath) {
+          list = list.map(({ googleDriveUrl, fileUrl, ...rest }: any) => rest);
+        }
         return jsonResponse(list);
       }
 
@@ -609,7 +623,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
         const idx = findProductIndexInCatalog(dynamicProductsStore, pId);
         if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
-        return jsonResponse(dynamicProductsStore[idx]);
+
+        const prod = { ...dynamicProductsStore[idx] };
+        if (!isAdminPath) {
+          delete prod.googleDriveUrl;
+          delete prod.fileUrl;
+        }
+        return jsonResponse(prod);
       }
 
       if (method === 'PUT') {
@@ -1310,12 +1330,45 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     if (path === '/api/account/orders' || path === '/api/account/downloads' || path === '/api/admin/orders') {
+      const isAdminPath = path.includes('/admin/');
       const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
-      if (Array.isArray(freshOrders)) {
-        freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
-        return jsonResponse(freshOrders);
+      let allOrders = Array.isArray(freshOrders) ? freshOrders : Array.from(ordersStore.values());
+
+      if (isAdminPath) {
+        return jsonResponse(allOrders);
       }
-      return jsonResponse(Array.from(ordersStore.values()));
+
+      // Session & Entitlement Verification
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+      const session = token ? sessionsStore.get(token) : null;
+      let sessionEmail = session ? session.userEmail : '';
+
+      const queryEmail = (url.searchParams.get('email') || '').trim().toLowerCase();
+      const queryPhone = (url.searchParams.get('phone') || '').replace(/\D/g, '').slice(-10);
+
+      const targetEmail = sessionEmail ? sessionEmail.toLowerCase() : queryEmail;
+
+      if (!targetEmail && !queryPhone) {
+        return jsonResponse(allOrders.filter((o: any) => o.paymentStatus === 'SUCCESS' || o.status === 'completed'));
+      }
+
+      const verifiedOrders = allOrders.filter((o: any) => {
+        const statusOk = o.paymentStatus === 'SUCCESS' || o.status === 'completed' || o.status === 'SUCCESS';
+        if (!statusOk) return false;
+
+        const ordEmail = (o.customerEmail || '').toLowerCase().trim();
+        const ordPhone = (o.customerPhone || '').replace(/\D/g, '').slice(-10);
+
+        if (targetEmail && ordEmail && ordEmail === targetEmail) return true;
+        if (queryPhone && ordPhone && ordPhone === queryPhone) return true;
+        if (queryPhone && ordEmail.includes(queryPhone)) return true;
+
+        return false;
+      });
+
+      return jsonResponse(verifiedOrders);
     }
 
     if (path === '/api/bookings') {
