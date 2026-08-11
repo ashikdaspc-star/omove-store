@@ -8,6 +8,42 @@ export type ProductCategory =
 export type LicenseType = 'Lifetime License' | '1 Year License' | 'Perpetual' | 'Multi-PC License' | 'Instant Digital Key' | 'Digital License';
 export type ProductType = 'STORE' | 'DIGITAL';
 
+export interface DigitalCategory {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+  description?: string;
+  image?: string;
+  sortOrder: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DigitalProduct {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  shortDescription: string;
+  price: number;
+  originalPrice: number;
+  image: string;
+  categoryId: string;
+  subcategoryId?: string;
+  googleDriveUrl: string;
+  fileSize: string;
+  fileType: string;
+  version?: string;
+  compatibility?: string[];
+  features: string[];
+  status: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+  featured?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Product {
   id: string;
   name: string;

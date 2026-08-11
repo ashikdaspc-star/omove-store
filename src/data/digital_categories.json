@@ -1,0 +1,110 @@
+[
+  {
+    "id": "cat-graphics",
+    "name": "Graphics",
+    "slug": "graphics",
+    "parentId": null,
+    "description": "Premium design templates, typography, icons, and vectors.",
+    "image": "https://images.unsplash.com/photo-1626785774573-4b799315345d?w=800&auto=format&fit=crop&q=80",
+    "sortOrder": 1,
+    "active": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "cat-fonts",
+    "name": "Fonts",
+    "slug": "fonts",
+    "parentId": "cat-graphics",
+    "description": "Modern typefaces, display fonts, and calligraphy packages.",
+    "image": "https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800&auto=format&fit=crop&q=80",
+    "sortOrder": 1,
+    "active": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "cat-icons",
+    "name": "Icons",
+    "slug": "icons",
+    "parentId": "cat-graphics",
+    "description": "3D icon packs, vector icon sets, and UI glyphs.",
+    "image": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80",
+    "sortOrder": 2,
+    "active": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "cat-templates",
+    "name": "Templates",
+    "slug": "templates",
+    "parentId": "cat-graphics",
+    "description": "Photoshop PSD, Illustrator, and Figma branding mockups.",
+    "image": "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=800&auto=format&fit=crop&q=80",
+    "sortOrder": 3,
+    "active": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "cat-video",
+    "name": "Video",
+    "slug": "video",
+    "parentId": null,
+    "description": "Cinematic video presets, LUTs, and motion graphic assets.",
+    "image": "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80",
+    "sortOrder": 2,
+    "active": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "cat-presets",
+    "name": "Presets",
+    "slug": "presets",
+    "parentId": "cat-video",
+    "description": "Premiere Pro & After Effects color grading presets.",
+    "image": "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80",
+    "sortOrder": 1,
+    "active": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "cat-luts",
+    "name": "LUTs",
+    "slug": "luts",
+    "parentId": "cat-video",
+    "description": "Professional 3D CUBE LUTs for DaVinci Resolve & Final Cut Pro.",
+    "image": "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?w=800&auto=format&fit=crop&q=80",
+    "sortOrder": 2,
+    "active": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "cat-audio",
+    "name": "Audio",
+    "slug": "audio",
+    "parentId": null,
+    "description": "Royalty-free music tracks, sound effect packages, and audio plugins.",
+    "image": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80",
+    "sortOrder": 3,
+    "active": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "cat-sfx",
+    "name": "Sound Effects",
+    "slug": "sound-effects",
+    "parentId": "cat-audio",
+    "description": "High fidelity WAV sound effects for game development and film.",
+    "image": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80",
+    "sortOrder": 1,
+    "active": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  }
+]

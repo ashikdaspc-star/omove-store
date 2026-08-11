@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Product, RemoteService, RemoteBooking, Order, BlogPost } from '../../types';
+import { Product, RemoteService, RemoteBooking, Order, BlogPost, DigitalCategory } from '../../types';
 import { AdminSidebar, AdminTab } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminGlobalSearchModal } from './AdminGlobalSearchModal';
@@ -8,6 +8,7 @@ import { ProductEditorModal } from './modals/ProductEditorModal';
 import { AdminDashboardView } from './views/AdminDashboardView';
 import { AdminStoreProductsView } from './views/AdminStoreProductsView';
 import { AdminDigitalProductsView } from './views/AdminDigitalProductsView';
+import { AdminDigitalCategoriesView } from './views/AdminDigitalCategoriesView';
 import { AdminOrdersView } from './views/AdminOrdersView';
 import { AdminCustomersView } from './views/AdminCustomersView';
 import { AdminPaymentsView } from './views/AdminPaymentsView';
@@ -71,6 +72,56 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [targetProductType, setTargetProductType] = useState<'STORE' | 'DIGITAL'>('STORE');
+
+  // Digital Categories State & CRUD
+  const [digitalCategories, setDigitalCategories] = useState<DigitalCategory[]>([]);
+
+  useEffect(() => {
+    fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setDigitalCategories(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleAddDigitalCategory = async (catData: Partial<DigitalCategory>) => {
+    try {
+      const res = await fetch('/api/digital-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(catData)
+      });
+      const data = await res.json();
+      if (data.category) {
+        setDigitalCategories((prev) => [data.category, ...prev]);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpdateDigitalCategory = async (updatedCat: DigitalCategory) => {
+    try {
+      setDigitalCategories((prev) => prev.map((c) => (c.id === updatedCat.id ? updatedCat : c)));
+      await fetch(`/api/digital-categories/${encodeURIComponent(updatedCat.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedCat)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteDigitalCategory = async (catId: string) => {
+    try {
+      setDigitalCategories((prev) => prev.filter((c) => c.id !== catId && c.parentId !== catId));
+      await fetch(`/api/digital-categories/${encodeURIComponent(catId)}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Keyboard shortcut Ctrl+K or / for Global Search
   useEffect(() => {
@@ -270,11 +321,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {activeTab === 'digital-products' && (
             <AdminDigitalProductsView
               products={products}
+              categories={digitalCategories}
               onOpenAddModal={() => handleOpenAddProduct('DIGITAL')}
               onEditProduct={handleEditProduct}
               onDuplicateProduct={handleDuplicateProduct}
               onTogglePublishStatus={handleTogglePublishStatus}
               onDeleteProduct={handleDeleteProduct}
+            />
+          )}
+
+          {activeTab === 'digital-categories' && (
+            <AdminDigitalCategoriesView
+              categories={digitalCategories}
+              onAddCategory={handleAddDigitalCategory}
+              onUpdateCategory={handleUpdateDigitalCategory}
+              onDeleteCategory={handleDeleteDigitalCategory}
             />
           )}
 

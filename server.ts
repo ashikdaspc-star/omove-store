@@ -1097,51 +1097,178 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   });
 
   // Public Digital Products API (productType === 'DIGITAL')
+  // Digital Categories API
+  app.get('/api/digital-categories', (_req: Request, res: Response) => {
+    try {
+      const catFile = path.join(process.cwd(), 'src', 'data', 'digital_categories.json');
+      if (fs.existsSync(catFile)) {
+        const data = JSON.parse(fs.readFileSync(catFile, 'utf-8'));
+        return res.json(data);
+      }
+    } catch (e) {}
+    res.json([]);
+  });
+
+  app.post('/api/digital-categories', (req: Request, res: Response) => {
+    try {
+      const catFile = path.join(process.cwd(), 'src', 'data', 'digital_categories.json');
+      let list = [];
+      if (fs.existsSync(catFile)) {
+        list = JSON.parse(fs.readFileSync(catFile, 'utf-8'));
+      }
+      const newCat = {
+        id: req.body.id || `cat-${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: req.body.name || 'New Category',
+        slug: req.body.slug || (req.body.name ? req.body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `cat-${Date.now()}`),
+        parentId: req.body.parentId || null,
+        description: req.body.description || '',
+        image: req.body.image || '',
+        sortOrder: Number(req.body.sortOrder || 1),
+        active: req.body.active !== undefined ? Boolean(req.body.active) : true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      list.unshift(newCat);
+      fs.writeFileSync(catFile, JSON.stringify(list, null, 2));
+      return res.json({ success: true, category: newCat });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.put('/api/digital-categories/:id', (req: Request, res: Response) => {
+    try {
+      const catFile = path.join(process.cwd(), 'src', 'data', 'digital_categories.json');
+      let list = [];
+      if (fs.existsSync(catFile)) {
+        list = JSON.parse(fs.readFileSync(catFile, 'utf-8'));
+      }
+      let updatedCat = null;
+      list = list.map((c: any) => {
+        if (c.id === req.params.id || c.slug === req.params.id) {
+          updatedCat = { ...c, ...req.body, id: c.id, updatedAt: new Date().toISOString() };
+          return updatedCat;
+        }
+        return c;
+      });
+      fs.writeFileSync(catFile, JSON.stringify(list, null, 2));
+      return res.json({ success: true, category: updatedCat });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.delete('/api/digital-categories/:id', (req: Request, res: Response) => {
+    try {
+      const catFile = path.join(process.cwd(), 'src', 'data', 'digital_categories.json');
+      let list = [];
+      if (fs.existsSync(catFile)) {
+        list = JSON.parse(fs.readFileSync(catFile, 'utf-8'));
+      }
+      list = list.filter((c: any) => c.id !== req.params.id && c.slug !== req.params.id && c.parentId !== req.params.id);
+      fs.writeFileSync(catFile, JSON.stringify(list, null, 2));
+      return res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // Isolated Digital Products API
   app.get('/api/digital-products', (req: Request, res: Response) => {
-    res.setHeader('X-Catalog-Version', String(currentCatalogVersion));
-    const search = (req.query.q as string || '').toLowerCase();
-    const category = req.query.category as string;
-    const sort = req.query.sort as string;
-
-    let digitalItems = dynamicProductsStore.filter(
-      p => (p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))) &&
-           (p.status || 'PUBLISHED') === 'PUBLISHED'
-    );
-
-    if (category && category !== 'All') {
-      digitalItems = digitalItems.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
-    }
-
-    if (search) {
-      digitalItems = digitalItems.filter(p =>
-        (p.name || '').toLowerCase().includes(search) ||
-        (p.shortDescription || '').toLowerCase().includes(search)
-      );
-    }
-
-    if (sort === 'price-low') {
-      digitalItems.sort((a, b) => a.price - b.price);
-    } else if (sort === 'price-high') {
-      digitalItems.sort((a, b) => b.price - a.price);
-    }
-
-    res.json(digitalItems);
+    try {
+      const prodFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      if (fs.existsSync(prodFile)) {
+        const list = JSON.parse(fs.readFileSync(prodFile, 'utf-8'));
+        const safeList = list.filter((p: any) => (p.status || 'PUBLISHED') === 'PUBLISHED').map(({ googleDriveUrl, ...rest }: any) => rest);
+        return res.json(safeList);
+      }
+    } catch (e) {}
+    res.json([]);
   });
 
-  // Admin Store Products List
-  app.get('/api/admin/store-products', (_req: Request, res: Response) => {
-    const storeItems = dynamicProductsStore.filter(
-      p => p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card'))
-    );
-    res.json(storeItems);
-  });
-
-  // Admin Digital Products List
   app.get('/api/admin/digital-products', (_req: Request, res: Response) => {
-    const digitalItems = dynamicProductsStore.filter(
-      p => p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card'))
-    );
-    res.json(digitalItems);
+    try {
+      const prodFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      if (fs.existsSync(prodFile)) {
+        const list = JSON.parse(fs.readFileSync(prodFile, 'utf-8'));
+        return res.json(list);
+      }
+    } catch (e) {}
+    res.json([]);
+  });
+
+  app.post('/api/digital-products', (req: Request, res: Response) => {
+    try {
+      const prodFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      let list = [];
+      if (fs.existsSync(prodFile)) {
+        list = JSON.parse(fs.readFileSync(prodFile, 'utf-8'));
+      }
+      const newProd = {
+        id: req.body.id || `dig-prod-${Date.now()}`,
+        name: req.body.name || 'New Digital Product',
+        slug: req.body.slug || (req.body.name ? req.body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `digital-product-${Date.now()}`),
+        description: req.body.description || '',
+        shortDescription: req.body.shortDescription || req.body.description || '',
+        price: Number(req.body.price || 0),
+        originalPrice: Number(req.body.originalPrice || req.body.price || 0),
+        image: req.body.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+        categoryId: req.body.categoryId || '',
+        subcategoryId: req.body.subcategoryId || '',
+        googleDriveUrl: req.body.googleDriveUrl || '',
+        fileSize: req.body.fileSize || '10 MB',
+        fileType: req.body.fileType || 'ZIP',
+        version: req.body.version || 'v1.0',
+        compatibility: Array.isArray(req.body.compatibility) ? req.body.compatibility : [],
+        features: Array.isArray(req.body.features) ? req.body.features : [],
+        status: req.body.status || 'PUBLISHED',
+        featured: Boolean(req.body.featured),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      list.unshift(newProd);
+      fs.writeFileSync(prodFile, JSON.stringify(list, null, 2));
+      return res.json({ success: true, product: newProd });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.put('/api/digital-products/:id', (req: Request, res: Response) => {
+    try {
+      const prodFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      let list = [];
+      if (fs.existsSync(prodFile)) {
+        list = JSON.parse(fs.readFileSync(prodFile, 'utf-8'));
+      }
+      let updatedProd = null;
+      list = list.map((p: any) => {
+        if (p.id === req.params.id || p.slug === req.params.id) {
+          updatedProd = { ...p, ...req.body, id: p.id, updatedAt: new Date().toISOString() };
+          return updatedProd;
+        }
+        return p;
+      });
+      fs.writeFileSync(prodFile, JSON.stringify(list, null, 2));
+      return res.json({ success: true, product: updatedProd });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.delete('/api/digital-products/:id', (req: Request, res: Response) => {
+    try {
+      const prodFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      let list = [];
+      if (fs.existsSync(prodFile)) {
+        list = JSON.parse(fs.readFileSync(prodFile, 'utf-8'));
+      }
+      list = list.filter((p: any) => p.id !== req.params.id && p.slug !== req.params.id);
+      fs.writeFileSync(prodFile, JSON.stringify(list, null, 2));
+      return res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
   });
 
   // Admin Registered Customer Accounts Directory & Deletion Endpoints

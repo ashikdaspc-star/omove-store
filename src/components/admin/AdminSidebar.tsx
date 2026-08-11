@@ -28,6 +28,7 @@ export type AdminTab =
   | 'dashboard'
   | 'store-products'
   | 'digital-products'
+  | 'digital-categories'
   | 'orders'
   | 'payments'
   | 'customers'
@@ -71,6 +72,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       items: [
         { id: 'store-products' as AdminTab, label: 'Store Products', icon: ShoppingBag },
         { id: 'digital-products' as AdminTab, label: 'Digital Products', icon: Sparkles },
+        { id: 'digital-categories' as AdminTab, label: 'Digital Categories', icon: FolderTree },
         { id: 'orders' as AdminTab, label: 'Orders', icon: Package },
         { id: 'payments' as AdminTab, label: 'Payments', icon: CreditCard },
         { id: 'customers' as AdminTab, label: 'Customers', icon: Users },

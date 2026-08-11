@@ -1,0 +1,83 @@
+[
+  {
+    "id": "dig-prod-101",
+    "name": "Ultra Minimalist Font Bundle 2026",
+    "slug": "ultra-minimalist-font-bundle-2026",
+    "description": "A curated collection of 12 modern sans-serif and display typefaces designed for high-end branding, UI design, and luxury editorial layouts.",
+    "shortDescription": "12 premium sans-serif & display typefaces for modern UI & branding.",
+    "price": 199,
+    "originalPrice": 499,
+    "image": "https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800&auto=format&fit=crop&q=80",
+    "categoryId": "cat-graphics",
+    "subcategoryId": "cat-fonts",
+    "googleDriveUrl": "https://drive.google.com/file/d/1sample_font_bundle_download_link/view",
+    "fileSize": "45 MB",
+    "fileType": "ZIP (OTF / TTF / WOFF2)",
+    "version": "v2.4",
+    "compatibility": ["Photoshop", "Figma", "Illustrator", "Canva", "InDesign"],
+    "features": [
+      "12 Full Family Weight Options",
+      "OTF, TTF & WebFont WOFF2 Formats Included",
+      "Multilingual Glyph Support (Latin & Extended)",
+      "Commercial & Personal Unlimited Usage License"
+    ],
+    "status": "PUBLISHED",
+    "featured": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "dig-prod-102",
+    "name": "3D Tech Icon Pack (50+ Assets)",
+    "slug": "3d-tech-icon-pack-50-assets",
+    "description": "High resolution 3D render icons for software dashboards, mobile apps, and tech pitch decks. Rendered at 3000x3000px with transparent PNG & Blender sources.",
+    "shortDescription": "50+ ultra high-res 3D tech icons with transparent background PNGs & Blender files.",
+    "price": 299,
+    "originalPrice": 699,
+    "image": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80",
+    "categoryId": "cat-graphics",
+    "subcategoryId": "cat-icons",
+    "googleDriveUrl": "https://drive.google.com/file/d/1sample_3d_icons_download_link/view",
+    "fileSize": "320 MB",
+    "fileType": "ZIP (PNG / BLEND / OBJ)",
+    "version": "v1.0",
+    "compatibility": ["Figma", "Blender", "Photoshop", "Unreal Engine"],
+    "features": [
+      "50+ Isolated 3D Objects",
+      "Transparent PNG (3000x3000px)",
+      "Editable Blender (.blend) Source Scene Files",
+      "Optimized Material Shaders"
+    ],
+    "status": "PUBLISHED",
+    "featured": true,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  },
+  {
+    "id": "dig-prod-103",
+    "name": "Cinematic Film LUT Pack (CUBE)",
+    "slug": "cinematic-film-lut-pack-cube",
+    "description": "Professional 3D CUBE color grading LUTs modeled after Kodak 5207 and Fuji 8553 film stock. Perfect for video creators, vloggers, and filmmakers.",
+    "shortDescription": "25 cinematic 3D CUBE color LUTs for Premiere Pro, DaVinci Resolve & FCPX.",
+    "price": 149,
+    "originalPrice": 399,
+    "image": "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?w=800&auto=format&fit=crop&q=80",
+    "categoryId": "cat-video",
+    "subcategoryId": "cat-luts",
+    "googleDriveUrl": "https://drive.google.com/file/d/1sample_lut_pack_download_link/view",
+    "fileSize": "18 MB",
+    "fileType": "ZIP (.CUBE)",
+    "version": "v2026",
+    "compatibility": ["Premiere Pro", "DaVinci Resolve", "Final Cut Pro", "CapCut Desktop", "OBS Studio"],
+    "features": [
+      "25 Kodak & Fuji Film Emulation LUTs",
+      "Supports Rec.709 & Apple Log / Sony S-Log3",
+      "Standard 33x33x33 3D CUBE Format",
+      "Quick Installation Guide PDF Included"
+    ],
+    "status": "PUBLISHED",
+    "featured": false,
+    "createdAt": "2026-08-11T00:00:00.000Z",
+    "updatedAt": "2026-08-11T00:00:00.000Z"
+  }
+]

@@ -529,26 +529,161 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
     }
 
-    // 3. Products Endpoints (Store & Digital)
-    if (path === '/api/products' || path === '/api/store-products' || path === '/api/digital-products' || path === '/api/admin/store-products' || path === '/api/admin/digital-products') {
+    // ----------------------------------------------------
+    // DIGITAL CATEGORIES API (/api/digital-categories)
+    // ----------------------------------------------------
+    if (path.startsWith('/api/digital-categories') || path.startsWith('/api/admin/digital-categories')) {
+      const parts = path.split('/').filter(Boolean);
+      const isSub = (parts.length > 2 && parts[1] !== 'admin') || (parts.length > 3 && parts[1] === 'admin');
+      const catId = isSub ? decodeURIComponent(parts[parts.length - 1]) : null;
+
+      if (!catId) {
+        if (method === 'GET') {
+          const fresh = await fetchFileFromGitHub('src/data/digital_categories.json', env);
+          let list = Array.isArray(fresh) ? fresh : [];
+          const isAdminPath = path.includes('/admin/');
+          if (!isAdminPath) {
+            list = list.filter((c: any) => c.active !== false);
+          }
+          list.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+          return jsonResponse(list);
+        }
+
+        if (method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const newCat = {
+            id: body.id || `cat-${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            name: body.name || 'New Category',
+            slug: body.slug || (body.name ? body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `cat-${Date.now()}`),
+            parentId: body.parentId || null,
+            description: body.description || '',
+            image: body.image || '',
+            sortOrder: Number(body.sortOrder || 1),
+            active: body.active !== undefined ? Boolean(body.active) : true,
+            createdAt: body.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+
+          const result = await atomicFileMutation(
+            'src/data/digital_categories.json',
+            (categories) => [newCat, ...(Array.isArray(categories) ? categories : [])],
+            `Create digital category: ${newCat.name}`,
+            env
+          );
+
+          return jsonResponse({ success: true, category: newCat, sync: result });
+        }
+      } else {
+        if (method === 'PUT' || method === 'PATCH') {
+          const body: any = await request.json().catch(() => ({}));
+          let updatedCat: any = null;
+
+          const result = await atomicFileMutation(
+            'src/data/digital_categories.json',
+            (categories) => {
+              const list = Array.isArray(categories) ? categories : [];
+              return list.map((c: any) => {
+                if (c.id === catId || c.slug === catId) {
+                  updatedCat = { ...c, ...body, id: c.id, updatedAt: new Date().toISOString() };
+                  return updatedCat;
+                }
+                return c;
+              });
+            },
+            `Update digital category: ${catId}`,
+            env
+          );
+
+          if (updatedCat) {
+            return jsonResponse({ success: true, category: updatedCat, sync: result });
+          }
+          return jsonResponse({ success: false, error: 'Category not found' }, 404);
+        }
+
+        if (method === 'DELETE') {
+          const result = await atomicFileMutation(
+            'src/data/digital_categories.json',
+            (categories) => {
+              const list = Array.isArray(categories) ? categories : [];
+              return list.filter((c: any) => c.id !== catId && c.slug !== catId && c.parentId !== catId);
+            },
+            `Delete digital category: ${catId}`,
+            env
+          );
+
+          return jsonResponse({ success: true, sync: result });
+        }
+      }
+    }
+
+    // ----------------------------------------------------
+    // ISOLATED DIGITAL PRODUCTS API (/api/digital-products)
+    // ----------------------------------------------------
+    if (path === '/api/digital-products' || path === '/api/admin/digital-products') {
+      if (method === 'GET') {
+        const fresh = await fetchFileFromGitHub('src/data/digital_products.json', env);
+        let list = Array.isArray(fresh) ? fresh : [];
+        const isAdminPath = path.includes('/admin/');
+        if (!isAdminPath) {
+          list = list.filter((p: any) => (p.status || 'PUBLISHED') === 'PUBLISHED');
+          // SECURITY ENFORCEMENT: Strip googleDriveUrl from public catalog responses
+          list = list.map(({ googleDriveUrl, ...rest }: any) => rest);
+        }
+        return jsonResponse(list);
+      }
+
+      if (method === 'POST') {
+        const body: any = await request.json().catch(() => ({}));
+        const newProd = {
+          id: body.id || `dig-prod-${Date.now()}`,
+          name: body.name || 'New Digital Product',
+          slug: body.slug || (body.name ? body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `digital-product-${Date.now()}`),
+          description: body.description || '',
+          shortDescription: body.shortDescription || body.description || '',
+          price: Number(body.price || 0),
+          originalPrice: Number(body.originalPrice || body.price || 0),
+          image: body.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+          categoryId: body.categoryId || '',
+          subcategoryId: body.subcategoryId || '',
+          googleDriveUrl: body.googleDriveUrl || '',
+          fileSize: body.fileSize || '10 MB',
+          fileType: body.fileType || 'ZIP',
+          version: body.version || 'v1.0',
+          compatibility: Array.isArray(body.compatibility) ? body.compatibility : [],
+          features: Array.isArray(body.features) ? body.features : [],
+          status: body.status || 'PUBLISHED',
+          featured: Boolean(body.featured),
+          createdAt: body.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        const result = await atomicFileMutation(
+          'src/data/digital_products.json',
+          (products) => [newProd, ...(Array.isArray(products) ? products : [])],
+          `Create digital product: ${newProd.name}`,
+          env
+        );
+
+        if (!result.success) {
+          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to persist digital product to GitHub' }, 500);
+        }
+
+        return jsonResponse({ success: true, product: newProd, sync: result });
+      }
+    }
+
+    // ----------------------------------------------------
+    // STORE PRODUCTS API (/api/store-products / /api/products)
+    // ----------------------------------------------------
+    if (path === '/api/products' || path === '/api/store-products' || path === '/api/admin/store-products') {
       if (method === 'GET') {
         const fresh = await fetchFileFromGitHub('src/data/products.json', env);
-        if (Array.isArray(fresh) && fresh.length > 0) dynamicProductsStore = fresh;
+        if (Array.isArray(fresh)) dynamicProductsStore = fresh;
 
-        const typeFilter = url.searchParams.get('type');
         const isAdminPath = path.includes('/admin/');
         let list = [...dynamicProductsStore];
         if (!isAdminPath) {
           list = list.filter(p => (p.status || 'PUBLISHED') === 'PUBLISHED');
-        }
-        if (path === '/api/store-products' || path === '/api/admin/store-products' || typeFilter === 'STORE') {
-          list = list.filter(p => p.productType === 'STORE' || p.tags?.includes('Store Card'));
-        } else if (path === '/api/digital-products' || path === '/api/admin/digital-products' || typeFilter === 'DIGITAL') {
-          list = list.filter(p => p.productType === 'DIGITAL' || !p.tags?.includes('Store Card'));
-        }
-
-        // SECURITY ENFORCEMENT: Strip googleDriveUrl and fileUrl from public API catalog responses
-        if (!isAdminPath) {
           list = list.map(({ googleDriveUrl, fileUrl, ...rest }: any) => rest);
         }
         return jsonResponse(list);
@@ -556,18 +691,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
-        const isDigital = path.includes('digital') || body.productType === 'DIGITAL';
-        const newProd = buildProductObject(body, isDigital);
+        const newProd = buildProductObject(body, false);
 
         const result = await atomicFileMutation(
           'src/data/products.json',
           (products) => [newProd, ...products],
-          `Create ${isDigital ? 'digital' : 'store'} product: ${newProd.name}`,
+          `Create store product: ${newProd.name}`,
           env
         );
 
         if (!result.success) {
-          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to persist product to GitHub' }, 500);
+          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to persist store product to GitHub' }, 500);
         }
 
         dynamicProductsStore = result.data;

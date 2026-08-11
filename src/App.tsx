@@ -23,6 +23,8 @@ import { AdminView } from './views/AdminView';
 import { BlogView } from './views/BlogView';
 import { DownloadsView } from './views/DownloadsView';
 import { DigitalProductsView } from './views/DigitalProductsView';
+import { DigitalProductsRouteHandler } from './views/DigitalProductsRouteHandler';
+import { DigitalProductDetailView } from './views/DigitalProductDetailView';
 import { AboutContactView } from './views/AboutContactView';
 import { RefundPolicyView } from './views/RefundPolicyView';
 import { PrivacyPolicyView } from './views/PrivacyPolicyView';
@@ -963,8 +965,37 @@ export default function App() {
           <Route
             path="/digital-products"
             element={
-              <DigitalProductsView
+              <DigitalProductsRouteHandler
                 products={products}
+                categories={[]}
+                onSelectProduct={setSelectedProductForDetail}
+                onAddToCart={handleAddToCart}
+                onBuyNow={handleBuyNow}
+                wishlist={wishlist}
+                onToggleWishlist={handleToggleWishlist}
+              />
+            }
+          />
+          <Route
+            path="/digital-products/:categorySlug"
+            element={
+              <DigitalProductsRouteHandler
+                products={products}
+                categories={[]}
+                onSelectProduct={setSelectedProductForDetail}
+                onAddToCart={handleAddToCart}
+                onBuyNow={handleBuyNow}
+                wishlist={wishlist}
+                onToggleWishlist={handleToggleWishlist}
+              />
+            }
+          />
+          <Route
+            path="/digital-products/:categorySlug/:subcategorySlug"
+            element={
+              <DigitalProductsRouteHandler
+                products={products}
+                categories={[]}
                 onSelectProduct={setSelectedProductForDetail}
                 onAddToCart={handleAddToCart}
                 onBuyNow={handleBuyNow}
