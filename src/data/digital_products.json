@@ -25,6 +25,34 @@
     "status": "PUBLISHED",
     "featured": false,
     "createdAt": "2026-08-11T03:37:52.344Z",
+    "updatedAt": "2026-08-11T03:35:32.366Z"
+  },
+  {
+    "id": "dig-1786419472344",
+    "name": "Davenchi Resolve luts",
+    "slug": "davenchi-resolve-luts",
+    "description": "",
+    "shortDescription": "High performance software solution.",
+    "price": 499,
+    "originalPrice": 999,
+    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80",
+    "categoryId": "",
+    "subcategoryId": "",
+    "googleDriveUrl": "",
+    "fileSize": "10 MB",
+    "fileType": "ZIP",
+    "version": "v2026.1",
+    "compatibility": [
+      "Windows 11",
+      "Windows 10"
+    ],
+    "features": [
+      "Instant Product Access Key",
+      "Official Setup Package"
+    ],
+    "status": "PUBLISHED",
+    "featured": false,
+    "createdAt": "2026-08-11T03:37:52.344Z",
     "updatedAt": "2026-08-11T03:35:32.371Z"
   },
   {
