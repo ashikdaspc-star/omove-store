@@ -42,7 +42,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
-  const [serverDownloads, setServerDownloads] = useState<any[]>([]);
+  const [serverOrders, setServerOrders] = useState<Order[]>([]);
 
   React.useEffect(() => {
     const token = localStorage.getItem('omove_session_token');
@@ -54,38 +54,49 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    fetch('/api/account/downloads', {
+    fetch('/api/account/orders', {
       cache: 'no-store',
       headers
     })
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
-        if (Array.isArray(data)) setServerDownloads(data);
+        if (Array.isArray(data)) setServerOrders(data);
       })
-      .catch((err) => console.warn('Account downloads fetch note:', err));
+      .catch((err) => console.warn('Account orders fetch note:', err));
   }, []);
 
-  // Extract purchased items matching the currently logged-in customer
-  const purchasedItems =
-    serverDownloads.length > 0
-      ? serverDownloads
-      : orders
-          .filter((o) => o.paymentStatus === 'SUCCESS')
-          .filter((o) => {
-            if (customerProfile && customerProfile.email) {
-              return o.customerEmail && o.customerEmail.toLowerCase() === customerProfile.email.toLowerCase();
-            }
-            return false;
-          })
-          .flatMap((o) =>
-            o.items.map((item) => ({
-              ...item,
-              orderId: o.id,
-              orderNumber: o.orderNumber,
-              createdAt: o.createdAt,
-              customerEmail: o.customerEmail
-            }))
-          );
+  const combinedOrders = serverOrders.length > 0 ? serverOrders : orders;
+
+  const validOrders = combinedOrders.filter((o) => {
+    const statusOk = o.paymentStatus === 'SUCCESS' || o.status === 'completed' || o.status === 'SUCCESS';
+    if (!statusOk) return false;
+
+    if (customerProfile) {
+      const userEmail = (customerProfile.email || '').toLowerCase().trim();
+      const userPhone = (customerProfile.phone || '').replace(/\D/g, '').slice(-10);
+
+      const ordEmail = (o.customerEmail || '').toLowerCase().trim();
+      const ordPhone = (o.customerPhone || '').replace(/\D/g, '').slice(-10);
+
+      if (userEmail && ordEmail && ordEmail === userEmail) return true;
+      if (userPhone && ordPhone && ordPhone === userPhone) return true;
+      if (userPhone && ordEmail.includes(userPhone)) return true;
+    }
+
+    return true;
+  });
+
+  const purchasedItems = validOrders.flatMap((o) =>
+    (o.items || []).map((item: any) => ({
+      ...item,
+      orderId: o.id,
+      orderNumber: o.orderNumber || o.id,
+      createdAt: o.createdAt,
+      customerEmail: o.customerEmail,
+      googleDriveUrl: item.googleDriveUrl || item.fileUrl || '',
+      fileUrl: item.googleDriveUrl || item.fileUrl || ''
+    }))
+  );
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === 'All' || p.category.toLowerCase() === selectedCategory.toLowerCase();
@@ -126,16 +137,16 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
               Software & Utility Downloads
             </h1>
             <p className="text-sm sm:text-base text-emerald-100/90 leading-relaxed font-sans">
-              Access your purchased digital licenses, instant software setup installers, and optimization utility packages.
+              Access your purchased digital files and downloads.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
             <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-center font-mono space-y-1 w-full sm:w-auto">
               <span className="text-[10px] text-emerald-300 uppercase font-bold block">Purchased Downloads</span>
-              <span className="text-base font-extrabold text-emerald-400 flex items-center justify-center gap-1">
+              <span className="text-base font-extrabold text-emerald-400 flex items-center justify-center gap-1 font-mono">
                 <Sparkles className="w-4 h-4 text-emerald-400" />
-                <span>{purchasedItems.length} Active Key(s)</span>
+                <span>{purchasedItems.length} Purchased File(s)</span>
               </span>
             </div>
           </div>
@@ -196,9 +207,9 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
         {purchasedItems.length === 0 ? (
           <div className="p-8 text-center rounded-3xl bg-emerald-50/50 border-2 border-dashed border-emerald-200 space-y-3">
             <ShoppingBag className="w-10 h-10 text-emerald-600 mx-auto" />
-            <h3 className="font-bold text-slate-900 text-base font-mono">No Purchased Software Yet</h3>
+            <h3 className="font-bold text-slate-900 text-base font-mono">No Purchased Digital Files Yet</h3>
             <p className="text-xs text-slate-600 max-w-md mx-auto font-sans">
-              When you buy software or digital tools from the Omove Store, your purchased installer downloads will appear here automatically!
+              When you buy digital products from Omove Store, your purchased Google Drive file downloads will appear here automatically!
             </p>
           </div>
         ) : (
@@ -239,7 +250,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => handleTriggerDownload(item.productId, item.productName, item.fileUrl, item.orderId)}
+                      onClick={() => handleTriggerDownload(item.productId, item.productName, item.googleDriveUrl || item.fileUrl, item.orderId)}
                       className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all shrink-0"
                     >
                       <Download className="w-4 h-4" />

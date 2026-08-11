@@ -200,14 +200,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   // Combine server-authoritative orders with prop fallback
-  const userOrders = serverOrders.length > 0
-    ? serverOrders
-    : orders.filter((o) => {
-        if (customerProfile && customerProfile.email) {
-          return o.customerEmail && o.customerEmail.toLowerCase() === customerProfile.email.toLowerCase();
-        }
-        return false;
-      });
+  const combinedOrders = serverOrders.length > 0 ? serverOrders : orders;
+  const userOrders = combinedOrders.filter((o) => {
+    const statusOk = o.paymentStatus === 'SUCCESS' || o.status === 'completed' || o.status === 'SUCCESS';
+    if (!statusOk) return false;
+
+    if (customerProfile) {
+      const userEmail = (customerProfile.email || '').toLowerCase().trim();
+      const userPhone = (customerProfile.phone || '').replace(/\D/g, '').slice(-10);
+
+      const ordEmail = (o.customerEmail || '').toLowerCase().trim();
+      const ordPhone = (o.customerPhone || '').replace(/\D/g, '').slice(-10);
+
+      if (userEmail && ordEmail && ordEmail === userEmail) return true;
+      if (userPhone && ordPhone && ordPhone === userPhone) return true;
+      if (userPhone && ordEmail.includes(userPhone)) return true;
+    }
+
+    return true;
+  });
 
   const userBookings = serverBookings.length > 0
     ? serverBookings

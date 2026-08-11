@@ -1309,7 +1309,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
     }
 
-    if (path === '/api/account/orders' || path === '/api/admin/orders') {
+    if (path === '/api/account/orders' || path === '/api/account/downloads' || path === '/api/admin/orders') {
       const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
       if (Array.isArray(freshOrders)) {
         freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
