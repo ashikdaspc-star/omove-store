@@ -31,8 +31,8 @@ export const LiveChatWidget: React.FC = () => {
         botReply = 'For Blue Screen crashes (WHEA, IRQL), we recommend our $24.99 BSOD Repair Remote Service. Our tech will analyze your minidumps via AnyDesk immediately!';
       } else if (lower.includes('driver') || lower.includes('wifi') || lower.includes('graphics')) {
         botReply = 'Need drivers? Check out our DriverVault Offline 38GB ISO pack in the Store, or book a $19.99 Driver Installation Service!';
-      } else if (lower.includes('key') || lower.includes('license') || lower.includes('download')) {
-        botReply = 'All license keys and instant downloads are unlocked automatically in your Account Dashboard right after payment!';
+      } else if (lower.includes('key') || lower.includes('license') || lower.includes('download') || lower.includes('file')) {
+        botReply = 'All digital products and instant Google Drive downloads are unlocked automatically in your Account Dashboard right after payment!';
       }
 
       setMessages((prev) => [...prev, { sender: 'bot', text: botReply, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);

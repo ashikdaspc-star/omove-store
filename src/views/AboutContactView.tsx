@@ -51,8 +51,8 @@ export const AboutContactView: React.FC = () => {
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-900">Genuine Software Guarantees</h4>
-                  <p className="text-slate-500 mt-0.5">All digital license keys are digitally verified with instant automated fulfillment.</p>
+                  <h4 className="font-bold text-slate-900 font-sans">Genuine Software Guarantees</h4>
+                  <p className="text-slate-500 mt-0.5">All digital files are verified with instant Google Drive fulfillment.</p>
                 </div>
               </div>
 

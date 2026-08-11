@@ -212,7 +212,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
             <div className="flex items-center justify-center gap-2 text-[10px] text-slate-400 pt-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Razorpay Verified • Instant License Key Delivery</span>
+              <span>Razorpay Verified • Instant Google Drive Delivery</span>
             </div>
           </div>
         )}

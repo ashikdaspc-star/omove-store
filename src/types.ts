@@ -31,6 +31,7 @@ export interface Product {
   requirements: string[];
   versionHistory: { version: string; date: string; changes: string[] }[];
   fileUrl: string;
+  googleDriveUrl?: string;
   instantKeyAvailable: boolean;
   isBestSeller?: boolean;
   isFeatured?: boolean;
@@ -112,6 +113,7 @@ export interface OrderItem {
   downloadsCount: number;
   fileSize: string;
   fileUrl: string;
+  googleDriveUrl?: string;
 }
 
 export interface Order {

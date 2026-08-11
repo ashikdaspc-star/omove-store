@@ -14,7 +14,7 @@ export const DeliveryPolicyView: React.FC = () => {
           Digital Delivery Policy
         </h1>
         <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-          Information regarding electronic fulfillment, download access, license key generation, and delivery verification for Omove Store products.
+          Information regarding electronic fulfillment, download access, Google Drive link delivery, and verification for Omove Store products.
         </p>
         <span className="text-[11px] text-slate-400 font-mono block pt-1">Last Updated: August 2026</span>
       </div>
@@ -26,7 +26,7 @@ export const DeliveryPolicyView: React.FC = () => {
             1. Electronic Product Delivery
           </h2>
           <p className="text-slate-600">
-            All software licenses, activation keys, and digital product files offered on Omove Store are delivered <strong>100% electronically</strong>. No physical boxes, discs, or shipping containers are dispatched.
+            All digital product files offered on Omove Store are delivered <strong>100% electronically</strong> via direct Google Drive links. No physical boxes, discs, or shipping containers are dispatched.
           </p>
         </section>
 
@@ -38,8 +38,8 @@ export const DeliveryPolicyView: React.FC = () => {
             Upon successful payment verification, digital access is immediately provided through two primary methods:
           </p>
           <ul className="space-y-2 text-slate-600 list-disc pl-5">
-            <li><strong>Instant Checkout Screen:</strong> Your order confirmation screen instantly displays your unique product license keys and official download links.</li>
-            <li><strong>Customer Dashboard:</strong> All purchased keys and installer packages are permanently accessible under <strong>Account → My Orders & Downloads</strong> (`/dashboard?tab=orders`).</li>
+            <li><strong>Instant Checkout Screen:</strong> Your order confirmation screen instantly displays your Google Drive file download link.</li>
+            <li><strong>Customer Dashboard:</strong> All purchased digital files are permanently accessible under <strong>Account → My Orders & Downloads</strong> (`/dashboard?tab=orders`).</li>
           </ul>
         </section>
 

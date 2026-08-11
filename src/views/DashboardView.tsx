@@ -218,7 +218,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         return false;
       });
 
-  // Flatten orders for license downloads vault
+  // Flatten orders for digital product downloads
   const allDownloadableItems = userOrders.flatMap((ord) =>
     ord.items.map((it) => ({
       orderId: ord.id,
@@ -228,6 +228,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       licenseKey: it.licenseKey,
       fileSize: it.fileSize,
       fileUrl: it.fileUrl,
+      googleDriveUrl: it.googleDriveUrl,
       createdAt: ord.createdAt,
       paymentMethod: ord.paymentMethod,
       orderObj: ord
@@ -312,7 +313,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }`}
         >
           <ShoppingBag className="w-4 h-4" />
-          <span>My Orders & Keys ({allDownloadableItems.length})</span>
+          <span>My Orders ({allDownloadableItems.length})</span>
         </button>
 
         <button
@@ -391,7 +392,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <div>
                 <span className="text-2xl font-bold font-mono text-slate-900">{allDownloadableItems.length}</span>
-                <span className="block text-xs text-slate-500 font-medium">Download Licenses</span>
+                <span className="block text-xs text-slate-500 font-medium">Digital Downloads</span>
               </div>
             </div>
 
@@ -624,11 +625,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* TAB 2: SOFTWARE PURCHASES & LICENSE KEYS */}
+      {/* TAB 2: DIGITAL PRODUCT DOWNLOADS */}
       {activeTab === 'orders' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-lg text-slate-900 font-mono">Software License Vault & Downloads ({allDownloadableItems.length})</h3>
+            <h3 className="font-bold text-lg text-slate-900 font-mono">Digital Product Downloads ({allDownloadableItems.length})</h3>
             {setCurrentView && (
               <button
                 onClick={() => {
@@ -637,7 +638,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 }}
                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-mono shadow-sm"
               >
-                + Browse Software Catalog
+                + Browse Products Catalog
               </button>
             )}
           </div>
@@ -645,9 +646,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {allDownloadableItems.length === 0 ? (
             <div className="p-12 text-center rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
               <ShoppingBag className="w-12 h-12 text-slate-400 mx-auto" />
-              <h4 className="font-bold text-slate-900 text-base">No software licenses purchased yet</h4>
+              <h4 className="font-bold text-slate-900 text-base">No digital products purchased yet</h4>
               <p className="text-xs text-slate-500 max-w-md mx-auto font-mono">
-                Explore our catalog for genuine Windows utilities and software keys with instant delivery.
+                Explore our catalog for software tools and digital products with instant file delivery.
               </p>
             </div>
           ) : (
@@ -674,42 +675,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <span className="text-xs font-mono text-emerald-700 font-bold block">Paid: ₹{item.price} ({item.paymentMethod})</span>
                   </div>
 
-                  {/* License Key Box */}
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase block">License Key</span>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono font-extrabold text-sm text-slate-900 tracking-wider select-all truncate">
-                        {item.licenseKey}
-                      </span>
-                      <button
-                        onClick={() => handleCopyKey(item.licenseKey)}
-                        className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-mono flex items-center gap-1"
-                      >
-                        {copiedKey === item.licenseKey ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            <span className="text-emerald-600 font-bold">Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy</span>
-                          </>
-                        )}
-                      </button>
+                  {/* Digital File Download Box */}
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                    <div>
+                      <span className="text-[10px] font-mono font-extrabold text-emerald-800 uppercase block">DIGITAL FILE</span>
+                      <p className="text-xs text-slate-600 font-sans mt-0.5">Your file is ready to download via Google Drive link.</p>
                     </div>
-                  </div>
 
-                  {/* Download Action */}
-                  <div>
-                    <a
-                      href={item.fileUrl}
-                      download
-                      className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs flex items-center justify-center gap-2 shadow-sm"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetUrl = item.googleDriveUrl || item.fileUrl;
+                        if (!targetUrl || targetUrl.trim() === '' || targetUrl === '#') {
+                          alert(`Google Drive download link for ${item.productName} is currently being prepared. Please contact support.`);
+                          return;
+                        }
+                        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
                     >
                       <Download className="w-4 h-4" />
-                      <span>Download Software Installer</span>
-                    </a>
+                      <span>Download</span>
+                    </button>
                   </div>
                 </div>
               ))}

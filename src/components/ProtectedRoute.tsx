@@ -59,7 +59,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
               Sign in to your Omove Store account
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Access your orders, digital products, software license keys, downloads, and customer support.
+              Access your orders, digital products, Google Drive downloads, and customer support.
             </p>
           </div>
 

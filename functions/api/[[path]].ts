@@ -437,7 +437,8 @@ function buildProductObject(body: any, isDigital = false): any {
     screenshots: Array.isArray(body.screenshots) ? body.screenshots : [],
     requirements: Array.isArray(body.requirements) ? body.requirements : ['Windows 10/11'],
     versionHistory: Array.isArray(body.versionHistory) ? body.versionHistory : [],
-    fileUrl: body.fileUrl || '/api/downloads/setup',
+    googleDriveUrl: body.googleDriveUrl || body.fileUrl || '',
+    fileUrl: body.googleDriveUrl || body.fileUrl || '/api/downloads/setup',
     instantKeyAvailable: Boolean(body.instantKeyAvailable ?? true),
     rating: Number(body.rating) || 4.9,
     reviewCount: Number(body.reviewCount) || 1,
@@ -1087,7 +1088,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             price: price,
             quantity: qty,
             fileSize: product ? (product.downloadSize || '45 MB') : (item.fileSize || '45 MB'),
-            fileUrl: product ? (product.fileUrl || '/api/downloads/setup') : (item.fileUrl || '/api/downloads/setup'),
+            googleDriveUrl: product ? (product.googleDriveUrl || product.fileUrl || '') : (item.googleDriveUrl || item.fileUrl || ''),
+            fileUrl: product ? (product.googleDriveUrl || product.fileUrl || '/api/downloads/setup') : (item.googleDriveUrl || item.fileUrl || '/api/downloads/setup'),
             licenseKey: '',
             downloadLimit: 5,
             downloadsCount: 0
@@ -1275,7 +1277,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ...it,
           licenseKey: it.licenseKey || generateLicenseKey(),
           downloadLimit: it.downloadLimit || 5,
-          fileUrl: it.fileUrl || '/api/downloads/setup'
+          googleDriveUrl: it.googleDriveUrl || it.fileUrl || '',
+          fileUrl: it.googleDriveUrl || it.fileUrl || '/api/downloads/setup'
         }));
       }
 

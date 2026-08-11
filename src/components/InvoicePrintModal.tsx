@@ -92,7 +92,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ order, onC
               <thead className="bg-slate-950 print:bg-slate-100 text-slate-400 print:text-slate-700 font-mono">
                 <tr>
                   <th className="p-3">Product Description</th>
-                  <th className="p-3">License Key</th>
+                  <th className="p-3">Fulfillment</th>
                   <th className="p-3 text-right">Price</th>
                 </tr>
               </thead>
@@ -101,10 +101,10 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ order, onC
                   <tr key={idx} className="text-slate-300 print:text-slate-800">
                     <td className="p-3 font-semibold">
                       {it.productName}
-                      <span className="block text-[10px] text-slate-500 font-mono">Digital License • Instant Download</span>
+                      <span className="block text-[10px] text-slate-500 font-mono">Digital Product • Google Drive Link</span>
                     </td>
-                    <td className="p-3 font-mono text-indigo-300 print:text-indigo-700 font-bold">
-                      {it.licenseKey}
+                    <td className="p-3 font-mono text-emerald-400 print:text-emerald-700 font-bold">
+                      Google Drive File
                     </td>
                     <td className="p-3 text-right font-mono font-bold">₹{it.price.toFixed(2)}</td>
                   </tr>

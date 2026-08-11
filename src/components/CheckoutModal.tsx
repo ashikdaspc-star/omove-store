@@ -63,22 +63,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     navigate('/my-account?tab=orders');
   };
 
-  const handleTriggerDownload = (fileUrl?: string, productName?: string) => {
-    if (!fileUrl || fileUrl.trim() === '' || fileUrl === '#') {
-      alert(`Download link for ${productName || 'this product'} is not available yet. Please contact support.`);
+  const handleTriggerDownload = (googleDriveUrl?: string, fileUrl?: string, productName?: string) => {
+    const targetUrl = googleDriveUrl || fileUrl;
+    if (!targetUrl || targetUrl.trim() === '' || targetUrl === '#') {
+      alert(`Google Drive download link for ${productName || 'this product'} is currently being prepared. Please check back under My Orders or contact support.`);
       return;
     }
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-      window.open(fileUrl, '_blank', 'noopener,noreferrer');
-    } else {
-      const link = document.createElement('a');
-      link.href = fileUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
   // Expandable Coupon State
@@ -177,7 +168,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           price: it.product.price,
           quantity: it.quantity,
           fileSize: it.product.downloadSize || '45 MB',
-          fileUrl: it.product.fileUrl || '/api/downloads/setup'
+          fileUrl: it.product.googleDriveUrl || it.product.fileUrl || '/api/downloads/setup',
+          googleDriveUrl: it.product.googleDriveUrl || it.product.fileUrl || ''
         })),
         customerName: generatedName,
         customerEmail: generatedEmail,
@@ -416,8 +408,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleTriggerDownload(item.fileUrl, item.productName)}
-                    className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-cyan-600/20 shrink-0"
+                    onClick={() => handleTriggerDownload(item.googleDriveUrl, item.fileUrl, item.productName)}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-emerald-600/20 shrink-0"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download</span>

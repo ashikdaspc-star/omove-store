@@ -104,18 +104,12 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
   };
 
   const handleTriggerDownload = (productId: string, productName: string, fileUrl?: string, orderId?: string) => {
-    const downloadUrl = fileUrl && fileUrl.startsWith('http')
-      ? fileUrl
-      : `/api/downloads/${orderId || 'ord-demo'}/${productId}`;
-
-    const slug = productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = `${slug}-setup.exe`;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const targetUrl = fileUrl;
+    if (!targetUrl || targetUrl.trim() === '' || targetUrl === '#') {
+      alert(`Google Drive download link for ${productName} is currently being prepared. Please check back under My Orders or contact support.`);
+      return;
+    }
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -236,52 +230,20 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                     </span>
                   </div>
 
-                  {/* License Key Box */}
-                  <div className="p-3.5 rounded-2xl bg-slate-900 text-white space-y-1.5 font-mono">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold">
-                      <span className="flex items-center gap-1">
-                        <Key className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>DIGITAL LICENSE / ACCESS CODE:</span>
-                      </span>
-                      <span className="text-[10px] text-emerald-400">GENUINE LICENSE</span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                      <code className="text-emerald-400 font-extrabold text-xs sm:text-sm tracking-wider overflow-x-auto select-all">
-                        {item.licenseKey}
-                      </code>
-                      <button
-                        onClick={() => handleCopyKey(item.licenseKey, uniqueKeyId)}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 shrink-0 transition-all active:scale-95"
-                      >
-                        {copiedKeyId === uniqueKeyId ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-white" />
-                            <span>COPIED!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>COPY</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Download Action Bar */}
-                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="text-xs font-mono text-slate-500 flex items-center gap-3">
-                      <span>Size: <strong>{item.fileSize || '42.5 MB'}</strong></span>
-                      <span>Limit: <strong>{item.downloadsCount || 0}/{item.downloadLimit || 5}</strong></span>
+                  {/* Digital File Access Card */}
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-sans">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-mono font-extrabold text-emerald-800 uppercase block">DIGITAL FILE ACCESS</span>
+                      <p className="text-xs text-slate-600 font-sans">Ready for direct Google Drive download</p>
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => handleTriggerDownload(item.productId, item.productName, item.fileUrl, item.orderId)}
-                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-105"
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all shrink-0"
                     >
                       <Download className="w-4 h-4" />
-                      <span>DOWNLOAD PURCHASED INSTALLER</span>
+                      <span>Download</span>
                     </button>
                   </div>
                 </div>
@@ -456,8 +418,8 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
           </div>
 
           <div className="space-y-1.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <span className="font-bold font-mono text-emerald-800 text-sm block">3. Copy License Key</span>
-            <p>Click "COPY" on your purchased key card above and paste it into the installer when prompted.</p>
+            <span className="font-bold font-mono text-emerald-800 text-sm block">3. Access Google Drive File</span>
+            <p>Click "Download" on your purchased file card above to instantly access your Google Drive download link.</p>
           </div>
         </div>
       </div>
