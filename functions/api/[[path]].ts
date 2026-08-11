@@ -244,6 +244,179 @@ async function atomicFileMutation(
   return { success: false, data: [], message: 'Atomic mutation failed after retries' };
 }
 
+// ------------------------------------------------------------------
+// DRAFT → PUBLISH ARCHITECTURE STORE & CONSOLIDATED BATCH MUTATION
+// ------------------------------------------------------------------
+interface DraftStoreState {
+  hasPendingChanges: boolean;
+  pendingFiles: Set<string>;
+  lastModifiedAt: string | null;
+  modifiedCount: number;
+  workingData: Map<string, any[]>;
+}
+
+const draftStore: DraftStoreState = {
+  hasPendingChanges: false,
+  pendingFiles: new Set<string>(),
+  lastModifiedAt: null,
+  modifiedCount: 0,
+  workingData: new Map<string, any[]>()
+};
+
+function recordDraftMutation(filePath: string, updatedData: any[]) {
+  draftStore.hasPendingChanges = true;
+  draftStore.pendingFiles.add(filePath);
+  draftStore.lastModifiedAt = new Date().toISOString();
+  draftStore.modifiedCount += 1;
+  draftStore.workingData.set(filePath, updatedData);
+}
+
+function clearDraftStore() {
+  draftStore.hasPendingChanges = false;
+  draftStore.pendingFiles.clear();
+  draftStore.lastModifiedAt = null;
+  draftStore.modifiedCount = 0;
+  draftStore.workingData.clear();
+}
+
+async function consolidatedMultiFileMutation(
+  filesToCommit: { filePath: string; content: any[] }[],
+  commitMessage: string,
+  env: Env
+): Promise<{ success: boolean; commitSha?: string; message?: string }> {
+  const token = getGitHubToken(env);
+  const owner = env.GITHUB_OWNER || 'ashikdaspc-star';
+  const repo = env.GITHUB_REPO || 'omove-store';
+  const branch = env.GITHUB_BRANCH || env.CF_PAGES_BRANCH || 'main';
+
+  if (!token) {
+    return { success: false, message: 'No GitHub token configured' };
+  }
+
+  if (!filesToCommit || filesToCommit.length === 0) {
+    return { success: true, message: 'No pending changes to publish' };
+  }
+
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json',
+    'User-Agent': 'OmoveStore-CloudflareSync/2.0'
+  };
+
+  try {
+    // 1. Get latest commit SHA & Tree SHA of target branch
+    const refRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`, { headers });
+    if (!refRes.ok) {
+      // Fallback: update files individually if Git Data API ref fetch fails
+      return await fallbackSequentialMutation(filesToCommit, commitMessage, env);
+    }
+    const refData: any = await refRes.json();
+    const latestCommitSha = refData.object?.sha;
+
+    const commitRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${latestCommitSha}`, { headers });
+    const commitData: any = await commitRes.json();
+    const baseTreeSha = commitData.tree?.sha;
+
+    if (!baseTreeSha) {
+      return await fallbackSequentialMutation(filesToCommit, commitMessage, env);
+    }
+
+    // 2. Create Blobs for each modified file
+    const treeItems: any[] = [];
+    for (const item of filesToCommit) {
+      const jsonText = JSON.stringify(item.content, null, 2);
+      const blobRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          content: jsonText,
+          encoding: 'utf-8'
+        })
+      });
+      if (blobRes.ok) {
+        const blobData: any = await blobRes.json();
+        treeItems.push({
+          path: item.filePath,
+          mode: '100644',
+          type: 'blob',
+          sha: blobData.sha
+        });
+      }
+    }
+
+    if (treeItems.length === 0) {
+      return { success: false, message: 'Failed to create git blobs for files' };
+    }
+
+    // 3. Create New Tree
+    const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        base_tree: baseTreeSha,
+        tree: treeItems
+      })
+    });
+    const treeData: any = await treeRes.json();
+    const newTreeSha = treeData.sha;
+
+    // 4. Create Single Consolidated Commit
+    const newCommitRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message: commitMessage,
+        tree: newTreeSha,
+        parents: [latestCommitSha]
+      })
+    });
+    const newCommitData: any = await newCommitRes.json();
+    const newCommitSha = newCommitData.sha;
+
+    // 5. Update Head Ref to trigger ONE single Cloudflare deployment
+    const updateRefRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        sha: newCommitSha,
+        force: false
+      })
+    });
+
+    if (updateRefRes.ok) {
+      console.log(`[CONSOLIDATED PUBLISH SUCCESS] Single Commit SHA: ${newCommitSha.substring(0, 7)} | Files: ${filesToCommit.map(f => f.filePath).join(', ')}`);
+      return { success: true, commitSha: newCommitSha };
+    }
+
+    return await fallbackSequentialMutation(filesToCommit, commitMessage, env);
+  } catch (err: any) {
+    console.warn(`[CONSOLIDATED PUBLISH FALLBACK] Exception: ${err.message}`);
+    return await fallbackSequentialMutation(filesToCommit, commitMessage, env);
+  }
+}
+
+async function fallbackSequentialMutation(
+  filesToCommit: { filePath: string; content: any[] }[],
+  commitMessage: string,
+  env: Env
+): Promise<{ success: boolean; commitSha?: string; message?: string }> {
+  let lastSha = '';
+  for (const item of filesToCommit) {
+    const res = await atomicFileMutation(
+      item.filePath,
+      () => item.content,
+      `${commitMessage}: ${item.filePath}`,
+      env
+    );
+    if (!res.success) {
+      return { success: false, message: `Failed to commit ${item.filePath}: ${res.message}` };
+    }
+    lastSha = res.commitSha || lastSha;
+  }
+  return { success: true, commitSha: lastSha };
+}
+
 // Web Crypto Hashing
 async function hashPasswordWebCrypto(password: string, saltHex?: string): Promise<{ hash: string; salt: string }> {
   const enc = new TextEncoder();
@@ -530,6 +703,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     // ----------------------------------------------------
+    // DRAFT STATUS ENDPOINT (/api/admin/draft-status)
+    // ----------------------------------------------------
+    if (path === '/api/admin/draft-status') {
+      return jsonResponse({
+        success: true,
+        hasPendingChanges: draftStore.hasPendingChanges,
+        pendingFiles: Array.from(draftStore.pendingFiles),
+        pendingCount: draftStore.pendingFiles.size,
+        modifiedCount: draftStore.modifiedCount,
+        lastModifiedAt: draftStore.lastModifiedAt
+      });
+    }
+
+    // ----------------------------------------------------
     // DIGITAL CATEGORIES API (/api/digital-categories)
     // ----------------------------------------------------
     if (path.startsWith('/api/digital-categories') || path.startsWith('/api/admin/digital-categories')) {
@@ -539,14 +726,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (!catId) {
         if (method === 'GET') {
-          const fresh = await fetchFileFromGitHub('src/data/digital_categories.json', env);
-          let list = Array.isArray(fresh) ? fresh : [];
+          const list = await getWorkingData('src/data/digital_categories.json', env);
           const isAdminPath = path.includes('/admin/');
+          let filtered = list;
           if (!isAdminPath) {
-            list = list.filter((c: any) => c.active !== false);
+            filtered = filtered.filter((c: any) => c.active !== false);
           }
-          list.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
-          return jsonResponse(list);
+          filtered.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+          return jsonResponse(filtered);
         }
 
         if (method === 'POST') {
@@ -564,54 +751,39 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             updatedAt: new Date().toISOString()
           };
 
-          const result = await atomicFileMutation(
-            'src/data/digital_categories.json',
-            (categories) => [newCat, ...(Array.isArray(categories) ? categories : [])],
-            `Create digital category: ${newCat.name}`,
-            env
-          );
+          const currentList = await getWorkingData('src/data/digital_categories.json', env);
+          const updatedList = [newCat, ...currentList];
+          recordDraftMutation('src/data/digital_categories.json', updatedList);
 
-          return jsonResponse({ success: true, category: newCat, sync: result });
+          return jsonResponse({ success: true, category: newCat, isDraft: true, message: 'Saved to draft state.' });
         }
       } else {
         if (method === 'PUT' || method === 'PATCH') {
           const body: any = await request.json().catch(() => ({}));
           let updatedCat: any = null;
+          const currentList = await getWorkingData('src/data/digital_categories.json', env);
 
-          const result = await atomicFileMutation(
-            'src/data/digital_categories.json',
-            (categories) => {
-              const list = Array.isArray(categories) ? categories : [];
-              return list.map((c: any) => {
-                if (c.id === catId || c.slug === catId) {
-                  updatedCat = { ...c, ...body, id: c.id, updatedAt: new Date().toISOString() };
-                  return updatedCat;
-                }
-                return c;
-              });
-            },
-            `Update digital category: ${catId}`,
-            env
-          );
+          const updatedList = currentList.map((c: any) => {
+            if (c.id === catId || c.slug === catId) {
+              updatedCat = { ...c, ...body, id: c.id, updatedAt: new Date().toISOString() };
+              return updatedCat;
+            }
+            return c;
+          });
 
           if (updatedCat) {
-            return jsonResponse({ success: true, category: updatedCat, sync: result });
+            recordDraftMutation('src/data/digital_categories.json', updatedList);
+            return jsonResponse({ success: true, category: updatedCat, isDraft: true });
           }
           return jsonResponse({ success: false, error: 'Category not found' }, 404);
         }
 
         if (method === 'DELETE') {
-          const result = await atomicFileMutation(
-            'src/data/digital_categories.json',
-            (categories) => {
-              const list = Array.isArray(categories) ? categories : [];
-              return list.filter((c: any) => c.id !== catId && c.slug !== catId && c.parentId !== catId);
-            },
-            `Delete digital category: ${catId}`,
-            env
-          );
+          const currentList = await getWorkingData('src/data/digital_categories.json', env);
+          const updatedList = currentList.filter((c: any) => c.id !== catId && c.slug !== catId && c.parentId !== catId);
+          recordDraftMutation('src/data/digital_categories.json', updatedList);
 
-          return jsonResponse({ success: true, sync: result });
+          return jsonResponse({ success: true, isDraft: true });
         }
       }
     }
@@ -621,15 +793,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // ----------------------------------------------------
     if (path === '/api/digital-products' || path === '/api/admin/digital-products') {
       if (method === 'GET') {
-        const fresh = await fetchFileFromGitHub('src/data/digital_products.json', env);
-        let list = Array.isArray(fresh) ? fresh : [];
+        const list = await getWorkingData('src/data/digital_products.json', env);
         const isAdminPath = path.includes('/admin/');
+        let filtered = list;
         if (!isAdminPath) {
-          list = list.filter((p: any) => (p.status || 'PUBLISHED') === 'PUBLISHED');
-          // SECURITY ENFORCEMENT: Strip googleDriveUrl from public catalog responses
-          list = list.map(({ googleDriveUrl, ...rest }: any) => rest);
+          filtered = filtered.filter((p: any) => (p.status || 'PUBLISHED') === 'PUBLISHED');
+          filtered = filtered.map(({ googleDriveUrl, ...rest }: any) => rest);
         }
-        return jsonResponse(list);
+        return jsonResponse(filtered);
       }
 
       if (method === 'POST') {
@@ -657,18 +828,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           updatedAt: new Date().toISOString()
         };
 
-        const result = await atomicFileMutation(
-          'src/data/digital_products.json',
-          (products) => [newProd, ...(Array.isArray(products) ? products : [])],
-          `Create digital product: ${newProd.name}`,
-          env
-        );
+        const currentList = await getWorkingData('src/data/digital_products.json', env);
+        const updatedList = [newProd, ...currentList];
+        recordDraftMutation('src/data/digital_products.json', updatedList);
 
-        if (!result.success) {
-          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to persist digital product to GitHub' }, 500);
-        }
-
-        return jsonResponse({ success: true, product: newProd, sync: result });
+        return jsonResponse({ success: true, product: newProd, isDraft: true, message: 'Saved to draft state.' });
       }
     }
 
@@ -677,35 +841,28 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // ----------------------------------------------------
     if (path === '/api/products' || path === '/api/store-products' || path === '/api/admin/store-products') {
       if (method === 'GET') {
-        const fresh = await fetchFileFromGitHub('src/data/products.json', env);
-        if (Array.isArray(fresh)) dynamicProductsStore = fresh;
+        const list = await getWorkingData('src/data/products.json', env);
+        dynamicProductsStore = list;
 
         const isAdminPath = path.includes('/admin/');
-        let list = [...dynamicProductsStore];
+        let filtered = [...dynamicProductsStore];
         if (!isAdminPath) {
-          list = list.filter(p => (p.status || 'PUBLISHED') === 'PUBLISHED');
-          list = list.map(({ googleDriveUrl, fileUrl, ...rest }: any) => rest);
+          filtered = filtered.filter(p => (p.status || 'PUBLISHED') === 'PUBLISHED');
+          filtered = filtered.map(({ googleDriveUrl, fileUrl, ...rest }: any) => rest);
         }
-        return jsonResponse(list);
+        return jsonResponse(filtered);
       }
 
       if (method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
         const newProd = buildProductObject(body, false);
 
-        const result = await atomicFileMutation(
-          'src/data/products.json',
-          (products) => [newProd, ...products],
-          `Create store product: ${newProd.name}`,
-          env
-        );
+        const currentList = await getWorkingData('src/data/products.json', env);
+        const updatedList = [newProd, ...currentList];
+        dynamicProductsStore = updatedList;
+        recordDraftMutation('src/data/products.json', updatedList);
 
-        if (!result.success) {
-          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to persist store product to GitHub' }, 500);
-        }
-
-        dynamicProductsStore = result.data;
-        return jsonResponse({ success: true, product: newProd, sync: { success: true, commitSha: result.commitSha } });
+        return jsonResponse({ success: true, product: newProd, isDraft: true, message: 'Saved to draft state.' });
       }
     }
 
@@ -756,9 +913,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const targetFile = isDigitalRoute ? 'src/data/digital_products.json' : 'src/data/products.json';
 
       if (method === 'GET') {
-        const fresh = await fetchFileFromGitHub(targetFile, env);
-        const list = Array.isArray(fresh) ? fresh : [];
-
+        const list = await getWorkingData(targetFile, env);
         const idx = findProductIndexInCatalog(list, pId);
         if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
 
@@ -775,37 +930,25 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const isDigital = isDigitalRoute || body.productType === 'DIGITAL';
         const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
 
-        let updatedProduct: any = null;
-        const result = await atomicFileMutation(
-          fileToMutate,
-          (products) => {
-            const list = Array.isArray(products) ? products : [];
-            const idx = findProductIndexInCatalog(list, pId);
-            if (idx === -1) return list;
-            updatedProduct = {
-              ...list[idx],
-              ...body,
-              id: list[idx].id,
-              updatedAt: new Date().toISOString()
-            };
-            const newList = [...list];
-            newList[idx] = updatedProduct;
-            return newList;
-          },
-          `Update product: ${body.name || pId}`,
-          env
-        );
-
-        if (!updatedProduct) {
+        const list = await getWorkingData(fileToMutate, env);
+        const idx = findProductIndexInCatalog(list, pId);
+        if (idx === -1) {
           return jsonResponse({ success: false, error: 'Product not found' }, 404);
         }
 
-        if (!result.success) {
-          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to update product on GitHub' }, 500);
-        }
+        const updatedProduct = {
+          ...list[idx],
+          ...body,
+          id: list[idx].id,
+          updatedAt: new Date().toISOString()
+        };
+        const newList = [...list];
+        newList[idx] = updatedProduct;
 
-        if (!isDigital) dynamicProductsStore = result.data;
-        return jsonResponse({ success: true, product: updatedProduct, sync: { success: true, commitSha: result.commitSha } });
+        if (!isDigital) dynamicProductsStore = newList;
+        recordDraftMutation(fileToMutate, newList);
+
+        return jsonResponse({ success: true, product: updatedProduct, isDraft: true, message: 'Updated in draft state.' });
       }
 
       if (method === 'DELETE') {
@@ -814,7 +957,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const isDigital = isDigitalRoute;
         const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
 
-        let targetProduct: any = null;
+        const list = await getWorkingData(fileToMutate, env);
+        const idx = findProductIndexInCatalog(list, pId);
+        if (idx === -1) {
+          return jsonResponse({ success: true, deleted: true, message: 'Product already deleted.' });
+        }
+
+        const targetProduct = list[idx];
         let actionTaken = 'DELETED';
 
         const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
@@ -822,64 +971,38 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
         }
 
-        const result = await atomicFileMutation(
-          fileToMutate,
-          (products) => {
-            const list = Array.isArray(products) ? products : [];
-            const idx = findProductIndexInCatalog(list, pId);
-            if (idx === -1) return list;
-
-            targetProduct = list[idx];
-
-            const hasOrders = Array.from(ordersStore.values()).some((ord: any) =>
-              Array.isArray(ord.items) && ord.items.some((it: any) =>
-                it.productId === targetProduct.id ||
-                it.productId === pId ||
-                (it.productName || '').toLowerCase() === (targetProduct.name || '').toLowerCase()
-              )
-            );
-
-            if (!forcePermanent) {
-              actionTaken = 'ARCHIVED';
-              const newList = [...list];
-              newList[idx] = {
-                ...list[idx],
-                status: 'ARCHIVED',
-                updatedAt: new Date().toISOString()
-              };
-              return newList;
-            } else {
-              actionTaken = 'DELETED';
-              const newList = [...list];
-              newList.splice(idx, 1);
-              return newList;
-            }
-          },
-          `Delete/Archive product ${pId}`,
-          env
+        const hasOrders = Array.from(ordersStore.values()).some((ord: any) =>
+          Array.isArray(ord.items) && ord.items.some((it: any) =>
+            it.productId === targetProduct.id ||
+            it.productId === pId ||
+            (it.productName || '').toLowerCase() === (targetProduct.name || '').toLowerCase()
+          )
         );
 
-        if (!targetProduct) {
-          return jsonResponse({
-            success: true,
-            deleted: true,
-            alreadyDeleted: true,
-            message: `Product '${pId}' is already removed from catalog.`
-          });
+        let newList = [...list];
+        if (hasOrders && !forcePermanent) {
+          actionTaken = 'ARCHIVED';
+          newList[idx] = {
+            ...targetProduct,
+            status: 'ARCHIVED',
+            updatedAt: new Date().toISOString()
+          };
+        } else {
+          actionTaken = 'DELETED';
+          newList.splice(idx, 1);
         }
 
-        if (!result.success) {
-          return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to sync deletion to GitHub' }, 500);
-        }
+        if (!isDigital) dynamicProductsStore = newList;
+        recordDraftMutation(fileToMutate, newList);
 
-        dynamicProductsStore = result.data;
         return jsonResponse({
           success: true,
           action: actionTaken,
           deleted: actionTaken === 'DELETED',
           archived: actionTaken === 'ARCHIVED',
           product: targetProduct,
-          sync: { success: true, commitSha: result.commitSha }
+          isDraft: true,
+          message: actionTaken === 'ARCHIVED' ? 'Archived in draft state.' : 'Deleted in draft state.'
         });
       }
     }
@@ -888,13 +1011,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const duplicateMatch = path.match(/^\/api\/products\/([^\/]+)\/duplicate$/);
     if (duplicateMatch && method === 'POST') {
       const pId = decodeURIComponent(duplicateMatch[1]);
-      const fresh = await fetchFileFromGitHub('src/data/products.json', env);
-      if (Array.isArray(fresh) && fresh.length > 0) dynamicProductsStore = fresh;
+      const list = await getWorkingData('src/data/products.json', env);
+      dynamicProductsStore = list;
 
       const existing = dynamicProductsStore.find(p => p.id === pId || p.slug === pId);
       if (!existing) return jsonResponse({ success: false, error: 'Product not found' }, 404);
 
       const isDigital = existing.productType === 'DIGITAL';
+      const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
       const duplicated = {
         ...existing,
         id: `${isDigital ? 'dig' : 'prod'}-${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -904,46 +1028,76 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         updatedAt: new Date().toISOString()
       };
 
-      const result = await atomicFileMutation(
-        'src/data/products.json',
-        (products) => [duplicated, ...products],
-        `Duplicate product: ${duplicated.name}`,
-        env
-      );
+      const currentList = await getWorkingData(fileToMutate, env);
+      const updatedList = [duplicated, ...currentList];
 
-      if (!result.success) {
-        return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: result.message || 'Failed to duplicate product on GitHub' }, 500);
-      }
+      if (!isDigital) dynamicProductsStore = updatedList;
+      recordDraftMutation(fileToMutate, updatedList);
 
-      dynamicProductsStore = result.data;
-      return jsonResponse({ success: true, product: duplicated, sync: { success: true, commitSha: result.commitSha } });
+      return jsonResponse({ success: true, product: duplicated, isDraft: true, message: 'Duplicated in draft state.' });
     }
 
-    // Publish Catalog Endpoint
+    // Consolidated Publish Catalog Endpoint
     if (path === '/api/admin/publish' || path === '/api/products/sync' || path === '/api/products/publish') {
       const body: any = await request.json().catch(() => ({}));
-      const prodsToSync = Array.isArray(body.products) && body.products.length > 0 ? body.products : dynamicProductsStore;
 
-      const syncRes = await atomicFileMutation(
-        'src/data/products.json',
-        () => prodsToSync,
-        'Publish catalog to GitHub main branch via Cloudflare Admin',
+      const filesToCommit: { filePath: string; content: any[] }[] = [];
+
+      // Collect all modified workingData from draftStore
+      for (const [filePath, content] of draftStore.workingData.entries()) {
+        filesToCommit.push({ filePath, content });
+      }
+
+      // Also support explicit payload arrays if passed from frontend
+      if (Array.isArray(body.digitalProducts) && body.digitalProducts.length > 0) {
+        if (!filesToCommit.some(f => f.filePath === 'src/data/digital_products.json')) {
+          filesToCommit.push({ filePath: 'src/data/digital_products.json', content: body.digitalProducts });
+        }
+      }
+      if (Array.isArray(body.products) && body.products.length > 0) {
+        if (!filesToCommit.some(f => f.filePath === 'src/data/products.json')) {
+          filesToCommit.push({ filePath: 'src/data/products.json', content: body.products });
+        }
+      }
+      if (Array.isArray(body.digitalCategories) && body.digitalCategories.length > 0) {
+        if (!filesToCommit.some(f => f.filePath === 'src/data/digital_categories.json')) {
+          filesToCommit.push({ filePath: 'src/data/digital_categories.json', content: body.digitalCategories });
+        }
+      }
+      if (Array.isArray(body.services) && body.services.length > 0) {
+        if (!filesToCommit.some(f => f.filePath === 'src/data/services.json')) {
+          filesToCommit.push({ filePath: 'src/data/services.json', content: body.services });
+        }
+      }
+
+      if (filesToCommit.length === 0) {
+        return jsonResponse({ success: true, message: 'All changes up-to-date! No pending drafts to publish.', sync: { commitSha: 'up-to-date' } });
+      }
+
+      const syncRes = await consolidatedMultiFileMutation(
+        filesToCommit,
+        'Publish admin catalog live to production via Cloudflare Admin',
         env
       );
 
       if (!syncRes.success) {
-        return jsonResponse({ success: false, error: 'PRODUCT_SYNC_FAILED', message: syncRes.message || 'Failed to publish catalog to GitHub' }, 500);
+        return jsonResponse({ success: false, error: 'PUBLISH_FAILED', message: syncRes.message || 'Failed to publish changes to GitHub' }, 500);
       }
 
-      dynamicProductsStore = syncRes.data;
-      return jsonResponse({ success: true, message: 'Products published to GitHub main branch!', sync: { success: true, commitSha: syncRes.commitSha } });
+      clearDraftStore();
+
+      return jsonResponse({
+        success: true,
+        message: 'Published Live to Production in 1 Consolidated Commit!',
+        sync: { success: true, commitSha: syncRes.commitSha }
+      });
     }
 
     // 4. Coupons Endpoints
     if (path === '/api/coupons') {
       if (method === 'GET') {
-        const fresh = await fetchFileFromGitHub('src/data/coupons.json', env);
-        if (Array.isArray(fresh) && fresh.length > 0) dynamicCouponsStore = fresh;
+        const list = await getWorkingData('src/data/coupons.json', env);
+        dynamicCouponsStore = list;
         return jsonResponse(dynamicCouponsStore);
       }
 
@@ -965,19 +1119,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           usageCount: 0
         };
 
-        const result = await atomicFileMutation(
-          'src/data/coupons.json',
-          (coupons) => [newCpn, ...coupons],
-          `Create coupon ${code}`,
-          env
-        );
+        const currentList = await getWorkingData('src/data/coupons.json', env);
+        const updatedList = [newCpn, ...currentList];
+        dynamicCouponsStore = updatedList;
+        recordDraftMutation('src/data/coupons.json', updatedList);
 
-        if (!result.success) {
-          return jsonResponse({ success: false, error: 'COUPON_SYNC_FAILED', message: result.message || 'Failed to save coupon to GitHub' }, 500);
-        }
-
-        dynamicCouponsStore = result.data;
-        return jsonResponse({ success: true, coupon: newCpn, sync: { success: true, commitSha: result.commitSha } });
+        return jsonResponse({ success: true, coupon: newCpn, isDraft: true, message: 'Coupon saved in draft state.' });
       }
     }
 
@@ -1003,57 +1150,44 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const cId = cpnToggleMatch[1];
       let toggledCoupon: any = null;
 
-      const result = await atomicFileMutation(
-        'src/data/coupons.json',
-        (coupons) => coupons.map((c: any) => {
-          if (c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase()) {
-            toggledCoupon = { ...c, isActive: !c.isActive };
-            return toggledCoupon;
-          }
-          return c;
-        }),
-        `Toggle coupon ${cId}`,
-        env
-      );
+      const currentList = await getWorkingData('src/data/coupons.json', env);
+      const updatedList = currentList.map((c: any) => {
+        if (c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase()) {
+          toggledCoupon = { ...c, isActive: !c.isActive };
+          return toggledCoupon;
+        }
+        return c;
+      });
 
       if (!toggledCoupon) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
-      if (!result.success) return jsonResponse({ success: false, error: 'COUPON_SYNC_FAILED', message: result.message }, 500);
 
-      dynamicCouponsStore = result.data;
-      return jsonResponse({ success: true, coupon: toggledCoupon, sync: { success: true, commitSha: result.commitSha } });
+      dynamicCouponsStore = updatedList;
+      recordDraftMutation('src/data/coupons.json', updatedList);
+
+      return jsonResponse({ success: true, coupon: toggledCoupon, isDraft: true });
     }
 
     const cpnDeleteMatch = path.match(/^\/api\/coupons\/([^\/]+)$/);
     if (cpnDeleteMatch && method === 'DELETE') {
       const cId = cpnDeleteMatch[1];
-      let found = false;
+      const currentList = await getWorkingData('src/data/coupons.json', env);
+      const idx = currentList.findIndex((c: any) => c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase());
+      if (idx === -1) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
 
-      const result = await atomicFileMutation(
-        'src/data/coupons.json',
-        (coupons) => {
-          const idx = coupons.findIndex((c: any) => c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase());
-          if (idx === -1) return coupons;
-          found = true;
-          const newList = [...coupons];
-          newList.splice(idx, 1);
-          return newList;
-        },
-        `Delete coupon ${cId}`,
-        env
-      );
+      const updatedList = [...currentList];
+      updatedList.splice(idx, 1);
 
-      if (!found) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
-      if (!result.success) return jsonResponse({ success: false, error: 'COUPON_SYNC_FAILED', message: result.message }, 500);
+      dynamicCouponsStore = updatedList;
+      recordDraftMutation('src/data/coupons.json', updatedList);
 
-      dynamicCouponsStore = result.data;
-      return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: result.commitSha } });
+      return jsonResponse({ success: true, deleted: true, isDraft: true });
     }
 
     // 5. Services Endpoints (GET, POST, PUT, DELETE)
     if (path === '/api/services' || path === '/api/admin/services') {
       if (method === 'GET') {
-        const fresh = await fetchFileFromGitHub('src/data/services.json', env);
-        if (Array.isArray(fresh) && fresh.length > 0) dynamicServicesStore = fresh;
+        const list = await getWorkingData('src/data/services.json', env);
+        dynamicServicesStore = list;
         return jsonResponse(dynamicServicesStore);
       }
 
@@ -1061,19 +1195,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const body: any = await request.json().catch(() => ({}));
         const newSrv = { id: `srv-${Date.now()}`, ...body };
 
-        const result = await atomicFileMutation(
-          'src/data/services.json',
-          (services) => [newSrv, ...services],
-          `Create service: ${newSrv.title || newSrv.id}`,
-          env
-        );
+        const currentList = await getWorkingData('src/data/services.json', env);
+        const updatedList = [newSrv, ...currentList];
 
-        if (!result.success) {
-          return jsonResponse({ success: false, error: 'SERVICE_SYNC_FAILED', message: result.message }, 500);
-        }
+        dynamicServicesStore = updatedList;
+        recordDraftMutation('src/data/services.json', updatedList);
 
-        dynamicServicesStore = result.data;
-        return jsonResponse({ success: true, service: newSrv, sync: { success: true, commitSha: result.commitSha } });
+        return jsonResponse({ success: true, service: newSrv, isDraft: true });
       }
     }
 
@@ -1083,58 +1211,39 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (method === 'PUT') {
         const body: any = await request.json().catch(() => ({}));
-        let updatedService: any = null;
+        const currentList = await getWorkingData('src/data/services.json', env);
 
-        const result = await atomicFileMutation(
-          'src/data/services.json',
-          (services) => {
-            const idx = services.findIndex((s: any) => s.id === sId);
-            if (idx === -1) return services;
-            updatedService = { ...services[idx], ...body, id: sId };
-            const newList = [...services];
-            newList[idx] = updatedService;
-            return newList;
-          },
-          `Update service: ${sId}`,
-          env
-        );
+        const idx = currentList.findIndex((s: any) => s.id === sId);
+        if (idx === -1) return jsonResponse({ success: false, error: 'Service not found' }, 404);
 
-        if (!updatedService) return jsonResponse({ success: false, error: 'Service not found' }, 404);
-        if (!result.success) return jsonResponse({ success: false, error: 'SERVICE_SYNC_FAILED', message: result.message }, 500);
+        const updatedService = { ...currentList[idx], ...body, id: sId };
+        const updatedList = [...currentList];
+        updatedList[idx] = updatedService;
 
-        dynamicServicesStore = result.data;
-        return jsonResponse({ success: true, service: updatedService, sync: { success: true, commitSha: result.commitSha } });
+        dynamicServicesStore = updatedList;
+        recordDraftMutation('src/data/services.json', updatedList);
+
+        return jsonResponse({ success: true, service: updatedService, isDraft: true });
       }
 
       if (method === 'DELETE') {
-        let deleted = false;
-        const result = await atomicFileMutation(
-          'src/data/services.json',
-          (services) => {
-            const idx = services.findIndex((s: any) => s.id === sId);
-            if (idx === -1) return services;
-            deleted = true;
-            const newList = [...services];
-            newList.splice(idx, 1);
-            return newList;
-          },
-          `Delete service: ${sId}`,
-          env
-        );
+        const currentList = await getWorkingData('src/data/services.json', env);
+        const updatedList = currentList.filter((s: any) => s.id !== sId);
 
-        if (!deleted) return jsonResponse({ success: false, error: 'Service not found' }, 404);
-        if (!result.success) return jsonResponse({ success: false, error: 'SERVICE_SYNC_FAILED', message: result.message }, 500);
+        dynamicServicesStore = updatedList;
+        recordDraftMutation('src/data/services.json', updatedList);
 
-        dynamicServicesStore = result.data;
-        return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: result.commitSha } });
+        return jsonResponse({ success: true, deleted: true, isDraft: true });
       }
+    }
+
     }
 
     // 6. Blogs Endpoints (GET, POST, PUT, DELETE)
     if (path === '/api/blogs' || path === '/api/admin/blogs') {
       if (method === 'GET') {
-        const fresh = await fetchFileFromGitHub('src/data/blogs.json', env);
-        if (Array.isArray(fresh) && fresh.length > 0) dynamicBlogsStore = fresh;
+        const list = await getWorkingData('src/data/blogs.json', env);
+        dynamicBlogsStore = list;
         return jsonResponse(dynamicBlogsStore);
       }
 
@@ -1142,19 +1251,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const body: any = await request.json().catch(() => ({}));
         const newBlog = { id: `blog-${Date.now()}`, ...body };
 
-        const result = await atomicFileMutation(
-          'src/data/blogs.json',
-          (blogs) => [newBlog, ...blogs],
-          `Create blog post: ${newBlog.title || newBlog.id}`,
-          env
-        );
+        const currentList = await getWorkingData('src/data/blogs.json', env);
+        const updatedList = [newBlog, ...currentList];
 
-        if (!result.success) {
-          return jsonResponse({ success: false, error: 'BLOG_SYNC_FAILED', message: result.message }, 500);
-        }
+        dynamicBlogsStore = updatedList;
+        recordDraftMutation('src/data/blogs.json', updatedList);
 
-        dynamicBlogsStore = result.data;
-        return jsonResponse({ success: true, blog: newBlog, sync: { success: true, commitSha: result.commitSha } });
+        return jsonResponse({ success: true, blog: newBlog, isDraft: true });
       }
     }
 
@@ -1163,26 +1266,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const bId = decodeURIComponent(blogIdMatch[1]);
 
       if (method === 'DELETE') {
-        let deleted = false;
-        const result = await atomicFileMutation(
-          'src/data/blogs.json',
-          (blogs) => {
-            const idx = blogs.findIndex((b: any) => b.id === bId);
-            if (idx === -1) return blogs;
-            deleted = true;
-            const newList = [...blogs];
-            newList.splice(idx, 1);
-            return newList;
-          },
-          `Delete blog: ${bId}`,
-          env
-        );
+        const currentList = await getWorkingData('src/data/blogs.json', env);
+        const updatedList = currentList.filter((b: any) => b.id !== bId);
 
-        if (!deleted) return jsonResponse({ success: false, error: 'Blog not found' }, 404);
-        if (!result.success) return jsonResponse({ success: false, error: 'BLOG_SYNC_FAILED', message: result.message }, 500);
+        dynamicBlogsStore = updatedList;
+        recordDraftMutation('src/data/blogs.json', updatedList);
 
-        dynamicBlogsStore = result.data;
-        return jsonResponse({ success: true, deleted: true, sync: { success: true, commitSha: result.commitSha } });
+        return jsonResponse({ success: true, deleted: true, isDraft: true });
       }
     }
 

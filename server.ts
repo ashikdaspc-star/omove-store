@@ -969,6 +969,16 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   app.delete('/api/admin/digital-products/:id', handleDeleteProductRequest);
   app.delete('/api/admin/store-products/:id', handleDeleteProductRequest);
 
+  // Draft status endpoint for local dev server
+  app.get('/api/admin/draft-status', (_req: Request, res: Response) => {
+    return res.json({
+      success: true,
+      hasPendingChanges: true,
+      pendingCount: 1,
+      lastModifiedAt: new Date().toISOString()
+    });
+  });
+
   // Server-Side Production Publish Endpoint (Direct GitHub REST API commit on main branch)
   app.post('/api/admin/publish', async (req: Request, res: Response) => {
     try {
@@ -1008,6 +1018,17 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         message: gitHubSynced
           ? 'Published production data to server engine & committed to GitHub main!'
           : 'Published production data to server engine successfully!',
+        sync: {
+          success: true,
+          gitHubSynced,
+          commitSha,
+          publishedFiles
+        }
+      });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
         commitSha: commitSha,
         gitHubSynced: gitHubSynced,
         publishedFiles: publishedFiles,

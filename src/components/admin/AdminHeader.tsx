@@ -21,17 +21,44 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [publishStatus, setPublishStatus] = useState<'idle' | 'publishing' | 'success' | 'error'>('idle');
   const [publishMessage, setPublishMessage] = useState<string>('');
+  const [hasPendingDrafts, setHasPendingDrafts] = useState<boolean>(false);
+  const [pendingCount, setPendingCount] = useState<number>(0);
+
+  // Poll draft status
+  React.useEffect(() => {
+    let isMounted = true;
+    const checkDraftStatus = async () => {
+      try {
+        const res = await fetch('/api/admin/draft-status');
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.success) {
+            setHasPendingDrafts(Boolean(data.hasPendingChanges));
+            setPendingCount(data.pendingCount || (data.hasPendingChanges ? 1 : 0));
+          }
+        }
+      } catch (e) {}
+    };
+    checkDraftStatus();
+    const interval = setInterval(checkDraftStatus, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [publishStatus]);
 
   const handlePublish = async () => {
     if (!onPublishCatalog || publishStatus === 'publishing') return;
     setPublishStatus('publishing');
-    setPublishMessage('Saving & Committing to GitHub main...');
+    setPublishMessage('Validating & Committing to GitHub main in 1 Consolidated Commit...');
 
     try {
       const res = await onPublishCatalog();
       if (res && res.success) {
         setPublishStatus('success');
-        setPublishMessage(res.message || 'Published Live to GitHub main!');
+        setPublishMessage(res.message || 'Published Live to Production!');
+        setHasPendingDrafts(false);
+        setPendingCount(0);
       } else {
         setPublishStatus('error');
         setPublishMessage(res?.message || 'Publish failed.');
@@ -127,16 +154,18 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             <button
               onClick={handlePublish}
               disabled={publishStatus === 'publishing'}
-              className={`px-3.5 py-2 rounded-xl font-mono text-xs font-bold transition-all shadow-md flex items-center gap-2 ${
+              className={`px-3.5 py-2 rounded-xl font-mono text-xs font-bold transition-all shadow-md flex items-center gap-2 relative ${
                 publishStatus === 'publishing'
                   ? 'bg-slate-800 text-white cursor-wait'
                   : publishStatus === 'success'
                   ? 'bg-emerald-600 text-white'
                   : publishStatus === 'error'
                   ? 'bg-rose-600 text-white'
+                  : hasPendingDrafts
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white animate-pulse shadow-amber-500/20 hover:scale-105'
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105'
               }`}
-              title="Publish catalog & services directly to live website"
+              title="Consolidate all pending edits & publish live to production"
             >
               {publishStatus === 'publishing' ? (
                 <>
@@ -155,8 +184,15 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                 </>
               ) : (
                 <>
-                  <Globe className="w-4 h-4 text-emerald-200" />
-                  <span>SAVE & PUBLISH LIVE</span>
+                  <Globe className="w-4 h-4 text-white" />
+                  <span>
+                    SAVE & PUBLISH LIVE
+                    {hasPendingDrafts && (
+                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
+                        ● UNSAVED
+                      </span>
+                    )}
+                  </span>
                 </>
               )}
             </button>

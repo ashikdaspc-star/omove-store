@@ -748,7 +748,7 @@ export default function App() {
     try {
       broadcastCatalogUpdate(products);
 
-      // Server-side API publish endpoint (handles GitHub commit)
+      // Server-side API publish endpoint (handles single consolidated GitHub commit)
       const res = await fetch('/api/admin/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -758,11 +758,12 @@ export default function App() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         console.log('[OMOVE SYNC] Server-side publish response:', data);
+        const commitShaStr = data.sync?.commitSha && data.sync.commitSha !== 'up-to-date'
+          ? ` (Commit: ${String(data.sync.commitSha).substring(0, 7)})`
+          : '';
         return {
           success: true,
-          message: data.sync?.commitSha
-            ? `Published Live & Committed to GitHub main! (Commit: ${String(data.sync.commitSha).substring(0, 7)})`
-            : 'Published Live to Store Engine Successfully!'
+          message: data.message ? `${data.message}${commitShaStr}` : `Published Live to Production!${commitShaStr}`
         };
       }
 
