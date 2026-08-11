@@ -1988,12 +1988,17 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   });
 
   // Book Remote Computer Support
+  app.get('/api/bookings', (req: Request, res: Response) => {
+    res.json(Array.from(bookingsStore.values()));
+  });
+
   app.post('/api/bookings', (req: Request, res: Response) => {
     const {
       customerName,
       email,
       phone,
       serviceId,
+      serviceTitle,
       amount,
       issueCategory,
       problemDescription,
@@ -2006,10 +2011,10 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     } = req.body;
 
     const srv = MOCK_SERVICES.find(s => s.id === serviceId) || MOCK_SERVICES[0];
-    const bookingAmount = amount || (srv ? srv.price : 39);
+    const bookingAmount = amount !== undefined ? amount : (srv ? srv.price : 39);
 
-    const bookingId = 'bk-' + Date.now();
-    const bookingNumber = 'OMV-BOOK-' + Math.floor(1000 + Math.random() * 9000);
+    const bookingId = req.body.id || ('bk-' + Date.now());
+    const bookingNumber = req.body.bookingNumber || ('OMV-BOOK-' + Math.floor(1000 + Math.random() * 9000));
 
     const newBooking: RemoteBooking = {
       id: bookingId,
@@ -2017,8 +2022,8 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       customerName: customerName || 'Client',
       email: email || 'omovetech@gmail.com',
       phone: phone || '+91 8345968169',
-      serviceId: srv ? srv.id : 'srv-001',
-      serviceTitle: srv ? srv.title : 'Full PC Inspection & Live Health Check',
+      serviceId: serviceId || (srv ? srv.id : 'srv-001'),
+      serviceTitle: serviceTitle || (srv ? srv.title : 'Full PC Inspection & Live Health Check'),
       issueCategory: issueCategory || (srv ? srv.category : 'Windows Fix'),
       problemDescription: problemDescription || 'Remote computer support requested.',
       preferredDate: preferredDate || new Date().toISOString().split('T')[0],
@@ -2047,6 +2052,19 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     const booking = bookingsStore.get(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     res.json(booking);
+  });
+
+  app.put('/api/bookings/:id', (req: Request, res: Response) => {
+    const existing = bookingsStore.get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Booking not found' });
+    const updated = { ...existing, ...req.body, id: req.params.id };
+    bookingsStore.set(req.params.id, updated);
+    res.json({ success: true, booking: updated });
+  });
+
+  app.delete('/api/bookings/:id', (req: Request, res: Response) => {
+    bookingsStore.delete(req.params.id);
+    res.json({ success: true });
   });
 
   // Support Tickets

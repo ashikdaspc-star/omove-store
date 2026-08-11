@@ -1371,38 +1371,107 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return jsonResponse(verifiedOrders);
     }
 
-    if (path === '/api/bookings') {
-      if (method === 'GET') {
-        const fresh = await fetchFileFromGitHub('src/data/bookings.json', env);
-        if (Array.isArray(fresh)) {
-          fresh.forEach((b: any) => { if (b.id) bookingsStore.set(b.id, b); });
-          return jsonResponse(fresh);
+    if (path.startsWith('/api/bookings')) {
+      const parts = path.split('/').filter(Boolean);
+      const subId = parts[2]; // e.g. /api/bookings/bk_123
+
+      if (!subId) {
+        if (method === 'GET') {
+          const fresh = await fetchFileFromGitHub('src/data/bookings.json', env);
+          if (Array.isArray(fresh)) {
+            fresh.forEach((b: any) => { if (b.id) bookingsStore.set(b.id, b); });
+            return jsonResponse(fresh);
+          }
+          return jsonResponse(Array.from(bookingsStore.values()));
         }
-        return jsonResponse(Array.from(bookingsStore.values()));
-      }
 
-      if (method === 'POST') {
-        const body: any = await request.json().catch(() => ({}));
-        const bookingId = body.id || `bk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-        const newBooking = {
-          id: bookingId,
-          customerName: body.customerName || 'Customer',
-          customerEmail: body.customerEmail || 'customer@example.com',
-          serviceName: body.serviceName || 'Remote Support Session',
-          date: body.date || new Date().toISOString(),
-          status: body.status || 'CONFIRMED',
-          createdAt: new Date().toISOString()
-        };
+        if (method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const bookingId = body.id || `bk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          const bookingNum = body.bookingNumber || `OMV-BOOK-${Math.floor(1000 + Math.random() * 9000)}`;
 
-        const result = await atomicFileMutation(
-          'src/data/bookings.json',
-          (bookings) => [newBooking, ...bookings],
-          `Create booking ${bookingId}`,
-          env
-        );
+          const newBooking = {
+            id: bookingId,
+            bookingNumber: bookingNum,
+            customerName: body.customerName || 'Customer',
+            email: (body.email || body.customerEmail || 'customer@example.com').toLowerCase(),
+            phone: body.phone || body.customerPhone || '+91 8345968169',
+            serviceId: body.serviceId || 'srv-001',
+            serviceTitle: body.serviceTitle || body.serviceName || 'Remote PC Support',
+            issueCategory: body.issueCategory || 'Windows Fix',
+            problemDescription: body.problemDescription || 'Remote PC inspection & repair requested.',
+            preferredDate: body.preferredDate || body.date || new Date().toISOString().split('T')[0],
+            preferredTime: body.preferredTime || '10:00 AM',
+            remoteTool: body.remoteTool || 'AnyDesk',
+            remoteId: body.remoteId || '982 110 449',
+            remotePassword: body.remotePassword || '',
+            amount: Number(body.amount !== undefined ? body.amount : (body.price || 39)),
+            paymentStatus: body.paymentStatus || 'Paid',
+            status: body.status || 'Technician Assigned',
+            technicianName: body.technicianName || 'David Chen (Cert #8821)',
+            createdAt: body.createdAt || new Date().toISOString()
+          };
 
-        bookingsStore.set(bookingId, newBooking);
-        return jsonResponse({ success: true, booking: newBooking, sync: result });
+          const result = await atomicFileMutation(
+            'src/data/bookings.json',
+            (bookings) => [newBooking, ...(Array.isArray(bookings) ? bookings : [])],
+            `Create booking ${bookingId}`,
+            env
+          );
+
+          bookingsStore.set(bookingId, newBooking);
+          return jsonResponse({ success: true, booking: newBooking, sync: result });
+        }
+      } else {
+        const decodedId = decodeURIComponent(subId);
+
+        if (method === 'GET') {
+          const booking = bookingsStore.get(decodedId);
+          if (booking) return jsonResponse(booking);
+          return jsonResponse({ error: 'Booking not found' }, 404);
+        }
+
+        if (method === 'PUT' || method === 'PATCH') {
+          const updates: any = await request.json().catch(() => ({}));
+          let updatedBooking: any = null;
+
+          const result = await atomicFileMutation(
+            'src/data/bookings.json',
+            (bookings) => {
+              const list = Array.isArray(bookings) ? bookings : [];
+              return list.map((b: any) => {
+                if (b.id === decodedId) {
+                  updatedBooking = { ...b, ...updates, id: decodedId };
+                  return updatedBooking;
+                }
+                return b;
+              });
+            },
+            `Update booking ${decodedId}`,
+            env
+          );
+
+          if (updatedBooking) {
+            bookingsStore.set(decodedId, updatedBooking);
+            return jsonResponse({ success: true, booking: updatedBooking, sync: result });
+          }
+          return jsonResponse({ error: 'Booking not found' }, 404);
+        }
+
+        if (method === 'DELETE') {
+          const result = await atomicFileMutation(
+            'src/data/bookings.json',
+            (bookings) => {
+              const list = Array.isArray(bookings) ? bookings : [];
+              return list.filter((b: any) => b.id !== decodedId);
+            },
+            `Delete booking ${decodedId}`,
+            env
+          );
+
+          bookingsStore.delete(decodedId);
+          return jsonResponse({ success: true, sync: result });
+        }
       }
     }
 

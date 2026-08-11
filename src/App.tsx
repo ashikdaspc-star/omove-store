@@ -448,6 +448,13 @@ export default function App() {
           } catch (e) {}
         }
       });
+
+    fetch('/api/bookings', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) setBookings(data);
+      })
+      .catch((err) => console.warn('Server bookings verify note:', err));
   }, []);
 
   const handleLoginSuccess = (user: { name: string; email: string; phone: string; location: string }) => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { RemoteBooking } from '../../../types';
 import { Headphones, CheckCircle2, Clock, Monitor, User } from 'lucide-react';
 
@@ -12,6 +12,19 @@ export const AdminRemoteSupportView: React.FC<AdminRemoteSupportViewProps> = ({
   bookings = [],
   onUpdateBooking
 }) => {
+  const [serverBookings, setServerBookings] = useState<RemoteBooking[]>([]);
+
+  useEffect(() => {
+    fetch('/api/bookings', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setServerBookings(data);
+      })
+      .catch((err) => console.warn('Admin bookings fetch note:', err));
+  }, []);
+
+  const displayBookings = serverBookings.length > 0 ? serverBookings : bookings;
+
   return (
     <div className="space-y-6">
       <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-xs flex items-center justify-between">
@@ -20,7 +33,7 @@ export const AdminRemoteSupportView: React.FC<AdminRemoteSupportViewProps> = ({
           <p className="text-xs text-slate-500 font-mono mt-0.5">Manage incoming AnyDesk remote PC inspection requests.</p>
         </div>
         <span className="px-3.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 font-mono text-xs font-bold border border-emerald-200">
-          {bookings.length} Remote Bookings
+          {displayBookings.length} Remote Bookings
         </span>
       </div>
 
@@ -38,7 +51,7 @@ export const AdminRemoteSupportView: React.FC<AdminRemoteSupportViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {bookings.map((bk) => (
+              {displayBookings.map((bk) => (
                 <tr key={bk.id} className="hover:bg-slate-50 transition-colors">
                   <td className="py-3.5 font-bold text-slate-900">{bk.bookingNumber || bk.id}</td>
                   <td className="py-3.5 text-slate-700 font-sans">{bk.email}</td>

@@ -1,11 +1,23 @@
 [
   {
     "id": "bk_1786415266908_4iq4",
-    "customerName": "rohul a",
-    "customerEmail": "customer@example.com",
-    "serviceName": "Remote Support Session",
-    "date": "2026-08-11T02:27:46.908Z",
-    "status": "CONFIRMED",
+    "bookingNumber": "OMV-BOOK-9421",
+    "customerName": "Rahul Sharma",
+    "email": "rahul.sharma@example.com",
+    "phone": "+91 98765 43210",
+    "serviceId": "srv-001",
+    "serviceTitle": "Full PC Inspection & Live Health Check",
+    "issueCategory": "Windows Fix",
+    "problemDescription": "Blue screen crashes after Windows Update. Needs live AnyDesk diagnostics.",
+    "preferredDate": "2026-08-11",
+    "preferredTime": "10:00 AM",
+    "remoteTool": "AnyDesk",
+    "remoteId": "982 110 449",
+    "remotePassword": "",
+    "amount": 39,
+    "paymentStatus": "Paid",
+    "status": "Technician Assigned",
+    "technicianName": "David Chen (Cert #8821)",
     "createdAt": "2026-08-11T02:27:46.908Z"
   }
 ]

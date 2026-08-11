@@ -102,7 +102,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.booking) {
-          bookingObj = data.booking;
+          bookingObj = { ...(bookingObj || {}), ...data.booking };
         }
       }
     } catch (err) {
