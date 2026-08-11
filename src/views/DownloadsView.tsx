@@ -104,11 +104,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
     return matchesCategory && matchesSearch;
   });
 
-  const handleCopyKey = (key: string, keyId: string) => {
-    navigator.clipboard.writeText(key);
-    setCopiedKeyId(keyId);
-    setTimeout(() => setCopiedKeyId(null), 2500);
-  };
+
 
   const handleTriggerDownload = (productId: string, productName: string, fileUrl?: string, orderId?: string) => {
     const targetUrl = fileUrl;
