@@ -1,5 +1,19 @@
 [
   {
+    "id": "usr_1786505505494",
+    "name": "Live Prod Tester",
+    "email": "prod_test_1786505646396@omovestore.shop",
+    "phone": "+91 8345968169",
+    "passwordHash": "83090185644b62db6360e957cbfa96f0cccdabe938e643afe3a620bf79af87a0",
+    "passwordSalt": "037034163ff851973855dbc6c03eaa62",
+    "location": "Kolkata, WB, India",
+    "authProvider": "email",
+    "isAdmin": false,
+    "createdAt": "2026-08-12T03:31:45.494Z",
+    "updatedAt": "2026-08-12T03:31:45.494Z",
+    "lastLoginAt": "2026-08-12T03:31:45.494Z"
+  },
+  {
     "id": "usr_1786505397976",
     "name": "Live Prod Tester",
     "email": "prod_test_1786505538836@omovestore.shop",
