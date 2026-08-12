@@ -1284,7 +1284,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const targetProduct = list[idx];
         let actionTaken = 'DELETED';
 
-        const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
+        const freshOrders = await getD1Orders(env);
         if (Array.isArray(freshOrders)) {
           freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
         }
