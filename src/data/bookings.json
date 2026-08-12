@@ -37,7 +37,7 @@
     "remotePassword": "",
     "amount": 39,
     "paymentStatus": "Paid",
-    "status": "Technician Assigned",
+    "status": "Cancelled",
     "technicianName": "David Chen (Cert #8821)",
     "createdAt": "2026-08-11T03:51:08.571Z"
   }
