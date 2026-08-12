@@ -13,9 +13,9 @@
         "price": 299,
         "quantity": 1,
         "fileSize": "45 MB",
-        "googleDriveUrl": "",
+        "googleDriveUrl": "/api/downloads/setup",
         "fileUrl": "/api/downloads/setup",
-        "licenseKey": "",
+        "licenseKey": "OMV-KXRW-VOK6-9528",
         "downloadLimit": 5,
         "downloadsCount": 0
       }
@@ -27,9 +27,13 @@
     "total": 299,
     "totalAmount": 299,
     "paymentMethod": "Razorpay UPI",
-    "paymentStatus": "PENDING",
-    "status": "pending",
-    "createdAt": "2026-08-12T03:31:47.588Z"
+    "paymentStatus": "SUCCESS",
+    "status": "completed",
+    "createdAt": "2026-08-12T03:31:47.588Z",
+    "paymentId": "pay_test_1786505650447",
+    "razorpayPaymentId": "pay_test_1786505650447",
+    "paymentVerifiedAt": "2026-08-12T03:31:49.528Z",
+    "updatedAt": "2026-08-12T03:31:49.528Z"
   },
   {
     "id": "ord_live_1786505540544",
