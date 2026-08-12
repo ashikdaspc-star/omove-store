@@ -499,129 +499,187 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   })();
   let currentCatalogVersion: number = Date.now();
 
-  // ─── Unified GitHub REST API Commit Engine ───
-  // Works on Vercel production serverless. Syncs live Admin Panel changes directly to GitHub repo.
+  // ─── Unified GitHub REST API Commit Engine & Draft Store ───
   const DEFAULT_GITHUB_TOKEN = 'ghp_' + 'YplFuc3Z5IAkkqcbMhZtIgtyuvEaJQ2KCyyB';
 
   const getGitHubToken = (): string => {
     return process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN || DEFAULT_GITHUB_TOKEN;
   };
 
-  const commitFileToGitHubApi = async (
-    filePath: string,
-    data: any,
+  interface DraftStoreState {
+    hasPendingChanges: boolean;
+    pendingFiles: Set<string>;
+    lastModifiedAt: string | null;
+    modifiedCount: number;
+    workingData: Map<string, any[]>;
+  }
+
+  const draftStore: DraftStoreState = {
+    hasPendingChanges: false,
+    pendingFiles: new Set<string>(),
+    lastModifiedAt: null,
+    modifiedCount: 0,
+    workingData: new Map<string, any[]>()
+  };
+
+  function recordDraftMutation(filePath: string, updatedData: any[]) {
+    draftStore.hasPendingChanges = true;
+    draftStore.pendingFiles.add(filePath);
+    draftStore.lastModifiedAt = new Date().toISOString();
+    draftStore.modifiedCount += 1;
+    draftStore.workingData.set(filePath, updatedData);
+    console.log(`[DRAFT STORE] Recorded mutation for ${filePath}. Total pending files: ${draftStore.pendingFiles.size}`);
+  }
+
+  function clearDraftStore() {
+    draftStore.hasPendingChanges = false;
+    draftStore.pendingFiles.clear();
+    draftStore.lastModifiedAt = null;
+    draftStore.modifiedCount = 0;
+    draftStore.workingData.clear();
+    console.log('[DRAFT STORE] Cleared pending draft store.');
+  }
+
+  async function consolidatedMultiFileMutation(
+    filesToCommit: { filePath: string; content: any[] }[],
     commitMessage: string
-  ): Promise<{ success: boolean; message: string; commitSha?: string }> => {
+  ): Promise<{ success: boolean; commitSha?: string; message?: string }> {
     const token = getGitHubToken();
     const owner = process.env.GITHUB_OWNER || 'ashikdaspc-star';
     const repo = process.env.GITHUB_REPO || 'omove-store';
     const branch = process.env.GITHUB_BRANCH || 'main';
 
     if (!token) {
-      console.warn(`[GITHUB SYNC] No token configured — skipping commit for ${filePath}`);
-      return { success: false, message: 'No token configured' };
+      return { success: false, message: 'No GitHub token configured' };
     }
+
+    if (!filesToCommit || filesToCommit.length === 0) {
+      return { success: true, message: 'No pending changes to publish' };
+    }
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'OmoveStore-ServerSync/2.0'
+    };
 
     try {
-      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
-      const message = commitMessage || `Update ${filePath} via Live Admin Panel [${new Date().toISOString()}]`;
+      // 1. Get latest commit SHA & Tree SHA of target branch
+      const refRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`, { headers });
+      if (!refRes.ok) {
+        return { success: false, message: `Failed to fetch branch ref heads/${branch}: HTTP ${refRes.status}` };
+      }
+      const refData: any = await refRes.json();
+      const latestCommitSha = refData.object?.sha;
 
-      let sha = '';
-      try {
-        const getRes = await fetch(`${url}?ref=${branch}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'OmoveStore-AutoSync/2.0'
-          }
+      const commitRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${latestCommitSha}`, { headers });
+      if (!commitRes.ok) {
+        return { success: false, message: `Failed to fetch commit ${latestCommitSha}: HTTP ${commitRes.status}` };
+      }
+      const commitData: any = await commitRes.json();
+      const baseTreeSha = commitData.tree?.sha;
+
+      if (!baseTreeSha) {
+        return { success: false, message: 'Failed to retrieve base tree SHA' };
+      }
+
+      // 2. Create Blobs for each modified file
+      const treeItems: any[] = [];
+      for (const item of filesToCommit) {
+        const jsonText = JSON.stringify(item.content, null, 2);
+        const blobRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            content: jsonText,
+            encoding: 'utf-8'
+          })
         });
-        if (getRes.ok) {
-          const fileData: any = await getRes.json();
-          if (fileData && fileData.sha) {
-            sha = fileData.sha;
-          }
-        }
-      } catch (e) {}
-
-      if (!sha) {
-        try {
-          const fbRes = await fetch(url, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/vnd.github.v3+json',
-              'User-Agent': 'OmoveStore-AutoSync/2.0'
-            }
+        if (blobRes.ok) {
+          const blobData: any = await blobRes.json();
+          treeItems.push({
+            path: item.filePath,
+            mode: '100644',
+            type: 'blob',
+            sha: blobData.sha
           });
-          if (fbRes.ok) {
-            const fbData: any = await fbRes.json();
-            if (fbData && fbData.sha) {
-              sha = fbData.sha;
-            }
-          }
-        } catch (e) {}
+        }
       }
 
-      const jsonText = JSON.stringify(data, null, 2);
-      const base64Content = Buffer.from(jsonText, 'utf-8').toString('base64');
-
-      const bodyObj: any = {
-        message,
-        content: base64Content,
-        branch
-      };
-      if (sha) {
-        bodyObj.sha = sha;
+      if (treeItems.length === 0) {
+        return { success: false, message: 'Failed to create git blobs for files' };
       }
 
-      const putRes = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'OmoveStore-AutoSync/2.0'
-        },
-        body: JSON.stringify(bodyObj)
+      // 3. Create New Tree
+      const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          base_tree: baseTreeSha,
+          tree: treeItems
+        })
+      });
+      if (!treeRes.ok) {
+        return { success: false, message: `Failed to create git tree: HTTP ${treeRes.status}` };
+      }
+      const treeData: any = await treeRes.json();
+      const newTreeSha = treeData.sha;
+
+      // 4. Create Single Consolidated Commit
+      const newCommitRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message: commitMessage,
+          tree: newTreeSha,
+          parents: [latestCommitSha]
+        })
+      });
+      if (!newCommitRes.ok) {
+        return { success: false, message: `Failed to create git commit: HTTP ${newCommitRes.status}` };
+      }
+      const newCommitData: any = await newCommitRes.json();
+      const newCommitSha = newCommitData.sha;
+
+      // 5. Update Head Ref to trigger ONE single Cloudflare deployment
+      const updateRefRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          sha: newCommitSha,
+          force: false
+        })
       });
 
-      if (!putRes.ok) {
-        const errBody: any = await putRes.json().catch(() => ({}));
-        throw new Error(errBody.message || `GitHub HTTP ${putRes.status}`);
+      if (updateRefRes.ok) {
+        console.log(`[CONSOLIDATED PUBLISH SUCCESS] Single Commit SHA: ${newCommitSha.substring(0, 7)} | Files: ${filesToCommit.map(f => f.filePath).join(', ')}`);
+        return { success: true, commitSha: newCommitSha };
+      } else {
+        const errBody: any = await updateRefRes.json().catch(() => ({}));
+        return { success: false, message: `Failed to update ref heads/${branch}: ${errBody.message || updateRefRes.status}` };
       }
-
-      const resBody: any = await putRes.json();
-      const commitSha = resBody.commit?.sha || 'committed';
-      console.log(`[GITHUB SYNC] Successfully committed ${filePath} to GitHub (${commitSha.substring(0, 7)})`);
-      return { success: true, message: 'GitHub commit successful', commitSha };
-    } catch (e: any) {
-      console.warn(`[GITHUB SYNC] GitHub REST API commit failed for ${filePath}:`, e.message);
-      return { success: false, message: e.message };
+    } catch (err: any) {
+      console.warn(`[CONSOLIDATED PUBLISH FAIL] Exception: ${err.message}`);
+      return { success: false, message: err.message };
     }
-  };
+  }
 
   const autoPublishToGitHub = (action: string) => {
-    commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, `Auto-sync products: ${action}`)
-      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH PRODUCTS] ${action} synced to GitHub`); })
-      .catch(() => {});
+    recordDraftMutation('src/data/products.json', dynamicProductsStore);
   };
 
   const autoPublishCouponsToGitHub = (action: string) => {
-    commitFileToGitHubApi('src/data/coupons.json', dynamicCouponsStore, `Auto-sync coupons: ${action}`)
-      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH COUPONS] ${action} synced to GitHub`); })
-      .catch(() => {});
+    recordDraftMutation('src/data/coupons.json', dynamicCouponsStore);
   };
 
   const autoPublishServicesToGitHub = (action: string) => {
-    commitFileToGitHubApi('src/data/services.json', dynamicServicesStore, `Auto-sync services: ${action}`)
-      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH SERVICES] ${action} synced to GitHub`); })
-      .catch(() => {});
+    recordDraftMutation('src/data/services.json', dynamicServicesStore);
   };
 
   const autoPublishUsersToGitHub = (action: string) => {
     const userList = Array.from(usersStore.values());
-    commitFileToGitHubApi('src/data/users.json', userList, `Auto-sync users: ${action}`)
-      .then(r => { if (r.success) console.log(`[AUTO-PUBLISH USERS] ${action} synced to GitHub`); })
-      .catch(() => {});
+    recordDraftMutation('src/data/users.json', userList);
   };
 
   // ─── Live GitHub Fetch Engine (READ from GitHub) ───
@@ -942,11 +1000,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         console.error('[SERVER] Failed to save products.json to disk:', e);
       }
 
-      commitFileToGitHubApi(
-        'src/data/products.json',
-        dynamicProductsStore,
-        `${actionTaken === 'DELETED' ? 'Permanently delete' : 'Archive'} product: ${prod.name || cleanId}`
-      ).catch(e => console.warn('[SERVER] GitHub API commit note:', e));
+      recordDraftMutation('src/data/products.json', dynamicProductsStore);
 
       return res.json({
         success: true,
@@ -969,29 +1023,29 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   app.delete('/api/admin/digital-products/:id', handleDeleteProductRequest);
   app.delete('/api/admin/store-products/:id', handleDeleteProductRequest);
 
-  // Draft status endpoint for local dev server
+  // Draft status endpoint for dev server
   app.get('/api/admin/draft-status', (_req: Request, res: Response) => {
     return res.json({
       success: true,
-      hasPendingChanges: true,
-      pendingCount: 1,
-      lastModifiedAt: new Date().toISOString()
+      hasPendingChanges: draftStore.hasPendingChanges,
+      pendingFiles: Array.from(draftStore.pendingFiles),
+      pendingCount: draftStore.pendingFiles.size,
+      modifiedCount: draftStore.modifiedCount,
+      lastModifiedAt: draftStore.lastModifiedAt
     });
   });
 
-  // Server-Side Production Publish Endpoint (Direct GitHub REST API commit on main branch)
-  app.post('/api/admin/publish', async (req: Request, res: Response) => {
+  // Consolidated Server-Side Production Publish Endpoint (Direct GitHub REST API 1 commit on main branch)
+  const handlePublishRequest = async (req: Request, res: Response) => {
     try {
       const nowStr = new Date().toISOString();
-      let publishedFiles: string[] = [];
-      let commitSha: string | null = null;
-      let gitHubSynced = false;
+      const filesToCommit: { filePath: string; content: any[] }[] = [];
 
-      // 1. Always update server dynamic stores & refresh catalog version timestamp
+      // Update server dynamic stores from body payload if provided
       if (Array.isArray(req.body.products)) {
         dynamicProductsStore = req.body.products;
         currentCatalogVersion = Date.now();
-        publishedFiles.push('products.json');
+        recordDraftMutation('src/data/products.json', dynamicProductsStore);
         try {
           fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'products.json'), JSON.stringify(dynamicProductsStore, null, 2));
         } catch (e) {}
@@ -1000,35 +1054,59 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       if (Array.isArray(req.body.services)) {
         dynamicServicesStore = req.body.services;
         saveServicesToDisk();
-        publishedFiles.push('services.json');
+        recordDraftMutation('src/data/services.json', dynamicServicesStore);
       }
 
-      // 2. Try GitHub REST API commit
-      const commitMsg = `Live Production Catalog Sync via Admin Command Center [${nowStr}]`;
-      const prodRes = await commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, commitMsg);
-      const srvRes = await commitFileToGitHubApi('src/data/services.json', dynamicServicesStore, commitMsg);
-
-      if (prodRes.success || srvRes.success) {
-        gitHubSynced = true;
-        commitSha = prodRes.commitSha || srvRes.commitSha || 'committed';
+      if (Array.isArray(req.body.coupons)) {
+        dynamicCouponsStore = req.body.coupons;
+        saveCouponsToDisk();
+        recordDraftMutation('src/data/coupons.json', dynamicCouponsStore);
       }
 
-      res.json({
+      // Collect all modified workingData from draftStore
+      for (const [filePath, content] of draftStore.workingData.entries()) {
+        filesToCommit.push({ filePath, content });
+      }
+
+      if (filesToCommit.length === 0) {
+        return res.json({
+          success: true,
+          message: 'All changes up-to-date! No pending drafts to publish.',
+          sync: { success: true, commitSha: 'up-to-date' }
+        });
+      }
+
+      const commitMsg = `Publish admin catalog live to production [${nowStr}]`;
+      const syncRes = await consolidatedMultiFileMutation(filesToCommit, commitMsg);
+
+      if (!syncRes.success) {
+        return res.status(500).json({
+          success: false,
+          error: 'PUBLISH_FAILED',
+          message: syncRes.message || 'Failed to publish changes to GitHub'
+        });
+      }
+
+      clearDraftStore();
+
+      return res.json({
         success: true,
-        message: gitHubSynced
-          ? 'Published production data to server engine & committed to GitHub main!'
-          : 'Published production data to server engine successfully!',
+        message: 'Published Live to Production in 1 Consolidated Commit!',
         sync: {
           success: true,
-          gitHubSynced,
-          commitSha,
-          publishedFiles
+          gitHubSynced: true,
+          commitSha: syncRes.commitSha,
+          publishedFiles: filesToCommit.map(f => f.filePath)
         }
       });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
     }
-  });
+  };
+
+  app.post('/api/admin/publish', handlePublishRequest);
+  app.post('/api/products/publish', handlePublishRequest);
+  app.post('/api/products/sync', handlePublishRequest);
 
   // Catalog version endpoint for real-time background version checking
   app.get('/api/catalog-version', (_req: Request, res: Response) => {
@@ -1488,28 +1566,11 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
 
 
-  // Legacy git-CLI push replaced by REST API — kept as thin wrapper for backward compat
-  const pushProductsToGitHub = (): Promise<{ success: boolean; message: string }> => {
-    return commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, 'Auto-sync updated products catalog');
+  // Legacy push replaced by REST API single commit architecture
+  const pushProductsToGitHub = async (): Promise<{ success: boolean; message: string }> => {
+    recordDraftMutation('src/data/products.json', dynamicProductsStore);
+    return { success: true, message: 'Recorded in draft store' };
   };
-
-  app.post('/api/products/sync', async (req: Request, res: Response) => {
-    try {
-      const { products, autoPush = true } = req.body || {};
-      if (Array.isArray(products) && products.length > 0) {
-        dynamicProductsStore = products;
-        currentCatalogVersion = Date.now();
-        const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
-        fs.writeFileSync(filePath, JSON.stringify(products, null, 2));
-      }
-      if (autoPush) {
-        commitFileToGitHubApi('src/data/products.json', dynamicProductsStore, 'Sync products catalog via Admin Panel').catch(() => {});
-      }
-      res.json({ success: true, count: dynamicProductsStore.length, version: currentCatalogVersion });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
 
   app.all('/api/products/publish', async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Origin', '*');

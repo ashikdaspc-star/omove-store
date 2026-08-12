@@ -752,7 +752,7 @@ export default function App() {
       const res = await fetch('/api/admin/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products, services })
+        body: JSON.stringify({ products, services, blogs })
       });
 
       const data = await res.json().catch(() => ({}));

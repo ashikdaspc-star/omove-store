@@ -1078,6 +1078,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           filesToCommit.push({ filePath: 'src/data/services.json', content: body.services });
         }
       }
+      if (Array.isArray(body.coupons) && body.coupons.length > 0) {
+        if (!filesToCommit.some(f => f.filePath === 'src/data/coupons.json')) {
+          filesToCommit.push({ filePath: 'src/data/coupons.json', content: body.coupons });
+        }
+      }
+      if (Array.isArray(body.blogs) && body.blogs.length > 0) {
+        if (!filesToCommit.some(f => f.filePath === 'src/data/blogs.json')) {
+          filesToCommit.push({ filePath: 'src/data/blogs.json', content: body.blogs });
+        }
+      }
 
       if (filesToCommit.length === 0) {
         return jsonResponse({ success: true, message: 'All changes up-to-date! No pending drafts to publish.', sync: { commitSha: 'up-to-date' } });
