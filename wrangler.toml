@@ -12,4 +12,6 @@ GITHUB_BRANCH = "main"
 [[d1_databases]]
 binding = "DB"
 database_name = "omove-store-db"
+database_id = "464d8440-c3f3-4230-9b6b-74437a47c1d8"
+
 
