@@ -1,5 +1,19 @@
 [
   {
+    "id": "usr_1786506331144",
+    "name": "Zero Commit Tester",
+    "email": "real_check_1786506471923@omovestore.shop",
+    "phone": "+91 8345968169",
+    "passwordHash": "b20cb197ca69de753f217771b1eb3a97ccd8fc7467c0218a49a4b26616bcd808",
+    "passwordSalt": "eceb87e5d8ce534c750e60b1cad5994b",
+    "location": "Kolkata, WB",
+    "authProvider": "email",
+    "isAdmin": false,
+    "createdAt": "2026-08-12T03:45:31.144Z",
+    "updatedAt": "2026-08-12T03:45:31.144Z",
+    "lastLoginAt": "2026-08-12T03:45:31.144Z"
+  },
+  {
     "id": "usr_1786506280274",
     "name": "Zero Commit Tester",
     "email": "real_check_1786506421194@omovestore.shop",
