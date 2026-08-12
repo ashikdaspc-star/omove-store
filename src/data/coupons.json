@@ -28,15 +28,5 @@
     "description": "Flat ₹50 Instant Discount",
     "isActive": true,
     "usageCount": 18
-  },
-  {
-    "id": "cpn-3",
-    "code": "ASHIK20",
-    "discountType": "percentage",
-    "discountValue": 20,
-    "minOrderAmount": 199,
-    "description": "VIP 20% OFF Special Code",
-    "isActive": true,
-    "usageCount": 9
   }
 ]
