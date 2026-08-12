@@ -28,13 +28,6 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
   const [digitalCats, setDigitalCats] = useState<DigitalCategory[]>(categories);
 
   useEffect(() => {
-    fetch('/api/digital-products?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) setDigitalProds(data);
-      })
-      .catch(() => {});
-
     fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
@@ -43,7 +36,10 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
       .catch(() => {});
   }, []);
 
-  const activeProds = digitalProds.length > 0 ? digitalProds : (products as any[]);
+  // Use authoritative products passed down from App state, filtering for active published items
+  const activeProds = (products as any[]).filter(
+    (p) => (p.status || 'PUBLISHED') === 'PUBLISHED'
+  );
   const activeCats = digitalCats.length > 0 ? digitalCats : categories;
 
   // Check if categorySlug matches a product slug rather than a category slug

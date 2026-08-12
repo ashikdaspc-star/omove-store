@@ -92,12 +92,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   const displayFeaturedProducts = React.useMemo(() => {
-    const sourceList = (products && products.length > 0) ? products : MOCK_PRODUCTS;
-    const activeProducts = sourceList.filter(
+    const sourceList = products || [];
+    const pool = sourceList.filter(
       (p) => (p.status || 'PUBLISHED') === 'PUBLISHED'
     );
-
-    const pool = activeProducts.length > 0 ? activeProducts : sourceList;
 
     const getPriorityScore = (p: Product) => {
       let score = 0;

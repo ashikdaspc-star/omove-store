@@ -30,19 +30,12 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
   const [digitalCats, setDigitalCats] = useState<DigitalCategory[]>(categories);
   const [digitalProds, setDigitalProds] = useState<DigitalProduct[]>([]);
 
-  // Fetch dynamic categories and products if not passed in props
+  // Fetch dynamic categories
   useEffect(() => {
     fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) setDigitalCats(data);
-      })
-      .catch(() => {});
-
-    fetch('/api/digital-products?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) setDigitalProds(data);
       })
       .catch(() => {});
   }, []);
@@ -66,10 +59,13 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
     return digitalCats.filter((c) => c.parentId === activeCategory.id && c.active !== false);
   }, [activeCategory, digitalCats]);
 
-  // Combined product catalog (backend digital_products.json + props fallback)
-  const allDigitalProducts = digitalProds.length > 0
-    ? digitalProds
-    : (products || []).filter((p) => p.productType === 'DIGITAL' || !p.tags?.includes('Store Card'));
+  // Single Authoritative Catalog: Filter published digital products directly from products prop
+  const allDigitalProducts = useMemo(() => {
+    return (products || []).filter(
+      (p) => (p.productType === 'DIGITAL' || !p.tags?.includes('Store Card')) &&
+             (p.status || 'PUBLISHED') === 'PUBLISHED'
+    );
+  }, [products]);
 
   // Filter products by category, subcategory, and search query
   const filteredProducts = useMemo(() => {

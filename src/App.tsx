@@ -56,21 +56,22 @@ export default function App() {
       const cached = localStorage.getItem('omove_products');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          console.log('[OMOVE SYNC] Initialized state from local cache:', parsed.length, 'products');
-          return parsed;
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter((p: any) => p && p.id && (p.status || 'PUBLISHED') === 'PUBLISHED');
+          console.log('[OMOVE SYNC] Initialized state from local cache:', valid.length, 'products');
+          return valid;
         }
       }
     } catch (e) {}
     console.log('[OMOVE SYNC] Initialized state from default MOCK_PRODUCTS');
-    return MOCK_PRODUCTS;
+    return MOCK_PRODUCTS.filter((p: any) => p && p.id && (p.status || 'PUBLISHED') === 'PUBLISHED');
   });
 
   const catalogVersionRef = React.useRef<number>(0);
   const lastLocalEditRef = React.useRef<number>(0);
-  const SYNC_COOLDOWN_MS = 30000; // Skip background polling for 30s after local admin edits (GitHub CDN cache needs time)
+  const SYNC_COOLDOWN_MS = 30000; // Skip background polling for 30s after local admin edits
 
-  // Helper to fetch latest products directly from server or GitHub Raw CDN without caching
+  // Helper to fetch latest products directly from server API without GitHub CDN cache delay
   const loadLatestProductsFromServer = React.useCallback(async () => {
     // Respect edit cooldown — don't overwrite fresh local edits with stale remote data
     if (lastLocalEditRef.current > 0 && Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) {
@@ -82,7 +83,7 @@ export default function App() {
     let fetchedData: Product[] | null = null;
     let source = '';
 
-    // Primary: Backend API endpoint (Cloudflare Pages Function)
+    // Authoritative Primary & Only Source: Cloudflare API endpoint (/api/products)
     try {
       const res = await fetch(`/api/products?v=${Date.now()}`, {
         cache: 'no-store',
@@ -106,31 +107,13 @@ export default function App() {
       console.log('[OMOVE SYNC] Backend API fetch skipped:', e);
     }
 
-    // Secondary Fallback: GitHub Raw CDN (for Cloudflare Pages static builds)
-    if (!fetchedData || !Array.isArray(fetchedData) || fetchedData.length === 0) {
+    // Authoritative Catalog Update: Filter published products and update React state & localStorage
+    if (Array.isArray(fetchedData)) {
+      const publishedOnly = fetchedData.filter((p: any) => p && p.id && (p.status || 'PUBLISHED') === 'PUBLISHED');
+      console.log(`[OMOVE SYNC] Store fetch result received from ${source}:`, publishedOnly.length, 'published items');
+      setProducts(publishedOnly);
       try {
-        const ghRes = await fetch(`https://raw.githubusercontent.com/ashikdaspc-star/omove-store/main/src/data/products.json?v=${Date.now()}`, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
-          }
-        });
-        if (ghRes.ok) {
-          fetchedData = await ghRes.json();
-          source = 'GitHub Raw CDN (main/src/data/products.json)';
-        }
-      } catch (e) {
-        console.warn('[OMOVE SYNC] GitHub CDN fetch note:', e);
-      }
-    }
-
-    // Authoritative Catalog Update: Server API / GitHub CDN is single source of truth
-    if (Array.isArray(fetchedData) && fetchedData.length > 0) {
-      console.log(`[OMOVE SYNC] Store fetch result received from ${source}:`, fetchedData.length, 'items');
-      setProducts(fetchedData);
-      try {
-        localStorage.setItem('omove_products', JSON.stringify(fetchedData));
+        localStorage.setItem('omove_products', JSON.stringify(publishedOnly));
         localStorage.setItem('omove_catalog_version', String(catalogVersionRef.current || Date.now()));
       } catch (e) {
         console.error(e);
