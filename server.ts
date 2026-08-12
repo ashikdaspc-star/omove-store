@@ -486,16 +486,16 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
       if (fs.existsSync(filePath)) {
         const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           console.log('[SERVER BOOT] Loaded', data.length, 'products from products.json on disk');
           return data;
         }
       }
     } catch (e) {
-      console.warn('[SERVER BOOT] Failed to load products.json, using MOCK_PRODUCTS fallback:', e);
+      console.warn('[SERVER BOOT] Failed to load products.json:', e);
     }
-    console.log('[SERVER BOOT] Using MOCK_PRODUCTS fallback (' + MOCK_PRODUCTS.length + ' items)');
-    return [...MOCK_PRODUCTS];
+    console.log('[SERVER BOOT] Defaulting to empty products array');
+    return [];
   })();
   let currentCatalogVersion: number = Date.now();
 

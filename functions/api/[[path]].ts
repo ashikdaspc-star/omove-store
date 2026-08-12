@@ -351,7 +351,7 @@ export type PagesFunction<Env = any> = (context: {
 }) => Promise<Response> | Response;
 
 // In-Memory Fallback Global Stores
-let dynamicProductsStore: any[] = Array.isArray(productsData) && productsData.length > 0 ? [...productsData] : [...MOCK_PRODUCTS];
+let dynamicProductsStore: any[] = Array.isArray(productsData) ? [...productsData] : [];
 let dynamicCouponsStore: any[] = Array.isArray(couponsData) && couponsData.length > 0 ? [...couponsData] : [...MOCK_COUPONS];
 let dynamicServicesStore: any[] = Array.isArray(servicesData) && servicesData.length > 0 ? [...servicesData] : [...MOCK_SERVICES];
 let dynamicBlogsStore: any[] = Array.isArray(blogsData) && blogsData.length > 0 ? [...blogsData] : [...MOCK_BLOGS];
