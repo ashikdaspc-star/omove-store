@@ -187,39 +187,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
     if (productData.id && editingProduct) {
       if (onUpdateProduct) {
-        onUpdateProduct(fullProduct);
-      }
-      try {
-        const res = await fetch(`${endpoint}/${productData.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fullProduct)
-        });
-        const data = await res.json().catch(() => ({}));
-        if (data.product && onUpdateProduct) {
-          onUpdateProduct(data.product);
-        }
-      } catch (err) {
-        console.warn('Server edit note:', err);
+        await onUpdateProduct(fullProduct);
       }
     } else {
       if (onAddProduct) {
-        onAddProduct(fullProduct);
-      }
-      try {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fullProduct)
-        });
-        const data = await res.json().catch(() => ({}));
-        if (data.product && onUpdateProduct) {
-          onUpdateProduct(data.product);
-        }
-      } catch (err) {
-        console.warn('Server add note:', err);
+        await onAddProduct(fullProduct);
       }
     }
+    setShowProductModal(false);
+    setEditingProduct(null);
   };
 
   const handleDuplicateProduct = async (prodId: string) => {

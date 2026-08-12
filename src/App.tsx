@@ -627,14 +627,17 @@ export default function App() {
   // The API handles atomic GitHub commits with conflict retry
   const handleAddProduct = async (newProd: Product) => {
     lastLocalEditRef.current = Date.now();
-    // Optimistic local update
-    const updated = [newProd, ...products];
+
+    const isDigital = newProd.productType === 'DIGITAL';
+    const endpoint = isDigital ? '/api/digital-products' : '/api/store-products';
+
+    // Optimistically update React state, replacing any duplicate ID
+    const prevProducts = products.filter((p) => p.id !== newProd.id);
+    const updated = [newProd, ...prevProducts];
     setProducts(updated);
     broadcastCatalogUpdate(updated);
 
     try {
-      const isDigital = newProd.productType === 'DIGITAL';
-      const endpoint = isDigital ? '/api/digital-products' : '/api/store-products';
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -643,17 +646,18 @@ export default function App() {
       const data = await res.json().catch(() => ({}));
       if (!data.success) {
         console.error('[OMOVE SYNC] Product creation failed on server:', data.message || data.error);
-        // Revert optimistic update
-        setProducts(products);
-        broadcastCatalogUpdate(products);
+        setProducts(prevProducts);
+        broadcastCatalogUpdate(prevProducts);
         alert(`Failed to save product: ${data.message || data.error || 'Server error'}`);
       } else {
-        console.log('[OMOVE SYNC] Product created successfully on server. Commit:', data.sync?.commitSha);
+        const persistedProd = data.product || newProd;
+        setProducts((prev) => [persistedProd, ...prev.filter((p) => p.id !== persistedProd.id)]);
+        console.log('[OMOVE SYNC] Product created successfully on server:', persistedProd.id);
       }
     } catch (e: any) {
       console.error('[OMOVE SYNC] Product creation network error:', e.message);
-      setProducts(products);
-      broadcastCatalogUpdate(products);
+      setProducts(prevProducts);
+      broadcastCatalogUpdate(prevProducts);
       alert(`Network error saving product: ${e.message}`);
     }
   };
@@ -665,7 +669,12 @@ export default function App() {
     broadcastCatalogUpdate(updated);
 
     try {
-      const res = await fetch(`/api/products/${encodeURIComponent(updatedProd.id)}`, {
+      const isDigital = updatedProd.productType === 'DIGITAL' || (updatedProd.id && updatedProd.id.startsWith('dig'));
+      const endpoint = isDigital
+        ? `/api/digital-products/${encodeURIComponent(updatedProd.id)}`
+        : `/api/store-products/${encodeURIComponent(updatedProd.id)}`;
+
+      const res = await fetch(endpoint, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedProd)
@@ -673,16 +682,14 @@ export default function App() {
       const data = await res.json().catch(() => ({}));
       if (!data.success) {
         console.error('[OMOVE SYNC] Product update failed on server:', data.message || data.error);
-        setProducts(products);
-        broadcastCatalogUpdate(products);
         alert(`Failed to update product: ${data.message || data.error || 'Server error'}`);
       } else {
-        console.log('[OMOVE SYNC] Product updated successfully on server. Commit:', data.sync?.commitSha);
+        const serverProd = data.product || updatedProd;
+        setProducts((prev) => prev.map((p) => (p.id === serverProd.id ? serverProd : p)));
+        console.log('[OMOVE SYNC] Product updated successfully on server:', serverProd.id);
       }
     } catch (e: any) {
       console.error('[OMOVE SYNC] Product update network error:', e.message);
-      setProducts(products);
-      broadcastCatalogUpdate(products);
       alert(`Network error updating product: ${e.message}`);
     }
   };
@@ -698,7 +705,13 @@ export default function App() {
     setProducts(optimisticList);
 
     try {
-      const res = await fetch(`/api/products/${encodeURIComponent(prodId)}?permanent=${permanent}`, {
+      const targetProd = prevProducts.find((p) => p.id === prodId);
+      const isDigital = targetProd ? (targetProd.productType === 'DIGITAL' || targetProd.id.startsWith('dig')) : prodId.startsWith('dig');
+      const endpoint = isDigital
+        ? `/api/digital-products/${encodeURIComponent(prodId)}?permanent=${permanent}`
+        : `/api/store-products/${encodeURIComponent(prodId)}?permanent=${permanent}`;
+
+      const res = await fetch(endpoint, {
         method: 'DELETE',
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
       });
@@ -714,7 +727,7 @@ export default function App() {
           ? prevProducts.map((p) => (p.id === prodId ? { ...p, status: 'ARCHIVED' } : p))
           : prevProducts.filter((p) => p.id !== prodId);
 
-        console.log('[OMOVE SYNC] Product deletion/archive successful. Action:', actionTaken, 'Commit:', data.sync?.commitSha || data.version);
+        console.log('[OMOVE SYNC] Product deletion/archive successful. Action:', actionTaken);
         setProducts(finalizedList);
         broadcastCatalogUpdate(finalizedList);
       }
@@ -731,11 +744,14 @@ export default function App() {
     try {
       broadcastCatalogUpdate(products);
 
+      const storeProducts = products.filter((p) => p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card')));
+      const digitalProducts = products.filter((p) => p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card')));
+
       // Server-side API publish endpoint (handles single consolidated GitHub commit)
       const res = await fetch('/api/admin/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products, services, blogs })
+        body: JSON.stringify({ products: storeProducts, digitalProducts, services, blogs })
       });
 
       const data = await res.json().catch(() => ({}));

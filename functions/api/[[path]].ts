@@ -1155,15 +1155,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     // ----------------------------------------------------
-    // STORE PRODUCTS API (/api/store-products / /api/products)
+    // UNIFIED STORE & DIGITAL PRODUCTS API (/api/products / /api/store-products)
     // ----------------------------------------------------
-    if (path === '/api/products' || path === '/api/store-products' || path === '/api/admin/store-products') {
+    if (path === '/api/products' || path === '/api/admin/products' || path === '/api/store-products' || path === '/api/admin/store-products') {
       if (method === 'GET') {
-        const list = await getWorkingData('src/data/products.json', env);
-        dynamicProductsStore = list;
+        const storeList = await getWorkingData('src/data/products.json', env);
+        const digitalList = await getWorkingData('src/data/digital_products.json', env);
+
+        // Combine store and digital products into unified catalog map
+        const map = new Map<string, any>();
+        if (Array.isArray(digitalList)) {
+          digitalList.forEach((p: any) => { if (p && p.id) map.set(p.id, p); });
+        }
+        if (Array.isArray(storeList)) {
+          storeList.forEach((p: any) => { if (p && p.id) map.set(p.id, p); });
+        }
+
+        const combined = Array.from(map.values());
+        dynamicProductsStore = combined;
 
         const isAdminPath = path.includes('/admin/');
-        let filtered = [...dynamicProductsStore];
+        let filtered = [...combined];
         if (!isAdminPath) {
           filtered = filtered.filter(p => (p.status || 'PUBLISHED') === 'PUBLISHED');
           filtered = filtered.map(({ googleDriveUrl, fileUrl, ...rest }: any) => rest);
@@ -1173,14 +1185,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
-        const newProd = buildProductObject(body, false);
+        const isDigital = body.productType === 'DIGITAL' || (body.id && body.id.startsWith('dig'));
+        const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
+        const newProd = buildProductObject(body, isDigital);
 
-        const currentList = await getWorkingData('src/data/products.json', env);
-        const updatedList = [newProd, ...currentList];
-        dynamicProductsStore = updatedList;
-        recordDraftMutation('src/data/products.json', updatedList);
+        const currentList = await getWorkingData(fileToMutate, env);
+        const existingIdx = currentList.findIndex((p: any) => p.id === newProd.id);
+        let updatedList: any[];
+        if (existingIdx !== -1) {
+          updatedList = [...currentList];
+          updatedList[existingIdx] = newProd;
+        } else {
+          updatedList = [newProd, ...currentList];
+        }
 
-        return jsonResponse({ success: true, product: newProd, isDraft: true, message: 'Saved to draft state.' });
+        recordDraftMutation(fileToMutate, updatedList);
+
+        return jsonResponse({ success: true, product: newProd, isDraft: true, message: 'Saved product.' });
       }
     }
 
@@ -1214,7 +1235,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const numMatch = lowerId.match(/\d{6,}/);
       if (numMatch) {
         const numStr = numMatch[0];
-          idx = products.findIndex((p: any) => (p.id || '').includes(numStr) || (p.createdAt || '').includes(numStr));
+        idx = products.findIndex((p: any) => (p.id || '').includes(numStr) || (p.createdAt || '').includes(numStr));
         if (idx !== -1) return idx;
       }
 
@@ -1228,11 +1249,28 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const isAdminPath = path.includes('/admin/');
       const isDigitalRoute = path.includes('digital');
 
-      const targetFile = isDigitalRoute ? 'src/data/digital_products.json' : 'src/data/products.json';
+      const digitalList = await getWorkingData('src/data/digital_products.json', env);
+      const storeList = await getWorkingData('src/data/products.json', env);
+
+      let targetFile = 'src/data/products.json';
+      let list = storeList;
+      let idx = findProductIndexInCatalog(storeList, pId);
+
+      if (idx === -1) {
+        const digIdx = findProductIndexInCatalog(digitalList, pId);
+        if (digIdx !== -1) {
+          targetFile = 'src/data/digital_products.json';
+          list = digitalList;
+          idx = digIdx;
+        }
+      }
+
+      if (idx === -1 && (isDigitalRoute || pId.startsWith('dig'))) {
+        targetFile = 'src/data/digital_products.json';
+        list = digitalList;
+      }
 
       if (method === 'GET') {
-        const list = await getWorkingData(targetFile, env);
-        const idx = findProductIndexInCatalog(list, pId);
         if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
 
         const prod = { ...list[idx] };
@@ -1245,11 +1283,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (method === 'PUT' || method === 'PATCH') {
         const body: any = await request.json().catch(() => ({}));
-        const isDigital = isDigitalRoute || body.productType === 'DIGITAL';
-        const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
-
-        const list = await getWorkingData(fileToMutate, env);
-        const idx = findProductIndexInCatalog(list, pId);
         if (idx === -1) {
           return jsonResponse({ success: false, error: 'Product not found' }, 404);
         }
@@ -1257,26 +1290,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const updatedProduct = {
           ...list[idx],
           ...body,
-          id: list[idx].id,
+          id: list[idx].id, // CRITICAL: Maintain exact product ID
           updatedAt: new Date().toISOString()
         };
         const newList = [...list];
         newList[idx] = updatedProduct;
 
-        if (!isDigital) dynamicProductsStore = newList;
-        recordDraftMutation(fileToMutate, newList);
+        recordDraftMutation(targetFile, newList);
 
-        return jsonResponse({ success: true, product: updatedProduct, isDraft: true, message: 'Updated in draft state.' });
+        return jsonResponse({ success: true, product: updatedProduct, isDraft: true, message: 'Updated product.' });
       }
 
       if (method === 'DELETE') {
         const permanentParam = url.searchParams.get('permanent');
         const forcePermanent = permanentParam === 'true';
-        const isDigital = isDigitalRoute;
-        const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
 
-        const list = await getWorkingData(fileToMutate, env);
-        const idx = findProductIndexInCatalog(list, pId);
         if (idx === -1) {
           return jsonResponse({ success: true, deleted: true, message: 'Product already deleted.' });
         }
@@ -1310,8 +1338,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           newList.splice(idx, 1);
         }
 
-        if (!isDigital) dynamicProductsStore = newList;
-        recordDraftMutation(fileToMutate, newList);
+        recordDraftMutation(targetFile, newList);
 
         return jsonResponse({
           success: true,
