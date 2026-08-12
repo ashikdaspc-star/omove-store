@@ -13,9 +13,9 @@
         "price": 299,
         "quantity": 1,
         "fileSize": "45 MB",
-        "googleDriveUrl": "",
+        "googleDriveUrl": "/api/downloads/setup",
         "fileUrl": "/api/downloads/setup",
-        "licenseKey": "",
+        "licenseKey": "OMV-4IER-PQNN-2611",
         "downloadLimit": 5,
         "downloadsCount": 0
       }
@@ -27,9 +27,13 @@
     "total": 299,
     "totalAmount": 299,
     "paymentMethod": "Razorpay UPI",
-    "paymentStatus": "PENDING",
-    "status": "pending",
-    "createdAt": "2026-08-12T03:35:00.793Z"
+    "paymentStatus": "SUCCESS",
+    "status": "completed",
+    "createdAt": "2026-08-12T03:35:00.793Z",
+    "paymentId": "pay_test_1786505843544",
+    "razorpayPaymentId": "pay_test_1786505843544",
+    "paymentVerifiedAt": "2026-08-12T03:35:02.611Z",
+    "updatedAt": "2026-08-12T03:35:02.611Z"
   },
   {
     "id": "ord_live_1786505695874",
