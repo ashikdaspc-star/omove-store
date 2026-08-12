@@ -1960,7 +1960,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!email || !password) return jsonResponse({ success: false, error: 'Email and password required' }, 400);
 
       const normEmail = email.trim().toLowerCase();
-      const freshUsers = await fetchFileFromGitHub('src/data/users.json', env);
+      const freshUsers = await getD1Users(env);
       if (Array.isArray(freshUsers)) {
         freshUsers.forEach((u: any) => { if (u.email) usersStore.set(u.email.toLowerCase(), u); });
       }
@@ -2002,7 +2002,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       let user = usersStore.get(normEmail);
 
       if (!user) {
-        const fresh = await fetchFileFromGitHub('src/data/users.json', env);
+        const fresh = await getD1Users(env);
         if (Array.isArray(fresh)) {
           fresh.forEach((u: any) => { if (u.email) usersStore.set(u.email.toLowerCase(), u); });
           user = usersStore.get(normEmail);
