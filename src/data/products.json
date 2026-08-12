@@ -1,5 +1,46 @@
 [
   {
+    "id": "prod_test_1786503007561",
+    "name": "Automated Pipeline Test Product 1786503007561",
+    "slug": "automated-pipeline-test-product-1786503007561",
+    "productType": "STORE",
+    "category": "Software",
+    "tags": [
+      "Software",
+      "Store Card"
+    ],
+    "shortDescription": "E2E Test Product for Live Pipeline Verification",
+    "fullDescription": "",
+    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80",
+    "price": 999,
+    "originalPrice": 1999,
+    "discountPercent": 0,
+    "licenseType": "Lifetime License",
+    "version": "v2026.1",
+    "downloadSize": "50 MB",
+    "compatibility": [
+      "Windows 11",
+      "Windows 10"
+    ],
+    "features": [
+      "Instant Access Key",
+      "Official Setup"
+    ],
+    "screenshots": [],
+    "requirements": [
+      "Windows 10/11"
+    ],
+    "versionHistory": [],
+    "fileUrl": "/api/downloads/setup",
+    "instantKeyAvailable": true,
+    "rating": 4.9,
+    "reviewCount": 1,
+    "salesCount": 0,
+    "isBestSeller": false,
+    "status": "PUBLISHED",
+    "createdAt": "2026-08-12T02:50:07.567Z"
+  },
+  {
     "id": "prod_test_1786502901933",
     "name": "Automated Pipeline Test Product 1786502901933",
     "slug": "automated-pipeline-test-product-1786502901933",
