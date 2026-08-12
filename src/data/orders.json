@@ -13,9 +13,9 @@
         "price": 299,
         "quantity": 1,
         "fileSize": "45 MB",
-        "googleDriveUrl": "",
+        "googleDriveUrl": "/api/downloads/setup",
         "fileUrl": "/api/downloads/setup",
-        "licenseKey": "",
+        "licenseKey": "OMV-2FH3-X1GM-6611",
         "downloadLimit": 5,
         "downloadsCount": 0
       }
@@ -27,9 +27,13 @@
     "total": 299,
     "totalAmount": 299,
     "paymentMethod": "Razorpay UPI",
-    "paymentStatus": "PENDING",
-    "status": "pending",
-    "createdAt": "2026-08-12T03:37:44.683Z"
+    "paymentStatus": "SUCCESS",
+    "status": "completed",
+    "createdAt": "2026-08-12T03:37:44.683Z",
+    "paymentId": "pay_test_1786506007561",
+    "razorpayPaymentId": "pay_test_1786506007561",
+    "paymentVerifiedAt": "2026-08-12T03:37:46.611Z",
+    "updatedAt": "2026-08-12T03:37:46.611Z"
   },
   {
     "id": "ord_live_1786505841825",
