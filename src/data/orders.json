@@ -13,9 +13,9 @@
         "price": 299,
         "quantity": 1,
         "fileSize": "45 MB",
-        "googleDriveUrl": "",
+        "googleDriveUrl": "/api/downloads/setup",
         "fileUrl": "/api/downloads/setup",
-        "licenseKey": "",
+        "licenseKey": "OMV-M3BT-PMDQ-5070",
         "downloadLimit": 5,
         "downloadsCount": 0
       }
@@ -27,9 +27,13 @@
     "total": 299,
     "totalAmount": 299,
     "paymentMethod": "Razorpay UPI",
-    "paymentStatus": "PENDING",
-    "status": "pending",
-    "createdAt": "2026-08-12T03:44:42.654Z"
+    "paymentStatus": "SUCCESS",
+    "status": "completed",
+    "createdAt": "2026-08-12T03:44:42.654Z",
+    "paymentId": "pay_test_1786506425933",
+    "razorpayPaymentId": "pay_test_1786506425933",
+    "paymentVerifiedAt": "2026-08-12T03:44:45.070Z",
+    "updatedAt": "2026-08-12T03:44:45.070Z"
   },
   {
     "id": "ord-1786506028259",
