@@ -1,5 +1,5 @@
-// Cloudflare Pages Functions Handler for Omove Store API (/api/*) v2026.8.10-production-sync-v1
-// Architecture: Cloudflare Pages Functions + GitHub REST API (No Vercel)
+// Cloudflare Pages Functions Handler for Omove Store API (/api/*) v2026.8.12-production-d1
+// Architecture: Cloudflare Pages Functions + Cloudflare D1 SQL + GitHub REST API (No Vercel)
 // 100% Deterministic Data Synchronization & Anti-Caching Engine
 
 import productsData from '../../src/data/products.json';
