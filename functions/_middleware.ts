@@ -27,7 +27,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     newHeaders.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
     newHeaders.set('Pragma', 'no-cache');
     newHeaders.set('Expires', '0');
-    newHeaders.set('X-Edge-Version', 'v2026.8.10-checkout-redesign-v1');
+    newHeaders.set('X-Edge-Version', 'v2026.8.12-d1-migration');
     newHeaders.set('X-Deploy-Timestamp', Date.now().toString());
 
     return new Response(response.body, {

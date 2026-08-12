@@ -89,7 +89,11 @@ function generateSitemap() {
 
   xml += `</urlset>\n`;
 
-  const outputPath = path.join(process.cwd(), 'public', 'sitemap.xml');
+  const publicDir = path.join(process.cwd(), 'public');
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+  }
+  const outputPath = path.join(publicDir, 'sitemap.xml');
   fs.writeFileSync(outputPath, xml, 'utf8');
   console.log(`✓ Generated valid sitemap.xml at ${outputPath}`);
 }
