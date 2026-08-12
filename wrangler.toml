@@ -8,3 +8,9 @@ NODE_VERSION = "20"
 GITHUB_OWNER = "ashikdaspc-star"
 GITHUB_REPO = "omove-store"
 GITHUB_BRANCH = "main"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "omove-store-db"
+database_id = "omove-store-db"
+

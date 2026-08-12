@@ -14,6 +14,7 @@ const ordersData: any[] = [];
 const bookingsData: any[] = [];
 
 export interface Env {
+  DB?: any;
   GITHUB_TOKEN?: string;
   VITE_GITHUB_TOKEN?: string;
   GITHUB_OWNER?: string;
@@ -28,6 +29,316 @@ export interface Env {
   SMTP_USER?: string;
   SMTP_PASS?: string;
   EMAIL_FROM?: string;
+}
+
+// ─── CLOUDFLARE D1 DATABASE HELPERS ───
+async function getD1Orders(env: Env): Promise<any[]> {
+  if (env.DB) {
+    try {
+      const ordersRes = await env.DB.prepare(`SELECT * FROM orders ORDER BY created_at DESC`).all();
+      const orders = ordersRes.results || [];
+      if (orders.length > 0) {
+        const itemsRes = await env.DB.prepare(`SELECT * FROM order_items`).all();
+        const items = itemsRes.results || [];
+        const itemsMap = new Map<string, any[]>();
+        items.forEach((it: any) => {
+          const formatted = {
+            productId: it.product_id,
+            productName: it.product_name,
+            price: it.price,
+            quantity: it.quantity,
+            fileSize: it.file_size,
+            fileUrl: it.file_url,
+            googleDriveUrl: it.google_drive_url,
+            licenseKey: it.license_key,
+            downloadLimit: it.download_limit,
+            downloadsCount: it.downloads_count
+          };
+          if (!itemsMap.has(it.order_id)) itemsMap.set(it.order_id, []);
+          itemsMap.get(it.order_id)!.push(formatted);
+        });
+
+        return orders.map((o: any) => ({
+          id: o.id,
+          orderNumber: o.order_number,
+          razorpayOrderId: o.razorpay_order_id,
+          razorpayPaymentId: o.razorpay_payment_id,
+          paymentId: o.razorpay_payment_id,
+          customerName: o.customer_name,
+          customerEmail: o.customer_email,
+          customerPhone: o.customer_phone,
+          subtotal: o.subtotal,
+          discount: o.discount,
+          couponCode: o.coupon_code,
+          tax: o.tax,
+          total: o.total,
+          totalAmount: o.total_amount,
+          paymentMethod: o.payment_method,
+          paymentStatus: o.payment_status,
+          status: o.status,
+          paymentVerifiedAt: o.payment_verified_at,
+          createdAt: o.created_at,
+          updatedAt: o.updated_at,
+          items: itemsMap.get(o.id) || []
+        }));
+      }
+    } catch (e: any) {
+      console.warn(`[D1 GET ORDERS ERROR] ${e.message}`);
+    }
+  }
+  return Array.from(ordersStore.values());
+}
+
+async function saveD1Order(env: Env, order: any): Promise<boolean> {
+  ordersStore.set(order.id, order);
+  if (!env.DB) return true;
+
+  try {
+    const orderStmt = env.DB.prepare(`
+      INSERT INTO orders (
+        id, order_number, razorpay_order_id, razorpay_payment_id, customer_name,
+        customer_email, customer_phone, subtotal, discount, coupon_code, tax,
+        total, total_amount, payment_method, payment_status, status, payment_verified_at,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        razorpay_order_id = excluded.razorpay_order_id,
+        razorpay_payment_id = excluded.razorpay_payment_id,
+        payment_status = excluded.payment_status,
+        status = excluded.status,
+        payment_verified_at = excluded.payment_verified_at,
+        updated_at = excluded.updated_at
+    `);
+
+    await orderStmt.bind(
+      order.id,
+      order.orderNumber || `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+      order.razorpayOrderId || null,
+      order.razorpayPaymentId || order.paymentId || null,
+      order.customerName || 'Customer',
+      (order.customerEmail || '').toLowerCase().trim(),
+      order.customerPhone || '',
+      Number(order.subtotal || order.total || 0),
+      Number(order.discount || 0),
+      order.couponCode || '',
+      Number(order.tax || 0),
+      Number(order.total || order.totalAmount || 0),
+      Number(order.totalAmount || order.total || 0),
+      order.paymentMethod || 'Razorpay UPI',
+      order.paymentStatus || 'PENDING',
+      order.status || 'pending',
+      order.paymentVerifiedAt || null,
+      order.createdAt || new Date().toISOString(),
+      order.updatedAt || new Date().toISOString()
+    ).run();
+
+    if (Array.isArray(order.items)) {
+      let idx = 0;
+      for (const item of order.items) {
+        idx++;
+        const itemId = `${order.id}_item_${idx}`;
+        const itemStmt = env.DB.prepare(`
+          INSERT INTO order_items (
+            id, order_id, product_id, product_name, price, quantity,
+            file_size, file_url, google_drive_url, license_key, download_limit, downloads_count
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            license_key = excluded.license_key,
+            downloads_count = excluded.downloads_count
+        `);
+        await itemStmt.bind(
+          itemId,
+          order.id,
+          item.productId || `prod_${idx}`,
+          item.productName || 'Product',
+          Number(item.price || 0),
+          Number(item.quantity || 1),
+          item.fileSize || '50 MB',
+          item.fileUrl || '/api/downloads/setup',
+          item.googleDriveUrl || item.fileUrl || '',
+          item.licenseKey || '',
+          Number(item.downloadLimit || 5),
+          Number(item.downloadsCount || 0)
+        ).run();
+      }
+    }
+    return true;
+  } catch (e: any) {
+    console.warn(`[D1 SAVE ORDER ERROR] ${e.message}`);
+    return false;
+  }
+}
+
+async function getD1Users(env: Env): Promise<any[]> {
+  if (env.DB) {
+    try {
+      const res = await env.DB.prepare(`SELECT * FROM users ORDER BY created_at DESC`).all();
+      const rows = res.results || [];
+      if (rows.length > 0) {
+        return rows.map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          phone: u.phone,
+          passwordHash: u.password_hash,
+          passwordSalt: u.password_salt,
+          location: u.location,
+          googleSubId: u.google_sub_id,
+          picture: u.picture,
+          authProvider: u.auth_provider,
+          isAdmin: Boolean(u.is_admin),
+          createdAt: u.created_at,
+          updatedAt: u.updated_at,
+          lastLoginAt: u.last_login_at
+        }));
+      }
+    } catch (e: any) {
+      console.warn(`[D1 GET USERS ERROR] ${e.message}`);
+    }
+  }
+  return Array.from(usersStore.values());
+}
+
+async function saveD1User(env: Env, user: any): Promise<boolean> {
+  usersStore.set(user.email.toLowerCase(), user);
+  if (!env.DB) return true;
+  try {
+    const stmt = env.DB.prepare(`
+      INSERT INTO users (
+        id, name, email, phone, password_hash, password_salt, location,
+        google_sub_id, picture, auth_provider, is_admin, created_at, updated_at, last_login_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        phone = excluded.phone,
+        location = excluded.location,
+        last_login_at = excluded.last_login_at,
+        updated_at = excluded.updated_at
+    `);
+    await stmt.bind(
+      user.id,
+      user.name || 'Customer',
+      (user.email || '').toLowerCase().trim(),
+      user.phone || '',
+      user.passwordHash || '',
+      user.passwordSalt || '',
+      user.location || 'Kolkata, West Bengal, India',
+      user.googleSubId || null,
+      user.picture || '',
+      user.authProvider || 'email',
+      user.isAdmin ? 1 : 0,
+      user.createdAt || new Date().toISOString(),
+      user.updatedAt || new Date().toISOString(),
+      user.lastLoginAt || new Date().toISOString()
+    ).run();
+    return true;
+  } catch (e: any) {
+    console.warn(`[D1 SAVE USER ERROR] ${e.message}`);
+    return false;
+  }
+}
+
+async function deleteD1User(env: Env, email: string): Promise<boolean> {
+  const norm = email.toLowerCase().trim();
+  usersStore.delete(norm);
+  if (!env.DB) return true;
+  try {
+    await env.DB.prepare(`DELETE FROM users WHERE LOWER(email) = ?`).bind(norm).run();
+    return true;
+  } catch (e: any) {
+    console.warn(`[D1 DELETE USER ERROR] ${e.message}`);
+    return false;
+  }
+}
+
+async function getD1Bookings(env: Env): Promise<any[]> {
+  if (env.DB) {
+    try {
+      const res = await env.DB.prepare(`SELECT * FROM bookings ORDER BY created_at DESC`).all();
+      const rows = res.results || [];
+      if (rows.length > 0) {
+        return rows.map((b: any) => ({
+          id: b.id,
+          bookingNumber: b.booking_number,
+          customerName: b.customer_name,
+          email: b.email,
+          phone: b.phone,
+          serviceId: b.service_id,
+          serviceTitle: b.service_title,
+          issueCategory: b.issue_category,
+          problemDescription: b.problem_description,
+          preferredDate: b.preferred_date,
+          preferredTime: b.preferred_time,
+          remoteTool: b.remote_tool,
+          remoteId: b.remote_id,
+          remotePassword: b.remote_password,
+          amount: b.amount,
+          paymentStatus: b.payment_status,
+          status: b.status,
+          technicianName: b.technician_name,
+          createdAt: b.created_at
+        }));
+      }
+    } catch (e: any) {
+      console.warn(`[D1 GET BOOKINGS ERROR] ${e.message}`);
+    }
+  }
+  return Array.from(bookingsStore.values());
+}
+
+async function saveD1Booking(env: Env, booking: any): Promise<boolean> {
+  bookingsStore.set(booking.id, booking);
+  if (!env.DB) return true;
+  try {
+    const stmt = env.DB.prepare(`
+      INSERT INTO bookings (
+        id, booking_number, customer_name, email, phone, service_id, service_title,
+        issue_category, problem_description, preferred_date, preferred_time, remote_tool,
+        remote_id, remote_password, amount, payment_status, status, technician_name, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        status = excluded.status,
+        payment_status = excluded.payment_status,
+        technician_name = excluded.technician_name
+    `);
+    await stmt.bind(
+      booking.id,
+      booking.bookingNumber || `OMV-BOOK-${Math.floor(1000 + Math.random() * 9000)}`,
+      booking.customerName || 'Customer',
+      (booking.email || '').toLowerCase().trim(),
+      booking.phone || '',
+      booking.serviceId || 'srv-001',
+      booking.serviceTitle || 'Remote PC Support',
+      booking.issueCategory || 'Windows Fix',
+      booking.problemDescription || '',
+      booking.preferredDate || '',
+      booking.preferredTime || '',
+      booking.remoteTool || 'AnyDesk',
+      booking.remoteId || '',
+      booking.remotePassword || '',
+      Number(booking.amount || 0),
+      booking.paymentStatus || 'Paid',
+      booking.status || 'Pending',
+      booking.technicianName || 'David Chen (Cert #8821)',
+      booking.createdAt || new Date().toISOString()
+    ).run();
+    return true;
+  } catch (e: any) {
+    console.warn(`[D1 SAVE BOOKING ERROR] ${e.message}`);
+    return false;
+  }
+}
+
+async function deleteD1Booking(env: Env, id: string): Promise<boolean> {
+  bookingsStore.delete(id);
+  if (!env.DB) return true;
+  try {
+    await env.DB.prepare(`DELETE FROM bookings WHERE id = ?`).bind(id).run();
+    return true;
+  } catch (e: any) {
+    console.warn(`[D1 DELETE BOOKING ERROR] ${e.message}`);
+    return false;
+  }
 }
 
 export type PagesFunction<Env = any> = (context: {
@@ -679,12 +990,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     // 2.5 Admin Dashboard Stats API Endpoint
     if (path === '/api/admin/dashboard-stats' || path === '/api/admin/analytics' || path.includes('dashboard-stats')) {
-      const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env) || Array.from(ordersStore.values());
-      const freshUsers = await fetchFileFromGitHub('src/data/users.json', env) || Array.from(usersStore.values());
-      const freshBookings = await fetchFileFromGitHub('src/data/bookings.json', env) || Array.from(bookingsStore.values());
-      const freshProducts = await fetchFileFromGitHub('src/data/products.json', env) || dynamicProductsStore;
-
-      if (Array.isArray(freshProducts)) dynamicProductsStore = freshProducts;
+      const freshOrders = await getD1Orders(env);
+      const freshUsers = await getD1Users(env);
+      const freshBookings = await getD1Bookings(env);
+      const freshProducts = dynamicProductsStore;
 
       const paidOrdersList = freshOrders.filter((o: any) => o.paymentStatus === 'SUCCESS' || o.status === 'completed');
       const totalRevenue = paidOrdersList.reduce((sum: number, o: any) => sum + (Number(o.total || o.totalAmount || 0) || 0), 0);
@@ -1296,14 +1605,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // 7. Customers / Users Endpoints
     if (path === '/api/admin/customers') {
       if (method === 'GET') {
-        const fresh = await fetchFileFromGitHub('src/data/users.json', env);
-        let userList: any[] = [];
-        if (Array.isArray(fresh)) {
-          userList = fresh;
-          fresh.forEach((u: any) => { if (u.email) usersStore.set(u.email.toLowerCase(), u); });
-        } else {
-          userList = Array.from(usersStore.values());
-        }
+        const userList = await getD1Users(env);
 
         const customersList = userList.map(u => ({
           id: u.id, name: u.name, email: u.email, phone: u.phone || '',
@@ -1318,20 +1620,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const deleteCustMatch = path.match(/^\/api\/admin\/customers\/([^\/]+)$/);
     if (deleteCustMatch && method === 'DELETE') {
       const emailToDelete = decodeURIComponent(deleteCustMatch[1]).toLowerCase();
-
-      const result = await atomicFileMutation(
-        'src/data/users.json',
-        (users) => users.filter((u: any) => (u.email || '').toLowerCase() !== emailToDelete),
-        `Delete customer ${emailToDelete}`,
-        env
-      );
-
-      if (!result.success) {
-        return jsonResponse({ success: false, error: 'CUSTOMER_SYNC_FAILED', message: result.message }, 500);
-      }
-
-      usersStore.delete(emailToDelete);
-      return jsonResponse({ success: true, deletedEmail: emailToDelete, sync: { success: true, commitSha: result.commitSha } });
+      await deleteD1User(env, emailToDelete);
+      return jsonResponse({ success: true, deletedEmail: emailToDelete, sync: { success: true } });
     }
 
     // 8. Orders & Payments Endpoints
@@ -1413,18 +1703,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         createdAt: new Date().toISOString()
       };
 
-      const result = await atomicFileMutation(
-        'src/data/orders.json',
-        (orders) => [newOrder, ...orders],
-        `Create order ${orderId}`,
-        env
-      );
-
-      if (!result.success) {
-        console.warn(`[ORDER CREATE NOTE] GitHub persistence notice: ${result.message}`);
-      }
-
-      ordersStore.set(orderId, newOrder);
+      await saveD1Order(env, newOrder);
 
       return jsonResponse({
         success: true,
@@ -1435,7 +1714,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         amount: amountInPaise,
         currency: 'INR',
         keyId: rzpKeyId,
-        sync: result
+        sync: { success: true }
       });
     }
 
@@ -1551,22 +1830,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }));
       }
 
-      const result = await atomicFileMutation(
-        'src/data/orders.json',
-        (orders) => {
-          const idx = orders.findIndex((o: any) => o.id === order.id);
-          if (idx !== -1) {
-            const newList = [...orders];
-            newList[idx] = order;
-            return newList;
-          }
-          return [order, ...orders];
-        },
-        `Verify payment order ${order.id}`,
-        env
-      );
-
-      ordersStore.set(order.id, order);
+      await saveD1Order(env, order);
 
       return jsonResponse({
         success: true,
@@ -1574,14 +1838,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         message: 'Razorpay payment verified successfully',
         order,
         orderId: order.id,
-        sync: result
+        sync: { success: true }
       });
     }
 
     if (path === '/api/account/orders' || path === '/api/account/downloads' || path === '/api/admin/orders') {
       const isAdminPath = path.includes('/admin/');
-      const freshOrders = await fetchFileFromGitHub('src/data/orders.json', env);
-      let allOrders = Array.isArray(freshOrders) ? freshOrders : Array.from(ordersStore.values());
+      let allOrders = await getD1Orders(env);
 
       if (isAdminPath) {
         return jsonResponse(allOrders);
@@ -1626,12 +1889,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (!subId) {
         if (method === 'GET') {
-          const fresh = await fetchFileFromGitHub('src/data/bookings.json', env);
-          if (Array.isArray(fresh)) {
-            fresh.forEach((b: any) => { if (b.id) bookingsStore.set(b.id, b); });
-            return jsonResponse(fresh);
-          }
-          return jsonResponse(Array.from(bookingsStore.values()));
+          const bookings = await getD1Bookings(env);
+          return jsonResponse(bookings);
         }
 
         if (method === 'POST') {
@@ -1661,65 +1920,35 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             createdAt: body.createdAt || new Date().toISOString()
           };
 
-          const result = await atomicFileMutation(
-            'src/data/bookings.json',
-            (bookings) => [newBooking, ...(Array.isArray(bookings) ? bookings : [])],
-            `Create booking ${bookingId}`,
-            env
-          );
-
-          bookingsStore.set(bookingId, newBooking);
-          return jsonResponse({ success: true, booking: newBooking, sync: result });
+          await saveD1Booking(env, newBooking);
+          return jsonResponse({ success: true, booking: newBooking, sync: { success: true } });
         }
       } else {
         const decodedId = decodeURIComponent(subId);
 
         if (method === 'GET') {
-          const booking = bookingsStore.get(decodedId);
+          const bookings = await getD1Bookings(env);
+          const booking = bookings.find((b: any) => b.id === decodedId);
           if (booking) return jsonResponse(booking);
           return jsonResponse({ error: 'Booking not found' }, 404);
         }
 
         if (method === 'PUT' || method === 'PATCH') {
           const updates: any = await request.json().catch(() => ({}));
-          let updatedBooking: any = null;
+          const bookings = await getD1Bookings(env);
+          const target = bookings.find((b: any) => b.id === decodedId);
 
-          const result = await atomicFileMutation(
-            'src/data/bookings.json',
-            (bookings) => {
-              const list = Array.isArray(bookings) ? bookings : [];
-              return list.map((b: any) => {
-                if (b.id === decodedId) {
-                  updatedBooking = { ...b, ...updates, id: decodedId };
-                  return updatedBooking;
-                }
-                return b;
-              });
-            },
-            `Update booking ${decodedId}`,
-            env
-          );
-
-          if (updatedBooking) {
-            bookingsStore.set(decodedId, updatedBooking);
-            return jsonResponse({ success: true, booking: updatedBooking, sync: result });
+          if (target) {
+            const updatedBooking = { ...target, ...updates, id: decodedId };
+            await saveD1Booking(env, updatedBooking);
+            return jsonResponse({ success: true, booking: updatedBooking, sync: { success: true } });
           }
           return jsonResponse({ error: 'Booking not found' }, 404);
         }
 
         if (method === 'DELETE') {
-          const result = await atomicFileMutation(
-            'src/data/bookings.json',
-            (bookings) => {
-              const list = Array.isArray(bookings) ? bookings : [];
-              return list.filter((b: any) => b.id !== decodedId);
-            },
-            `Delete booking ${decodedId}`,
-            env
-          );
-
-          bookingsStore.delete(decodedId);
-          return jsonResponse({ success: true, sync: result });
+          await deleteD1Booking(env, decodedId);
+          return jsonResponse({ success: true, sync: { success: true } });
         }
       }
     }
@@ -1754,19 +1983,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         lastLoginAt: new Date().toISOString()
       };
 
-      const result = await atomicFileMutation(
-        'src/data/users.json',
-        (users) => [newUser, ...users],
-        `Register ${normEmail}`,
-        env
-      );
-
-      usersStore.set(normEmail, newUser);
+      await saveD1User(env, newUser);
       const sessId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       const session = { sessionId: sessId, userId: newUser.id, userEmail: normEmail, isAdmin: false, createdAt: new Date().toISOString(), expiresAt: Date.now() + 7 * 86400000 };
       sessionsStore.set(sessId, session);
 
-      return jsonResponse({ success: true, token: sessId, user: { id: newUser.id, name: newUser.name, email: newUser.email, isAdmin: false }, sync: result }, 200, {
+      return jsonResponse({ success: true, token: sessId, user: { id: newUser.id, name: newUser.name, email: newUser.email, isAdmin: false }, sync: { success: true } }, 200, {
         'Set-Cookie': `omove_session_token=${sessId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
       });
     }

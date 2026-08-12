@@ -1811,9 +1811,48 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     res.json(list);
   });
 
+  app.get('/api/account/downloads', (req: Request, res: Response) => {
+    const email = (req.query.email as string || '').toLowerCase().trim();
+    const list = Array.from(ordersStore.values()).filter(o => {
+      const isSuccess = o.paymentStatus === 'SUCCESS' || o.status === 'completed';
+      if (!isSuccess) return false;
+      if (!email) return true;
+      return (o.customerEmail || '').toLowerCase().trim() === email;
+    });
+    res.json(list);
+  });
+
   app.get('/api/admin/orders', (_req: Request, res: Response) => {
     const list = Array.from(ordersStore.values());
     res.json(list);
+  });
+
+  app.get(['/api/admin/stats', '/api/admin/dashboard-stats', '/api/admin/analytics'], (_req: Request, res: Response) => {
+    const freshOrders = Array.from(ordersStore.values());
+    const freshUsers = Array.from(usersStore.values());
+    const freshBookings = Array.from(bookingsStore.values());
+
+    const paidOrdersList = freshOrders.filter((o: any) => o.paymentStatus === 'SUCCESS' || o.status === 'completed');
+    const totalRevenue = paidOrdersList.reduce((sum: number, o: any) => sum + (Number(o.total || o.totalAmount || 0) || 0), 0);
+
+    res.json({
+      success: true,
+      stats: {
+        customers: freshUsers.length,
+        totalOrders: freshOrders.length,
+        totalRevenue: totalRevenue,
+        paidOrders: paidOrdersList.length,
+        pendingVerification: freshOrders.length - paidOrdersList.length,
+        digitalProducts: dynamicProductsStore.filter((p: any) => p.productType === 'DIGITAL').length,
+        storeProducts: dynamicProductsStore.filter((p: any) => p.productType === 'STORE' || p.tags?.includes('Store Card')).length,
+        remoteSupport: freshBookings.length
+      },
+      orders: freshOrders,
+      customersCount: freshUsers.length,
+      totalRevenue,
+      totalOrders: freshOrders.length,
+      totalProducts: dynamicProductsStore.length
+    });
   });
 
   // Admin Media Upload Endpoint
