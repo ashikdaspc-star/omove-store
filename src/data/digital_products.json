@@ -1,6 +1,50 @@
 [
   {
-    "id": "dig-1786591453670",
+    "id": "dig-1786592896957",
+    "name": " D1 Persistence Test",
+    "slug": "-d1-persistence-test",
+    "productType": "DIGITAL",
+    "category": "Digital Software",
+    "tags": [
+      "Digital Key",
+      "Instant Download"
+    ],
+    "shortDescription": "Temporary persistence test",
+    "fullDescription": "Temporary persistence test",
+    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80",
+    "price": 10,
+    "originalPrice": 999,
+    "discountPercent": 50,
+    "licenseType": "Instant Digital Key",
+    "version": "v2026.1",
+    "downloadSize": "50 MB",
+    "compatibility": [
+      "Windows 11",
+      "Windows 10"
+    ],
+    "features": [
+      "Instant Product Access Key",
+      "Official Setup Package"
+    ],
+    "screenshots": [],
+    "requirements": [
+      "Windows 10/11"
+    ],
+    "versionHistory": [],
+    "googleDriveUrl": "/api/downloads/setup",
+    "fileUrl": "/api/downloads/setup",
+    "instantKeyAvailable": true,
+    "rating": 4.9,
+    "reviewCount": 1,
+    "salesCount": 0,
+    "isBestSeller": false,
+    "isFeatured": false,
+    "status": "PUBLISHED",
+    "createdAt": "2026-08-13T03:48:16.957Z",
+    "updatedAt": "2026-08-13T03:45:53.200Z"
+  },
+  {
+    "id": "dig-1786598116009",
     "name": "SFX PACK",
     "slug": "sfx-pack",
     "productType": "DIGITAL",
@@ -15,10 +59,11 @@
     "originalPrice": 999,
     "discountPercent": 98,
     "licenseType": "Instant Product Access",
-    "version": "N/A",
-    "downloadSize": "199 MB",
+    "version": "v2026.1",
+    "downloadSize": "50 MB",
     "compatibility": [
-      "All"
+      "Windows 11",
+      "Windows 10"
     ],
     "features": [
       "Instant Product Access"
@@ -37,7 +82,7 @@
     "isBestSeller": false,
     "isFeatured": false,
     "status": "PUBLISHED",
-    "createdAt": "2026-08-13T03:24:13.670Z",
-    "updatedAt": "2026-08-13T03:21:50.253Z"
+    "createdAt": "2026-08-13T05:15:16.009Z",
+    "updatedAt": "2026-08-13T05:12:52.654Z"
   }
 ]
