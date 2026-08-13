@@ -1,5 +1,15 @@
 [
   {
+    "id": "cpn-1786585826972",
+    "code": "WELLCOME100",
+    "discountType": "fixed",
+    "discountValue": 100,
+    "minOrderAmount": 0,
+    "description": "Discount Code WELLCOME100",
+    "isActive": true,
+    "usageCount": 0
+  },
+  {
     "id": "cpn-1786284125172",
     "code": "OMOVE100",
     "discountType": "percentage",
