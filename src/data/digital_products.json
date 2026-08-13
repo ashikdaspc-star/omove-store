@@ -1,10 +1,10 @@
 [
   {
-    "id": "dig-1786590146095",
+    "id": "dig-1786591453670",
     "name": "SFX PACK",
     "slug": "sfx-pack",
     "productType": "DIGITAL",
-    "category": "Digital Software",
+    "category": "Windows Tools",
     "tags": [
       "Instant Download"
     ],
@@ -14,12 +14,11 @@
     "price": 19,
     "originalPrice": 999,
     "discountPercent": 98,
-    "licenseType": "Instant Access",
-    "version": "v2026.1",
+    "licenseType": "Instant Product Access",
+    "version": "N/A",
     "downloadSize": "199 MB",
     "compatibility": [
-      "Windows 11",
-      "Windows 10"
+      "All"
     ],
     "features": [
       "Instant Product Access"
@@ -38,7 +37,7 @@
     "isBestSeller": false,
     "isFeatured": false,
     "status": "PUBLISHED",
-    "createdAt": "2026-08-13T03:02:26.095Z",
-    "updatedAt": "2026-08-13T03:00:04.077Z"
+    "createdAt": "2026-08-13T03:24:13.670Z",
+    "updatedAt": "2026-08-13T03:21:50.253Z"
   }
 ]
