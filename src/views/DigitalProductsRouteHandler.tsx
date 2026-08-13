@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { DigitalProduct, DigitalCategory } from '../types';
 import { DigitalProductsView } from './DigitalProductsView';
 import { DigitalProductDetailView } from './DigitalProductDetailView';
+import { matchProductBySlugOrId } from '../utils/productMatcher';
 
 interface DigitalProductsRouteHandlerProps {
   products: any[];
@@ -23,41 +24,56 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
   wishlist,
   onToggleWishlist
 }) => {
-  const { categorySlug } = useParams<{ categorySlug?: string }>();
-  const [digitalProds, setDigitalProds] = useState<DigitalProduct[]>([]);
+  const params = useParams<{ categorySlug?: string; subcategorySlug?: string }>();
+  const routeSlug = params.subcategorySlug || params.categorySlug;
+
+  const [fetchedDigitalProds, setFetchedDigitalProds] = useState<DigitalProduct[]>([]);
   const [digitalCats, setDigitalCats] = useState<DigitalCategory[]>(categories);
 
   useEffect(() => {
+    // 1. Fetch categories
     fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) setDigitalCats(data);
       })
       .catch(() => {});
+
+    // 2. Fetch authoritative digital products to ensure instant hydration on direct URL / hard refresh
+    fetch('/api/digital-products?v=' + Date.now(), { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) setFetchedDigitalProds(data);
+      })
+      .catch(() => {});
   }, []);
 
-  // Use authoritative products passed down from App state, filtering for active published items
-  const activeProds = (products as any[]).filter(
+  // Merge products from props and fetched digital products
+  const productMap = new Map<string, any>();
+  if (Array.isArray(fetchedDigitalProds)) {
+    fetchedDigitalProds.forEach((p) => { if (p && p.id) productMap.set(p.id, p); });
+  }
+  if (Array.isArray(products)) {
+    products.forEach((p) => { if (p && p.id) productMap.set(p.id, p); });
+  }
+
+  const combinedProds = Array.from(productMap.values()).filter(
     (p) => (p.status || 'PUBLISHED') === 'PUBLISHED'
   );
   const activeCats = digitalCats.length > 0 ? digitalCats : categories;
 
-  // Check if categorySlug matches a product slug rather than a category slug
-  const matchingProduct = categorySlug
-    ? activeProds.find(
-        (p) => p.slug === categorySlug || p.id === categorySlug || (p.name && p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === categorySlug)
-      )
-    : null;
-
-  const isCategoryMatch = categorySlug
-    ? activeCats.some((c) => c.slug.toLowerCase() === categorySlug.toLowerCase() || c.id === categorySlug)
+  // Check if routeSlug matches a product rather than a category
+  const matchingProduct = routeSlug ? matchProductBySlugOrId(combinedProds, routeSlug) : null;
+  const isCategoryMatch = routeSlug
+    ? activeCats.some((c) => c.slug.toLowerCase() === routeSlug.toLowerCase() || c.id === routeSlug)
     : false;
 
   // If URL slug matches a product and NOT a category, render DigitalProductDetailView!
   if (matchingProduct && !isCategoryMatch) {
     return (
       <DigitalProductDetailView
-        products={activeProds}
+        product={matchingProduct}
+        products={combinedProds}
         categories={activeCats}
         onAddToCart={onAddToCart}
         onBuyNow={onBuyNow}
@@ -68,7 +84,7 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
   // Otherwise render DigitalProductsView for Catalog / Category / Subcategory
   return (
     <DigitalProductsView
-      products={activeProds}
+      products={combinedProds}
       categories={activeCats}
       onSelectProduct={onSelectProduct}
       onAddToCart={onAddToCart}
@@ -78,3 +94,4 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
     />
   );
 };
+

@@ -1513,7 +1513,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       idx = products.findIndex((p: any) => (p.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-') === lowerId);
       if (idx !== -1) return idx;
 
-      // 6. Numeric timestamp ID suffix match (e.g. 1786345973260)
+      // 6. Normalized & Prefix / Partial Slug match (e.g. sfx-pack matching sfx-pack-1000-)
+      const targetBase = lowerId.replace(/^-+|-+$/g, '');
+      if (targetBase.length >= 3) {
+        idx = products.findIndex((p: any) => {
+          const pSlug = (p.slug || '').toLowerCase().replace(/^-+|-+$/g, '');
+          const pNameSlug = (p.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+          return pSlug === targetBase || pNameSlug === targetBase || pSlug.startsWith(targetBase) || targetBase.startsWith(pSlug) || pNameSlug.startsWith(targetBase) || targetBase.startsWith(pNameSlug);
+        });
+        if (idx !== -1) return idx;
+      }
+
+      // 7. Numeric timestamp ID suffix match (e.g. 1786345973260)
       const numMatch = lowerId.match(/\d{6,}/);
       if (numMatch) {
         const numStr = numMatch[0];

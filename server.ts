@@ -1603,11 +1603,37 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
-  app.get('/api/products/:id', (req: Request, res: Response) => {
-    const prod = dynamicProductsStore.find(p => p.id === req.params.id || p.slug === req.params.id);
+  const handleGetSingleProduct = (req: Request, res: Response) => {
+    const target = req.params.id || '';
+    const cleanId = decodeURIComponent(target).trim();
+    if (!cleanId) return res.status(404).json({ error: 'Product not found' });
+    const lowerId = cleanId.toLowerCase();
+    const targetBase = lowerId.replace(/^-+|-+$/g, '');
+
+    // Search in dynamicProductsStore
+    let prod = dynamicProductsStore.find(p => p.id === cleanId || (p.id || '').toLowerCase() === lowerId || p.slug === cleanId || (p.slug || '').toLowerCase() === lowerId);
+
+    if (!prod) {
+      prod = dynamicProductsStore.find(p => (p.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-') === lowerId);
+    }
+
+    if (!prod && targetBase.length >= 3) {
+      prod = dynamicProductsStore.find(p => {
+        const pSlug = (p.slug || '').toLowerCase().replace(/^-+|-+$/g, '');
+        const pNameSlug = (p.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        return pSlug === targetBase || pNameSlug === targetBase || pSlug.startsWith(targetBase) || targetBase.startsWith(pSlug) || pNameSlug.startsWith(targetBase) || targetBase.startsWith(pNameSlug);
+      });
+    }
+
     if (!prod) return res.status(404).json({ error: 'Product not found' });
-    res.json(prod);
-  });
+    const safeProd = { ...prod };
+    delete safeProd.googleDriveUrl;
+    delete safeProd.fileUrl;
+    res.json(safeProd);
+  };
+
+  app.get('/api/products/:id', handleGetSingleProduct);
+  app.get('/api/digital-products/:id', handleGetSingleProduct);
 
   // Admin Product Creation
   app.post('/api/products', (req: Request, res: Response) => {

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DigitalProduct, DigitalCategory, CartItem } from '../types';
+import { matchProductBySlugOrId } from '../utils/productMatcher';
 import {
   Sparkles,
   DownloadCloud,
@@ -17,29 +18,62 @@ import {
   Tag,
   Clock,
   Share2,
-  Lock
+  Lock,
+  Loader2
 } from 'lucide-react';
 
 interface DigitalProductDetailViewProps {
-  products: DigitalProduct[];
-  categories: DigitalCategory[];
+  product?: DigitalProduct | null;
+  products?: DigitalProduct[];
+  categories?: DigitalCategory[];
   onAddToCart: (product: any) => void;
   onBuyNow: (product: any) => void;
 }
 
 export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> = ({
+  product: initialProduct = null,
   products = [],
   categories = [],
   onAddToCart,
   onBuyNow
 }) => {
-  const { productSlug } = useParams<{ productSlug: string }>();
+  const params = useParams<{ categorySlug?: string; subcategorySlug?: string; productSlug?: string }>();
+  const routeSlug = params.productSlug || params.subcategorySlug || params.categorySlug;
   const navigate = useNavigate();
   const [isCopied, setIsCopied] = useState(false);
+  const [fetchedProduct, setFetchedProduct] = useState<DigitalProduct | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const product = products.find(
-    (p) => p.slug === productSlug || p.id === productSlug || (p.name && p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === productSlug)
-  );
+  // Try resolving product from passed prop, products list, or fetched state
+  const product = initialProduct || matchProductBySlugOrId(products, routeSlug) || fetchedProduct;
+
+  useEffect(() => {
+    // If not found in current props and routeSlug exists, attempt direct API fetch (for direct URLs & hard refresh)
+    if (!initialProduct && !matchProductBySlugOrId(products, routeSlug) && routeSlug) {
+      setIsLoading(true);
+      fetch(`/api/digital-products?v=${Date.now()}`, { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            const match = matchProductBySlugOrId(data, routeSlug);
+            if (match) {
+              setFetchedProduct(match);
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsLoading(false));
+    }
+  }, [initialProduct, products, routeSlug]);
+
+  if (isLoading && !product) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-24 text-center space-y-4">
+        <Loader2 className="w-10 h-10 mx-auto text-emerald-600 animate-spin" />
+        <p className="text-slate-500 font-mono text-xs font-bold uppercase tracking-wider">Loading Digital Product...</p>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
