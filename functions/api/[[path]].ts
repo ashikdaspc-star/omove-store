@@ -880,14 +880,23 @@ async function recordDraftMutation(filePath: string, updatedData: any[], env?: E
 }
 
 async function getWorkingData(filePath: string, env: Env): Promise<any[]> {
-  if (draftStore.workingData.has(filePath)) {
-    return draftStore.workingData.get(filePath) || [];
-  }
+  // 1. Authoritative Primary Source: Always query Cloudflare D1 draft_catalog first
   const d1Draft = await getDraftFromD1(filePath, env);
   if (Array.isArray(d1Draft)) {
+    // Keep in-memory cache synchronized with authoritative D1 data
     draftStore.workingData.set(filePath, d1Draft);
     return d1Draft;
   }
+
+  // 2. Secondary fallback: Use in-memory cache if D1 row does not exist yet but cache has data
+  if (draftStore.workingData.has(filePath)) {
+    const cached = draftStore.workingData.get(filePath);
+    if (Array.isArray(cached) && cached.length > 0) {
+      return cached;
+    }
+  }
+
+  // 3. Fallback to GitHub repository static file
   const fresh = await fetchFileFromGitHub(filePath, env);
   const list = Array.isArray(fresh) ? fresh : [];
   draftStore.workingData.set(filePath, list);
@@ -1481,7 +1490,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           updatedList = [newProd, ...currentList];
         }
 
-        recordDraftMutation(fileToMutate, updatedList);
+        await recordDraftMutation(fileToMutate, updatedList, env);
 
         return jsonResponse({ success: true, product: newProd, isDraft: true, message: 'Saved product.' });
       }
@@ -1682,9 +1691,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // 1. Ensure all D1 persistent drafts are loaded into draftStore.workingData
       const d1Drafts = await getAllDraftsFromD1(env);
       for (const [filePath, content] of d1Drafts.entries()) {
-        if (!draftStore.workingData.has(filePath)) {
-          draftStore.workingData.set(filePath, content);
-        }
+        draftStore.workingData.set(filePath, content);
       }
 
       const filesToCommit: { filePath: string; content: any[] }[] = [];
