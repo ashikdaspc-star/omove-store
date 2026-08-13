@@ -7,6 +7,7 @@ export const SupportView: React.FC = () => {
   const [selectedPreset, setSelectedPreset] = useState<number | 'custom'>(50);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [name, setName] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -16,6 +17,7 @@ export const SupportView: React.FC = () => {
     amount: number;
     paymentId: string;
     name: string;
+    email: string;
   } | null>(null);
 
   const activeAmount = selectedPreset === 'custom'
@@ -27,8 +29,16 @@ export const SupportView: React.FC = () => {
     setErrorMessage(null);
 
     const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     if (!trimmedName) {
       setErrorMessage('Please enter your name.');
+      return;
+    }
+
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+      setErrorMessage('Please enter a valid email address.');
       return;
     }
 
@@ -46,6 +56,7 @@ export const SupportView: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: trimmedName,
+          email: trimmedEmail,
           amount: activeAmount
         })
       });
@@ -80,7 +91,8 @@ export const SupportView: React.FC = () => {
           description: `Voluntary Support Contribution from ${trimmedName}`,
           order_id: razorpayOrderId.startsWith('rzp_') ? razorpayOrderId : undefined,
           prefill: {
-            name: trimmedName
+            name: trimmedName,
+            email: trimmedEmail
           },
           theme: { color: '#059669' },
           handler: async function (response: any) {
@@ -92,6 +104,9 @@ export const SupportView: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   supportId,
+                  name: trimmedName,
+                  email: trimmedEmail,
+                  amount: validatedAmount,
                   razorpay_order_id: response.razorpay_order_id || razorpayOrderId,
                   razorpay_payment_id: response.razorpay_payment_id || `pay_${Date.now()}`,
                   razorpay_signature: response.razorpay_signature || ''
@@ -103,7 +118,8 @@ export const SupportView: React.FC = () => {
                 setCompletedPaymentDetails({
                   amount: validatedAmount,
                   paymentId: verifyData.razorpayPaymentId || response.razorpay_payment_id || 'PAYMENT_VERIFIED',
-                  name: trimmedName
+                  name: trimmedName,
+                  email: trimmedEmail
                 });
                 setViewState('SUCCESS');
               } else {
@@ -123,6 +139,20 @@ export const SupportView: React.FC = () => {
               setIsSubmitting(false);
               setErrorMessage('Payment was not completed.');
               setViewState('FAILED');
+
+              // Notify backend to record FAILED status and send FAILED email notifications
+              fetch('/api/support/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  supportId,
+                  cancelled: true,
+                  name: trimmedName,
+                  email: trimmedEmail,
+                  amount: validatedAmount,
+                  razorpay_order_id: razorpayOrderId
+                })
+              }).catch(() => {});
             }
           }
         };
@@ -258,6 +288,21 @@ export const SupportView: React.FC = () => {
                     placeholder="Enter your name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-white text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                  />
+                </div>
+
+                {/* Contributor Email */}
+                <div>
+                  <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    Your Email <span className="text-emerald-400">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Enter your email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-white text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
                   />
                 </div>

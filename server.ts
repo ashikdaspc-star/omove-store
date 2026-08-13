@@ -2097,10 +2097,16 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
   app.post('/api/support/create', (req: Request, res: Response) => {
     const rawName = (req.body?.name || '').trim();
+    const rawEmail = (req.body?.email || req.body?.customerEmail || '').trim().toLowerCase();
     const rawAmount = Number(req.body?.amount);
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!rawName) {
       return res.status(400).json({ success: false, error: 'NAME_REQUIRED', message: 'Name is required to make a support contribution.' });
+    }
+    if (!rawEmail || !emailRegex.test(rawEmail)) {
+      return res.status(400).json({ success: false, error: 'INVALID_EMAIL', message: 'A valid email address is required.' });
     }
     if (isNaN(rawAmount) || rawAmount < 1) {
       return res.status(400).json({ success: false, error: 'INVALID_AMOUNT', message: 'Contribution amount must be at least ₹1.' });
@@ -2113,6 +2119,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     const supportRecord = {
       id: supportId,
       name: rawName,
+      customerEmail: rawEmail,
       amount: rawAmount,
       currency: 'INR',
       razorpayOrderId: rzpOrderId,
@@ -2131,7 +2138,8 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       razorpayKeyId: rzpKeyId,
       amount: rawAmount,
       currency: 'INR',
-      name: rawName
+      name: rawName,
+      email: rawEmail
     });
   });
 

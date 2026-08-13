@@ -100,11 +100,14 @@ CREATE TABLE IF NOT EXISTS coupon_usages (
 CREATE TABLE IF NOT EXISTS support_payments (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  customer_email TEXT,
   amount REAL NOT NULL,
   currency TEXT DEFAULT 'INR',
   razorpay_order_id TEXT,
   razorpay_payment_id TEXT,
   payment_status TEXT DEFAULT 'PENDING',
+  customer_email_sent INTEGER DEFAULT 0,
+  admin_email_sent INTEGER DEFAULT 0,
   created_at TEXT NOT NULL,
   paid_at TEXT
 );

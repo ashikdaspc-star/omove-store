@@ -351,11 +351,14 @@ async function getD1SupportPayments(env: Env): Promise<any[]> {
         CREATE TABLE IF NOT EXISTS support_payments (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
+          customer_email TEXT,
           amount REAL NOT NULL,
           currency TEXT DEFAULT 'INR',
           razorpay_order_id TEXT,
           razorpay_payment_id TEXT,
           payment_status TEXT DEFAULT 'PENDING',
+          customer_email_sent INTEGER DEFAULT 0,
+          admin_email_sent INTEGER DEFAULT 0,
           created_at TEXT NOT NULL,
           paid_at TEXT
         )
@@ -366,11 +369,14 @@ async function getD1SupportPayments(env: Env): Promise<any[]> {
         return rows.map((r: any) => ({
           id: r.id,
           name: r.name,
+          customerEmail: r.customer_email || '',
           amount: r.amount,
           currency: r.currency || 'INR',
           razorpayOrderId: r.razorpay_order_id,
           razorpayPaymentId: r.razorpay_payment_id,
           paymentStatus: r.payment_status,
+          customerEmailSent: Boolean(r.customer_email_sent),
+          adminEmailSent: Boolean(r.admin_email_sent),
           createdAt: r.created_at,
           paidAt: r.paid_at
         }));
@@ -390,34 +396,55 @@ async function saveD1SupportPayment(env: Env, payment: any): Promise<boolean> {
       CREATE TABLE IF NOT EXISTS support_payments (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        customer_email TEXT,
         amount REAL NOT NULL,
         currency TEXT DEFAULT 'INR',
         razorpay_order_id TEXT,
         razorpay_payment_id TEXT,
         payment_status TEXT DEFAULT 'PENDING',
+        customer_email_sent INTEGER DEFAULT 0,
+        admin_email_sent INTEGER DEFAULT 0,
         created_at TEXT NOT NULL,
         paid_at TEXT
       )
     `).run();
+
+    // Ensure columns exist on legacy tables if created before schema update
+    try {
+      await env.DB.prepare(`ALTER TABLE support_payments ADD COLUMN customer_email TEXT`).run();
+    } catch (e) {}
+    try {
+      await env.DB.prepare(`ALTER TABLE support_payments ADD COLUMN customer_email_sent INTEGER DEFAULT 0`).run();
+    } catch (e) {}
+    try {
+      await env.DB.prepare(`ALTER TABLE support_payments ADD COLUMN admin_email_sent INTEGER DEFAULT 0`).run();
+    } catch (e) {}
+
     const stmt = env.DB.prepare(`
       INSERT INTO support_payments (
-        id, name, amount, currency, razorpay_order_id, razorpay_payment_id,
-        payment_status, created_at, paid_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, customer_email, amount, currency, razorpay_order_id, razorpay_payment_id,
+        payment_status, customer_email_sent, admin_email_sent, created_at, paid_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        customer_email = excluded.customer_email,
         razorpay_order_id = excluded.razorpay_order_id,
         razorpay_payment_id = excluded.razorpay_payment_id,
         payment_status = excluded.payment_status,
+        customer_email_sent = excluded.customer_email_sent,
+        admin_email_sent = excluded.admin_email_sent,
         paid_at = excluded.paid_at
     `);
     await stmt.bind(
       payment.id,
       payment.name || 'Anonymous Contributor',
+      payment.customerEmail || payment.email || '',
       Number(payment.amount || 0),
       payment.currency || 'INR',
       payment.razorpayOrderId || null,
       payment.razorpayPaymentId || null,
       payment.paymentStatus || 'PENDING',
+      payment.customerEmailSent ? 1 : 0,
+      payment.adminEmailSent ? 1 : 0,
       payment.createdAt || new Date().toISOString(),
       payment.paidAt || null
     ).run();
@@ -426,6 +453,110 @@ async function saveD1SupportPayment(env: Env, payment: any): Promise<boolean> {
     console.warn(`[D1 SAVE SUPPORT PAYMENT ERROR] ${e.message}`);
     return false;
   }
+}
+
+// Helper: Dispatch Support Emails (Customer + Admin) via FormSubmit AJAX API
+async function sendSupportEmails(
+  type: 'SUCCESS' | 'FAILED',
+  record: {
+    name: string;
+    email: string;
+    amount: number;
+    razorpayOrderId?: string;
+    razorpayPaymentId?: string;
+  },
+  env?: Env
+): Promise<{ customerSent: boolean; adminSent: boolean }> {
+  const adminEmail = (env && (env as any).ADMIN_EMAIL) || 'contact.ashikdas@gmail.com';
+  const customerEmail = (record.email || '').trim().toLowerCase();
+
+  let customerSent = false;
+  let adminSent = false;
+
+  // 1. Send Customer Email
+  if (customerEmail && customerEmail.includes('@')) {
+    try {
+      const custSubject = type === 'SUCCESS'
+        ? 'Thank you for supporting Omove Store 💚'
+        : 'Omove Store Support Payment — Not Completed';
+
+      const custPayload = type === 'SUCCESS' ? {
+        _subject: custSubject,
+        _template: 'table',
+        _captcha: 'false',
+        'Greeting': `Hello ${record.name},`,
+        'Thank You Message': 'Thank you for supporting Omove Store! Your contribution was successfully received.',
+        'Support Amount': `₹${record.amount}`,
+        'Payment ID': record.razorpayPaymentId || 'Verified via Razorpay',
+        'Payment Status': 'Successful',
+        'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+        'Closing': 'Your support helps us continue improving Omove Store and creating useful digital tools and resources. Thank you! ❤️',
+        'Website': 'https://www.omovestore.shop'
+      } : {
+        _subject: custSubject,
+        _template: 'table',
+        _captcha: 'false',
+        'Greeting': `Hello ${record.name},`,
+        'Notice': 'Your support payment was not completed.',
+        'Amount': `₹${record.amount}`,
+        'Status': 'Payment not completed',
+        'Closing': 'You can try again whenever you want.',
+        'Website': 'https://www.omovestore.shop'
+      };
+
+      const res = await fetch(`https://formsubmit.co/ajax/${customerEmail}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(custPayload)
+      });
+      if (res.ok) customerSent = true;
+    } catch (e: any) {
+      console.warn(`[Support Email Customer Failure] ${e.message}`);
+    }
+  }
+
+  // 2. Send Admin Email
+  try {
+    const adminSubject = type === 'SUCCESS'
+      ? `💚 New Omove Store Support — ₹${record.amount}`
+      : `⚠️ Omove Store Support Payment Failed — ₹${record.amount}`;
+
+    const adminPayload = type === 'SUCCESS' ? {
+      _subject: adminSubject,
+      _template: 'table',
+      _captcha: 'false',
+      'Notice': 'New support contribution received.',
+      'Customer Name': record.name,
+      'Customer Email': record.email,
+      'Amount': `₹${record.amount}`,
+      'Payment ID': record.razorpayPaymentId || 'N/A',
+      'Razorpay Order ID': record.razorpayOrderId || 'N/A',
+      'Status': 'SUCCESS',
+      'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+    } : {
+      _subject: adminSubject,
+      _template: 'table',
+      _captcha: 'false',
+      'Notice': 'A support payment was not completed.',
+      'Customer Name': record.name,
+      'Customer Email': record.email,
+      'Amount': `₹${record.amount}`,
+      'Razorpay Order ID': record.razorpayOrderId || 'N/A',
+      'Status': 'FAILED / CANCELLED',
+      'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+    };
+
+    const res = await fetch(`https://formsubmit.co/ajax/${adminEmail}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(adminPayload)
+    });
+    if (res.ok) adminSent = true;
+  } catch (e: any) {
+    console.warn(`[Support Email Admin Failure] ${e.message}`);
+  }
+
+  return { customerSent, adminSent };
 }
 
 export type PagesFunction<Env = any> = (context: {
@@ -2054,10 +2185,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === '/api/support/create' && method === 'POST') {
       const body: any = await request.json().catch(() => ({}));
       const rawName = (body.name || '').trim();
+      const rawEmail = (body.email || body.customerEmail || '').trim().toLowerCase();
       const rawAmount = Number(body.amount);
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
       if (!rawName) {
         return jsonResponse({ success: false, error: 'NAME_REQUIRED', message: 'Name is required to make a support contribution.' }, 400);
+      }
+      if (!rawEmail || !emailRegex.test(rawEmail)) {
+        return jsonResponse({ success: false, error: 'INVALID_EMAIL', message: 'A valid email address is required.' }, 400);
       }
       if (isNaN(rawAmount) || rawAmount < 1) {
         return jsonResponse({ success: false, error: 'INVALID_AMOUNT', message: 'Contribution amount must be at least ₹1.' }, 400);
@@ -2077,11 +2214,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const supportRecord = {
         id: supportId,
         name: rawName,
+        customerEmail: rawEmail,
         amount: rawAmount,
         currency: 'INR',
         razorpayOrderId: rzpOrderId,
         razorpayPaymentId: null,
         paymentStatus: 'PENDING',
+        customerEmailSent: false,
+        adminEmailSent: false,
         createdAt: new Date().toISOString(),
         paidAt: null
       };
@@ -2095,7 +2235,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         razorpayKeyId: rzpKeyId,
         amount: rawAmount,
         currency: 'INR',
-        name: rawName
+        name: rawName,
+        email: rawEmail
       });
     }
 
@@ -2105,6 +2246,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const bodyRzpOrderId = body.razorpay_order_id || body.razorpayOrderId || '';
       const rzpPaymentId = body.razorpay_payment_id || body.razorpayPaymentId || '';
       const rzpSignature = body.razorpay_signature || body.razorpaySignature || '';
+      const isCancellation = Boolean(body.cancelled || body.failed);
 
       const secret = getRazorpayKeySecret(env);
       const rzpKeyId = getRazorpayKeyId(env);
@@ -2116,10 +2258,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         record = {
           id: supportId,
           name: body.name || 'Supporter',
+          customerEmail: (body.email || body.customerEmail || '').trim().toLowerCase(),
           amount: Number(body.amount || 50),
           currency: 'INR',
           razorpayOrderId: bodyRzpOrderId,
           paymentStatus: 'PENDING',
+          customerEmailSent: false,
+          adminEmailSent: false,
           createdAt: new Date().toISOString()
         };
       }
@@ -2128,31 +2273,75 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return jsonResponse({ success: false, error: 'SUPPORT_RECORD_NOT_FOUND', message: 'Support transaction record not found.' }, 404);
       }
 
+      if (body.email && !record.customerEmail) {
+        record.customerEmail = body.email.trim().toLowerCase();
+      }
+
       let isVerified = false;
       const canonicalRzpOrderId = record.razorpayOrderId || bodyRzpOrderId;
 
-      if (canonicalRzpOrderId && rzpPaymentId && rzpSignature && secret) {
+      if (!isCancellation && canonicalRzpOrderId && rzpPaymentId && rzpSignature && secret) {
         isVerified = await verifyRazorpaySignature(canonicalRzpOrderId, rzpPaymentId, rzpSignature, secret);
       }
 
-      if (!isVerified && rzpPaymentId && rzpKeyId && secret) {
+      if (!isCancellation && !isVerified && rzpPaymentId && rzpKeyId && secret) {
         const apiCheck = await fetchRazorpayPaymentStatusApi(rzpPaymentId, rzpKeyId, secret);
         if (apiCheck.valid) {
           isVerified = true;
         }
       }
 
-      if (!isVerified) {
+      if (!isVerified || isCancellation) {
         record.paymentStatus = 'FAILED';
         await saveD1SupportPayment(env, record);
-        return jsonResponse({ success: false, verified: false, paymentStatus: 'FAILED', error: 'SIGNATURE_VERIFICATION_FAILED', message: 'Payment signature verification failed.' }, 400);
+
+        // Send FAILED notification emails (Idempotent)
+        if (!record.customerEmailSent || !record.adminEmailSent) {
+          try {
+            const emailRes = await sendSupportEmails('FAILED', {
+              name: record.name,
+              email: record.customerEmail || record.email || '',
+              amount: record.amount,
+              razorpayOrderId: record.razorpayOrderId,
+              razorpayPaymentId: record.razorpayPaymentId || undefined
+            }, env);
+
+            if (emailRes.customerSent) record.customerEmailSent = true;
+            if (emailRes.adminSent) record.adminEmailSent = true;
+            await saveD1SupportPayment(env, record);
+          } catch (e: any) {
+            console.warn(`[Support Email Failed Trigger Error] ${e.message}`);
+          }
+        }
+
+        return jsonResponse({ success: false, verified: false, paymentStatus: 'FAILED', error: 'PAYMENT_FAILED_OR_CANCELLED', message: 'Payment was not completed or signature verification failed.' }, 400);
       }
 
       record.paymentStatus = 'SUCCESS';
       record.razorpayPaymentId = rzpPaymentId;
       record.paidAt = new Date().toISOString();
 
+      // 1. SAVE SUCCESS STATUS TO D1 FIRST BEFORE EMAILS
       await saveD1SupportPayment(env, record);
+
+      // 2. SEND SUCCESS NOTIFICATION EMAILS (IDEMPOTENT — ATTEMPT SAFELY IN TRY/CATCH)
+      if (!record.customerEmailSent || !record.adminEmailSent) {
+        try {
+          const emailRes = await sendSupportEmails('SUCCESS', {
+            name: record.name,
+            email: record.customerEmail || record.email || '',
+            amount: record.amount,
+            razorpayOrderId: record.razorpayOrderId,
+            razorpayPaymentId: record.razorpayPaymentId
+          }, env);
+
+          if (emailRes.customerSent) record.customerEmailSent = true;
+          if (emailRes.adminSent) record.adminEmailSent = true;
+          await saveD1SupportPayment(env, record);
+        } catch (e: any) {
+          console.warn(`[Support Email Success Trigger Error] ${e.message}`);
+        }
+      }
 
       return jsonResponse({
         success: true,
@@ -2162,6 +2351,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         razorpayPaymentId: rzpPaymentId,
         amount: record.amount,
         name: record.name,
+        email: record.customerEmail,
         paidAt: record.paidAt
       });
     }

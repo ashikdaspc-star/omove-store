@@ -4,6 +4,7 @@ import { Heart, RefreshCw, Search, ShieldCheck, DollarSign, CheckCircle2, AlertC
 interface SupportPaymentRecord {
   id: string;
   name: string;
+  customerEmail?: string;
   amount: number;
   currency: string;
   razorpayOrderId?: string;
@@ -54,6 +55,7 @@ export const AdminSupportPaymentsView: React.FC = () => {
     const term = searchTerm.toLowerCase();
     return (
       p.name.toLowerCase().includes(term) ||
+      (p.customerEmail || '').toLowerCase().includes(term) ||
       (p.razorpayPaymentId || '').toLowerCase().includes(term) ||
       (p.razorpayOrderId || '').toLowerCase().includes(term) ||
       p.id.toLowerCase().includes(term)
@@ -143,6 +145,7 @@ export const AdminSupportPaymentsView: React.FC = () => {
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 font-mono text-[11px] uppercase tracking-wider text-slate-500">
                 <th className="py-3.5 px-6 font-bold">Contributor</th>
+                <th className="py-3.5 px-6 font-bold">Email</th>
                 <th className="py-3.5 px-6 font-bold">Amount</th>
                 <th className="py-3.5 px-6 font-bold">Status</th>
                 <th className="py-3.5 px-6 font-bold">Razorpay Payment ID</th>
@@ -152,13 +155,13 @@ export const AdminSupportPaymentsView: React.FC = () => {
             <tbody className="divide-y divide-slate-100 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400 font-mono text-xs">
+                  <td colSpan={6} className="py-12 text-center text-slate-400 font-mono text-xs">
                     Loading support contributions from D1...
                   </td>
                 </tr>
               ) : filteredPayments.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400 font-mono text-xs">
+                  <td colSpan={6} className="py-12 text-center text-slate-400 font-mono text-xs">
                     No support contribution records found.
                   </td>
                 </tr>
@@ -167,6 +170,9 @@ export const AdminSupportPaymentsView: React.FC = () => {
                   <tr key={payment.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="py-4 px-6 font-bold text-slate-900">
                       {payment.name}
+                    </td>
+                    <td className="py-4 px-6 font-mono text-xs text-slate-600">
+                      {payment.customerEmail || '-'}
                     </td>
                     <td className="py-4 px-6 font-mono font-extrabold text-emerald-600">
                       ₹{payment.amount}
