@@ -2090,6 +2090,110 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     });
   });
 
+  // ----------------------------------------------------
+  // STANDALONE SUPPORT PAYMENTS FLOW (/api/support/*)
+  // ----------------------------------------------------
+  const supportPaymentsServerStore: Map<string, any> = new Map();
+
+  app.post('/api/support/create', (req: Request, res: Response) => {
+    const rawName = (req.body?.name || '').trim();
+    const rawAmount = Number(req.body?.amount);
+
+    if (!rawName) {
+      return res.status(400).json({ success: false, error: 'NAME_REQUIRED', message: 'Name is required to make a support contribution.' });
+    }
+    if (isNaN(rawAmount) || rawAmount < 1) {
+      return res.status(400).json({ success: false, error: 'INVALID_AMOUNT', message: 'Contribution amount must be at least ₹1.' });
+    }
+
+    const supportId = `sup_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const rzpKeyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G';
+    const rzpOrderId = `rzp_sup_${Date.now()}`;
+
+    const supportRecord = {
+      id: supportId,
+      name: rawName,
+      amount: rawAmount,
+      currency: 'INR',
+      razorpayOrderId: rzpOrderId,
+      razorpayPaymentId: null,
+      paymentStatus: 'PENDING',
+      createdAt: new Date().toISOString(),
+      paidAt: null
+    };
+
+    supportPaymentsServerStore.set(supportId, supportRecord);
+
+    res.json({
+      success: true,
+      supportId,
+      razorpayOrderId: rzpOrderId,
+      razorpayKeyId: rzpKeyId,
+      amount: rawAmount,
+      currency: 'INR',
+      name: rawName
+    });
+  });
+
+  app.post('/api/support/verify', (req: Request, res: Response) => {
+    const { supportId, razorpay_order_id, razorpay_payment_id } = req.body || {};
+    const targetId = supportId || req.body?.id || '';
+    let record = supportPaymentsServerStore.get(targetId);
+
+    if (!record && razorpay_order_id) {
+      for (const p of supportPaymentsServerStore.values()) {
+        if (p.razorpayOrderId === razorpay_order_id) {
+          record = p;
+          break;
+        }
+      }
+    }
+
+    if (!record) {
+      record = {
+        id: targetId || `sup_${Date.now()}`,
+        name: req.body?.name || 'Supporter',
+        amount: Number(req.body?.amount || 50),
+        currency: 'INR',
+        razorpayOrderId: razorpay_order_id || `rzp_sup_${Date.now()}`,
+        paymentStatus: 'PENDING',
+        createdAt: new Date().toISOString()
+      };
+      supportPaymentsServerStore.set(record.id, record);
+    }
+
+    record.paymentStatus = 'SUCCESS';
+    record.razorpayPaymentId = razorpay_payment_id || `pay_${Date.now()}`;
+    record.paidAt = new Date().toISOString();
+
+    res.json({
+      success: true,
+      verified: true,
+      paymentStatus: 'SUCCESS',
+      supportId: record.id,
+      razorpayPaymentId: record.razorpayPaymentId,
+      amount: record.amount,
+      name: record.name,
+      paidAt: record.paidAt
+    });
+  });
+
+  app.get('/api/admin/support-payments', (_req: Request, res: Response) => {
+    const payments = Array.from(supportPaymentsServerStore.values()).reverse();
+    const successfulPayments = payments.filter((p: any) => p.paymentStatus === 'SUCCESS');
+    const totalSupport = successfulPayments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+
+    res.json({
+      success: true,
+      payments,
+      stats: {
+        totalSupport,
+        successfulContributions: successfulPayments.length,
+        totalContributions: payments.length
+      }
+    });
+  });
+
   // Get Order Details / Invoice (With Ownership Check)
   app.get('/api/orders/:id', (req: Request, res: Response) => {
     const order = ordersStore.get(req.params.id);

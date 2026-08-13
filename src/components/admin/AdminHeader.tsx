@@ -85,7 +85,9 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
       case 'orders':
         return { group: 'Commerce', title: 'Orders & Fulfillment' };
       case 'payments':
-        return { group: 'Commerce', title: 'Payments & Gateway Logs' };
+        return { group: 'Commerce', title: 'Payments Audit Log' };
+      case 'support-contributions':
+        return { group: 'Commerce', title: 'Support Contributions' };
       case 'customers':
         return { group: 'Commerce', title: 'Registered Customer Directory' };
       case 'downloads':

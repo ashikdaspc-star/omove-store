@@ -32,6 +32,7 @@ import { TermsView } from './views/TermsView';
 import { DeliveryPolicyView } from './views/DeliveryPolicyView';
 import { CookiePolicyView } from './views/CookiePolicyView';
 import { AboutView } from './views/AboutView';
+import { SupportView } from './views/SupportView';
 import { ResetPasswordView } from './pages/ResetPasswordView';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { OfflineBanner } from './components/OfflineBanner';
@@ -1066,6 +1067,7 @@ export default function App() {
 
           <Route path="/contact" element={<AboutContactView />} />
           <Route path="/about" element={<AboutView />} />
+          <Route path="/support" element={<SupportView />} />
           <Route path="/about-contact" element={<Navigate to="/contact" replace />} />
 
           {/* Legal & Policy Pages */}

@@ -5,6 +5,7 @@ import {
   Sparkles,
   Package,
   CreditCard,
+  Heart,
   Users,
   Download,
   Wrench,
@@ -31,6 +32,7 @@ export type AdminTab =
   | 'digital-categories'
   | 'orders'
   | 'payments'
+  | 'support-contributions'
   | 'customers'
   | 'downloads'
   | 'services'
@@ -75,6 +77,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         { id: 'digital-categories' as AdminTab, label: 'Digital Categories', icon: FolderTree },
         { id: 'orders' as AdminTab, label: 'Orders', icon: Package },
         { id: 'payments' as AdminTab, label: 'Payments', icon: CreditCard },
+        { id: 'support-contributions' as AdminTab, label: 'Support Contributions', icon: Heart },
         { id: 'customers' as AdminTab, label: 'Customers', icon: Users },
         { id: 'downloads' as AdminTab, label: 'Downloads', icon: Download }
       ]

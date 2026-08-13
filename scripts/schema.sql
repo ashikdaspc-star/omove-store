@@ -97,6 +97,18 @@ CREATE TABLE IF NOT EXISTS coupon_usages (
   used_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS support_payments (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  amount REAL NOT NULL,
+  currency TEXT DEFAULT 'INR',
+  razorpay_order_id TEXT,
+  razorpay_payment_id TEXT,
+  payment_status TEXT DEFAULT 'PENDING',
+  created_at TEXT NOT NULL,
+  paid_at TEXT
+);
+
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_email ON sessions(user_email);
@@ -107,3 +119,4 @@ CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_email ON bookings(email);
 CREATE INDEX IF NOT EXISTS idx_bookings_phone ON bookings(phone);
 CREATE INDEX IF NOT EXISTS idx_coupon_usages_code_email ON coupon_usages(coupon_code, user_email);
+CREATE INDEX IF NOT EXISTS idx_support_payments_status ON support_payments(payment_status);

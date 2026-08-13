@@ -22,6 +22,7 @@ import { AdminCategoriesView } from './views/AdminCategoriesView';
 import { AdminAnalyticsView } from './views/AdminAnalyticsView';
 import { AdminActivityLogView } from './views/AdminActivityLogView';
 import { AdminSettingsView } from './views/AdminSettingsView';
+import { AdminSupportPaymentsView } from './views/AdminSupportPaymentsView';
 
 interface AdminLayoutProps {
   products: Product[];
@@ -318,6 +319,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {activeTab === 'orders' && <AdminOrdersView orders={orders} />}
           {activeTab === 'customers' && <AdminCustomersView orders={orders} />}
           {activeTab === 'payments' && <AdminPaymentsView orders={orders} />}
+          {activeTab === 'support-contributions' && <AdminSupportPaymentsView />}
           {activeTab === 'services' && (
             <AdminServicesView
               services={services}
