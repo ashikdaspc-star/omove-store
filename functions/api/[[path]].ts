@@ -558,6 +558,8 @@ async function atomicFileMutation(
 // ------------------------------------------------------------------
 // DRAFT → PUBLISH ARCHITECTURE STORE & CONSOLIDATED BATCH MUTATION
 // ------------------------------------------------------------------
+// D1 PERSISTENT DRAFT STORE & CONSOLIDATED BATCH MUTATION
+// ------------------------------------------------------------------
 interface DraftStoreState {
   hasPendingChanges: boolean;
   pendingFiles: Set<string>;
@@ -574,29 +576,104 @@ const draftStore: DraftStoreState = {
   workingData: new Map<string, any[]>()
 };
 
-function recordDraftMutation(filePath: string, updatedData: any[]) {
+async function saveDraftToD1(filePath: string, updatedData: any[], env: Env) {
+  if (!env || !env.DB) return;
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS draft_catalog (
+        file_path TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `).run();
+    await env.DB.prepare(`
+      INSERT INTO draft_catalog (file_path, content, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(file_path) DO UPDATE SET
+        content = excluded.content,
+        updated_at = excluded.updated_at
+    `).bind(filePath, JSON.stringify(updatedData), new Date().toISOString()).run();
+  } catch (e: any) {
+    console.warn(`[D1 DRAFT SAVE ERROR] ${e.message}`);
+  }
+}
+
+async function getDraftFromD1(filePath: string, env: Env): Promise<any[] | null> {
+  if (!env || !env.DB) return null;
+  try {
+    const res = await env.DB.prepare(`SELECT content FROM draft_catalog WHERE file_path = ?`).bind(filePath).first();
+    if (res && res.content) {
+      const parsed = JSON.parse(res.content as string);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e: any) {
+    console.warn(`[D1 DRAFT GET ERROR] ${e.message}`);
+  }
+  return null;
+}
+
+async function getAllDraftsFromD1(env: Env): Promise<Map<string, any[]>> {
+  const result = new Map<string, any[]>();
+  if (!env || !env.DB) return result;
+  try {
+    const res = await env.DB.prepare(`SELECT file_path, content FROM draft_catalog`).all();
+    const rows = res.results || [];
+    for (const row of rows) {
+      if (row.file_path && row.content) {
+        try {
+          const parsed = JSON.parse(row.content as string);
+          if (Array.isArray(parsed)) {
+            result.set(row.file_path as string, parsed);
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e: any) {
+    console.warn(`[D1 GET ALL DRAFTS ERROR] ${e.message}`);
+  }
+  return result;
+}
+
+async function clearDraftStore(env?: Env) {
+  draftStore.hasPendingChanges = false;
+  draftStore.pendingFiles.clear();
+  draftStore.lastModifiedAt = null;
+  draftStore.modifiedCount = 0;
+  draftStore.workingData.clear();
+  if (env && env.DB) {
+    try {
+      await env.DB.prepare(`DELETE FROM draft_catalog`).run();
+    } catch (e: any) {
+      console.warn(`[D1 CLEAR ALL DRAFTS ERROR] ${e.message}`);
+    }
+  }
+}
+
+async function recordDraftMutation(filePath: string, updatedData: any[], env?: Env) {
   draftStore.hasPendingChanges = true;
   draftStore.pendingFiles.add(filePath);
   draftStore.lastModifiedAt = new Date().toISOString();
   draftStore.modifiedCount += 1;
   draftStore.workingData.set(filePath, updatedData);
+
+  if (env) {
+    await saveDraftToD1(filePath, updatedData, env);
+  }
 }
 
 async function getWorkingData(filePath: string, env: Env): Promise<any[]> {
   if (draftStore.workingData.has(filePath)) {
     return draftStore.workingData.get(filePath) || [];
   }
+  const d1Draft = await getDraftFromD1(filePath, env);
+  if (Array.isArray(d1Draft)) {
+    draftStore.workingData.set(filePath, d1Draft);
+    return d1Draft;
+  }
   const fresh = await fetchFileFromGitHub(filePath, env);
   const list = Array.isArray(fresh) ? fresh : [];
+  draftStore.workingData.set(filePath, list);
   return list;
-}
-
-function clearDraftStore() {
-  draftStore.hasPendingChanges = false;
-  draftStore.pendingFiles.clear();
-  draftStore.lastModifiedAt = null;
-  draftStore.modifiedCount = 0;
-  draftStore.workingData.clear();
 }
 
 async function consolidatedMultiFileMutation(
@@ -1123,32 +1200,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
-        const newProd = {
-          id: body.id || `dig-prod-${Date.now()}`,
-          name: body.name || 'New Digital Product',
-          slug: body.slug || (body.name ? body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `digital-product-${Date.now()}`),
-          description: body.description || '',
-          shortDescription: body.shortDescription || body.description || '',
-          price: Number(body.price || 0),
-          originalPrice: Number(body.originalPrice || body.price || 0),
-          image: body.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
-          categoryId: body.categoryId || '',
-          subcategoryId: body.subcategoryId || '',
-          googleDriveUrl: body.googleDriveUrl || '',
-          fileSize: body.fileSize || '10 MB',
-          fileType: body.fileType || 'ZIP',
-          version: body.version || 'v1.0',
-          compatibility: Array.isArray(body.compatibility) ? body.compatibility : [],
-          features: Array.isArray(body.features) ? body.features : [],
-          status: body.status || 'PUBLISHED',
-          featured: Boolean(body.featured),
-          createdAt: body.createdAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
+        const newProd = buildProductObject(body, true);
 
         const currentList = await getWorkingData('src/data/digital_products.json', env);
-        const updatedList = [newProd, ...currentList];
-        recordDraftMutation('src/data/digital_products.json', updatedList);
+        const existingIdx = currentList.findIndex((p: any) => p.id === newProd.id);
+        let updatedList: any[];
+        if (existingIdx !== -1) {
+          updatedList = [...currentList];
+          updatedList[existingIdx] = newProd;
+        } else {
+          updatedList = [newProd, ...currentList];
+        }
+
+        await recordDraftMutation('src/data/digital_products.json', updatedList, env);
 
         return jsonResponse({ success: true, product: newProd, isDraft: true, message: 'Saved to draft state.' });
       }
@@ -1296,7 +1360,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const newList = [...list];
         newList[idx] = updatedProduct;
 
-        recordDraftMutation(targetFile, newList);
+        await recordDraftMutation(targetFile, newList, env);
 
         return jsonResponse({ success: true, product: updatedProduct, isDraft: true, message: 'Updated product.' });
       }
@@ -1338,7 +1402,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           newList.splice(idx, 1);
         }
 
-        recordDraftMutation(targetFile, newList);
+        await recordDraftMutation(targetFile, newList, env);
 
         return jsonResponse({
           success: true,
@@ -1377,7 +1441,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const updatedList = [duplicated, ...currentList];
 
       if (!isDigital) dynamicProductsStore = updatedList;
-      recordDraftMutation(fileToMutate, updatedList);
+      await recordDraftMutation(fileToMutate, updatedList, env);
 
       return jsonResponse({ success: true, product: duplicated, isDraft: true, message: 'Duplicated in draft state.' });
     }
@@ -1386,6 +1450,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === '/api/admin/publish' || path === '/api/products/sync' || path === '/api/products/publish') {
       const body: any = await request.json().catch(() => ({}));
 
+      // 1. Ensure all D1 persistent drafts are loaded into draftStore.workingData
+      const d1Drafts = await getAllDraftsFromD1(env);
+      for (const [filePath, content] of d1Drafts.entries()) {
+        if (!draftStore.workingData.has(filePath)) {
+          draftStore.workingData.set(filePath, content);
+        }
+      }
+
       const filesToCommit: { filePath: string; content: any[] }[] = [];
 
       // Collect all modified workingData from draftStore
@@ -1393,15 +1465,35 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         filesToCommit.push({ filePath, content });
       }
 
-      // Also support explicit payload arrays if passed from frontend
+      // Also support explicit payload arrays if passed from frontend (merge missing items)
       if (Array.isArray(body.digitalProducts) && body.digitalProducts.length > 0) {
-        if (!filesToCommit.some(f => f.filePath === 'src/data/digital_products.json')) {
+        const existingFileIdx = filesToCommit.findIndex(f => f.filePath === 'src/data/digital_products.json');
+        if (existingFileIdx === -1) {
           filesToCommit.push({ filePath: 'src/data/digital_products.json', content: body.digitalProducts });
+        } else {
+          const currentList = filesToCommit[existingFileIdx].content;
+          const mergedList = [...currentList];
+          for (const item of body.digitalProducts) {
+            if (item && item.id && !mergedList.some(p => p.id === item.id)) {
+              mergedList.push(item);
+            }
+          }
+          filesToCommit[existingFileIdx].content = mergedList;
         }
       }
       if (Array.isArray(body.products) && body.products.length > 0) {
-        if (!filesToCommit.some(f => f.filePath === 'src/data/products.json')) {
+        const existingFileIdx = filesToCommit.findIndex(f => f.filePath === 'src/data/products.json');
+        if (existingFileIdx === -1) {
           filesToCommit.push({ filePath: 'src/data/products.json', content: body.products });
+        } else {
+          const currentList = filesToCommit[existingFileIdx].content;
+          const mergedList = [...currentList];
+          for (const item of body.products) {
+            if (item && item.id && !mergedList.some(p => p.id === item.id)) {
+              mergedList.push(item);
+            }
+          }
+          filesToCommit[existingFileIdx].content = mergedList;
         }
       }
       if (Array.isArray(body.digitalCategories) && body.digitalCategories.length > 0) {
@@ -1439,7 +1531,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return jsonResponse({ success: false, error: 'PUBLISH_FAILED', message: syncRes.message || 'Failed to publish changes to GitHub' }, 500);
       }
 
-      clearDraftStore();
+      await clearDraftStore(env);
 
       return jsonResponse({
         success: true,

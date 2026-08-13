@@ -1051,6 +1051,13 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         } catch (e) {}
       }
 
+      if (Array.isArray(req.body.digitalProducts)) {
+        recordDraftMutation('src/data/digital_products.json', req.body.digitalProducts);
+        try {
+          fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'digital_products.json'), JSON.stringify(req.body.digitalProducts, null, 2));
+        } catch (e) {}
+      }
+
       if (Array.isArray(req.body.services)) {
         dynamicServicesStore = req.body.services;
         saveServicesToDisk();
