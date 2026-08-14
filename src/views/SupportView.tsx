@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Heart, CheckCircle2, AlertCircle, ArrowLeft, ShieldCheck, Sparkles, RefreshCw } from 'lucide-react';
+import { Coffee, CheckCircle2, AlertCircle, ArrowLeft, ShieldCheck, Sparkles, RefreshCw } from 'lucide-react';
 
-const PRESET_AMOUNTS = [10, 25, 50, 100];
+const PRESET_AMOUNTS = [50, 100, 150, 200];
 
 export const SupportView: React.FC = () => {
   const [selectedPreset, setSelectedPreset] = useState<number | 'custom'>(50);
@@ -43,7 +43,7 @@ export const SupportView: React.FC = () => {
     }
 
     if (!activeAmount || activeAmount < 1) {
-      setErrorMessage('Please select or enter a contribution amount of at least ₹1.');
+      setErrorMessage('Please select or enter an amount of at least ₹1.');
       return;
     }
 
@@ -63,7 +63,7 @@ export const SupportView: React.FC = () => {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        throw new Error(data.message || data.error || 'Failed to create support transaction');
+        throw new Error(data.message || data.error || 'Failed to initialize payment');
       }
 
       const { supportId, razorpayOrderId, razorpayKeyId, amount: validatedAmount } = data;
@@ -87,8 +87,8 @@ export const SupportView: React.FC = () => {
           key: keyToUse,
           amount: Math.round(validatedAmount * 100),
           currency: 'INR',
-          name: 'Omove Store Support',
-          description: `Voluntary Support Contribution from ${trimmedName}`,
+          name: 'Omove Store',
+          description: `Buy Me a Coffee from ${trimmedName}`,
           order_id: razorpayOrderId.startsWith('rzp_') ? razorpayOrderId : undefined,
           prefill: {
             name: trimmedName,
@@ -127,7 +127,7 @@ export const SupportView: React.FC = () => {
                 setViewState('FAILED');
               }
             } catch (err: any) {
-              console.error('Support payment verification error:', err);
+              console.error('Payment verification error:', err);
               setErrorMessage(`Verification error: ${err.message}`);
               setViewState('FAILED');
             } finally {
@@ -163,7 +163,7 @@ export const SupportView: React.FC = () => {
         throw new Error('Razorpay payment gateway SDK unavailable. Please check your network connection.');
       }
     } catch (err: any) {
-      console.error('Support payment error:', err);
+      console.error('Payment error:', err);
       setErrorMessage(err.message || 'Payment failed to initialize.');
       setIsSubmitting(false);
       setViewState('FAILED');
@@ -188,7 +188,7 @@ export const SupportView: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-400" />
-            <span className="font-mono text-xs font-bold tracking-widest text-slate-300">OFFICIAL SUPPORT</span>
+            <span className="font-mono text-xs font-bold tracking-widest text-slate-300">BUY ME A COFFEE</span>
           </div>
         </div>
       </header>
@@ -199,15 +199,16 @@ export const SupportView: React.FC = () => {
           {/* STATE 1: FORM */}
           {viewState === 'FORM' && (
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
+              {/* Heading Area */}
               <div className="text-center mb-8">
                 <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4 text-emerald-400">
-                  <Heart className="w-8 h-8 fill-emerald-500/20" />
+                  <Coffee className="w-8 h-8" />
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-2">
-                  Support Omove Store
+                  Buy Me a Coffee
                 </h1>
                 <p className="text-slate-400 text-sm max-w-md mx-auto leading-relaxed">
-                  If you find Omove Store useful, you can support us by making a small contribution.
+                  If Omove Store helped you, you can buy me a coffee ☕
                 </p>
               </div>
 
@@ -222,7 +223,7 @@ export const SupportView: React.FC = () => {
                 {/* Preset Amount Grid */}
                 <div>
                   <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-3">
-                    Select Contribution Amount
+                    CHOOSE YOUR COFFEE
                   </label>
                   <div className="grid grid-cols-4 gap-3">
                     {PRESET_AMOUNTS.map((amt) => (
@@ -280,7 +281,7 @@ export const SupportView: React.FC = () => {
                 {/* Contributor Name */}
                 <div>
                   <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-2">
-                    Your Name <span className="text-emerald-400">*</span>
+                    YOUR NAME <span className="text-emerald-400">*</span>
                   </label>
                   <input
                     type="text"
@@ -295,7 +296,7 @@ export const SupportView: React.FC = () => {
                 {/* Contributor Email */}
                 <div>
                   <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-2">
-                    Your Email <span className="text-emerald-400">*</span>
+                    YOUR EMAIL <span className="text-emerald-400">*</span>
                   </label>
                   <input
                     type="email"
@@ -310,7 +311,7 @@ export const SupportView: React.FC = () => {
                 {/* Amount Display & Action Button */}
                 <div className="pt-4 border-t border-slate-800/80">
                   <div className="flex items-center justify-between mb-4 px-2">
-                    <span className="font-mono text-xs text-slate-400 uppercase tracking-wider">Support Amount:</span>
+                    <span className="font-mono text-xs text-slate-400 uppercase tracking-wider">COFFEE TOTAL:</span>
                     <span className="font-mono text-2xl font-black text-emerald-400">
                       ₹{activeAmount || 0}
                     </span>
@@ -328,8 +329,8 @@ export const SupportView: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <Heart className="w-5 h-5 fill-slate-950" />
-                        <span>SUPPORT Omove Store</span>
+                        <Coffee className="w-5 h-5" />
+                        <span>☕ Buy Me a Coffee</span>
                       </>
                     )}
                   </button>
@@ -355,17 +356,17 @@ export const SupportView: React.FC = () => {
               </h2>
 
               <p className="text-slate-300 text-sm max-w-md mx-auto leading-relaxed mb-8">
-                Your support helps Omove Store continue growing.
+                Thank you for the coffee ☕ Your support helps Omove Store continue growing.
               </p>
 
               <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-6 mb-8 text-left space-y-4 font-mono">
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                  <span className="text-xs text-slate-400">Contributor:</span>
+                  <span className="text-xs text-slate-400">Name:</span>
                   <span className="text-sm font-bold text-white">{completedPaymentDetails.name}</span>
                 </div>
 
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                  <span className="text-xs text-slate-400">Support Amount:</span>
+                  <span className="text-xs text-slate-400">Coffee Total:</span>
                   <span className="text-base font-black text-emerald-400">₹{completedPaymentDetails.amount}</span>
                 </div>
 
@@ -396,7 +397,7 @@ export const SupportView: React.FC = () => {
               </h2>
 
               <p className="text-slate-400 text-xs mb-8">
-                {errorMessage || 'The contribution transaction was cancelled or could not be verified.'}
+                {errorMessage || 'The payment was cancelled or could not be completed.'}
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -425,8 +426,9 @@ export const SupportView: React.FC = () => {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-900 bg-slate-950 py-4 px-4 text-center font-mono text-[11px] text-slate-600">
-        Omove Store • Direct Contribution Platform
+        Omove Store • Buy Me a Coffee
       </footer>
     </div>
   );
 };
+
