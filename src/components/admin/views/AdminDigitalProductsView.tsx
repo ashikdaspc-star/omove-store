@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { DigitalProduct, DigitalCategory, Product } from '../../../types';
 import { ConfirmDeleteModal } from '../modals/ConfirmDeleteModal';
@@ -68,9 +68,20 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
 
   useEffect(() => {
     fetchDigitalData();
-  }, []);
+  }, [products]);
 
-  const displayList = digitalProds.length > 0 ? digitalProds : (products || []).filter(p => p.productType === 'DIGITAL' || !p.tags?.includes('Store Card'));
+  const displayList = useMemo(() => {
+    const map = new Map<string, any>();
+    if (Array.isArray(products)) {
+      products
+        .filter((p) => p.productType === 'DIGITAL' || (p.id && p.id.startsWith('dig')))
+        .forEach((p) => { if (p && p.id) map.set(p.id, p); });
+    }
+    if (Array.isArray(digitalProds)) {
+      digitalProds.forEach((p) => { if (p && p.id) map.set(p.id, p); });
+    }
+    return Array.from(map.values());
+  }, [products, digitalProds]);
 
   useEffect(() => {
     if (!menuAnchor) return;

@@ -1410,6 +1410,49 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
     }
 
+    function buildProductObject(body: any, isDigital: boolean): any {
+      const now = new Date().toISOString();
+      const generatedSlug = (body.slug || '').trim() || (body.name ? body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : `product-${Date.now()}`);
+      return {
+        id: body.id || `${isDigital ? 'dig' : 'prod'}-${Date.now()}`,
+        name: body.name || (isDigital ? 'New Digital Product' : 'New Store Product'),
+        slug: generatedSlug,
+        productType: isDigital ? 'DIGITAL' : (body.productType || 'STORE'),
+        category: body.category || (isDigital ? 'Software' : 'Store Products'),
+        categoryId: body.categoryId || '',
+        subcategoryId: body.subcategoryId || '',
+        shortDescription: body.shortDescription || body.description || '',
+        fullDescription: body.fullDescription || body.description || body.shortDescription || '',
+        description: body.description || body.fullDescription || body.shortDescription || '',
+        price: Number(body.price ?? 0),
+        originalPrice: Number(body.originalPrice ?? body.price ?? 0),
+        discountPercent: Number(body.discountPercent ?? 0),
+        image: body.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+        screenshots: Array.isArray(body.screenshots) ? body.screenshots : [],
+        tags: Array.isArray(body.tags) && body.tags.length > 0 ? body.tags : (isDigital ? ['Digital Product'] : ['Store Card', 'Software']),
+        googleDriveUrl: body.googleDriveUrl || body.fileUrl || '',
+        fileUrl: body.fileUrl || body.googleDriveUrl || '/api/downloads/digital',
+        fileSize: body.fileSize || body.downloadSize || 'Instant Access',
+        downloadSize: body.downloadSize || body.fileSize || 'Instant Access',
+        fileType: body.fileType || 'ZIP',
+        licenseType: body.licenseType || (isDigital ? 'Instant Digital Download' : 'Lifetime License'),
+        version: body.version || 'v1.0',
+        compatibility: Array.isArray(body.compatibility) ? body.compatibility : ['Windows 11', 'Windows 10'],
+        features: Array.isArray(body.features) ? body.features : ['Instant Product Access', 'Official Download Package'],
+        requirements: Array.isArray(body.requirements) ? body.requirements : ['Windows 10/11'],
+        versionHistory: Array.isArray(body.versionHistory) ? body.versionHistory : [],
+        status: body.status || 'PUBLISHED',
+        featured: Boolean(body.featured || body.isBestSeller),
+        isBestSeller: Boolean(body.isBestSeller || body.featured),
+        instantKeyAvailable: Boolean(body.instantKeyAvailable ?? true),
+        rating: Number(body.rating || 5.0),
+        reviewCount: Number(body.reviewCount || 1),
+        salesCount: Number(body.salesCount || 0),
+        createdAt: body.createdAt || now,
+        updatedAt: now
+      };
+    }
+
     // ----------------------------------------------------
     // ISOLATED DIGITAL PRODUCTS API (/api/digital-products)
     // ----------------------------------------------------

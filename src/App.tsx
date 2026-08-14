@@ -562,12 +562,7 @@ export default function App() {
       return [{ product, quantity: 1 }];
     });
     setIsCartOpen(false);
-    if (!isLoggedIn) {
-      setPendingCheckoutAfterAuth(true);
-      setIsAuthModalOpen(true);
-    } else {
-      setIsCheckoutOpen(true);
-    }
+    setIsCheckoutOpen(true);
   };
 
   const handleUpdateCartQuantity = (productId: string, quantity: number) => {
@@ -1174,12 +1169,7 @@ export default function App() {
           setActiveDiscountCode(code);
           setActiveDiscountAmount(amt || 0);
           setIsCartOpen(false);
-          if (!isLoggedIn) {
-            setPendingCheckoutAfterAuth(true);
-            setIsAuthModalOpen(true);
-          } else {
-            setIsCheckoutOpen(true);
-          }
+          setIsCheckoutOpen(true);
         }}
       />
 

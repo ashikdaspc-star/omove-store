@@ -1292,42 +1292,75 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     res.json([]);
   });
 
-  app.post('/api/digital-products', (req: Request, res: Response) => {
+  const handleSaveDigitalProduct = (req: Request, res: Response) => {
     try {
       const prodFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
-      let list = [];
+      let list: any[] = [];
       if (fs.existsSync(prodFile)) {
-        list = JSON.parse(fs.readFileSync(prodFile, 'utf-8'));
+        try {
+          const raw = fs.readFileSync(prodFile, 'utf-8');
+          if (raw && raw.trim()) list = JSON.parse(raw);
+        } catch (err) {
+          list = [];
+        }
       }
+
+      const body = req.body || {};
       const newProd = {
-        id: req.body.id || `dig-prod-${Date.now()}`,
-        name: req.body.name || 'New Digital Product',
-        slug: req.body.slug || (req.body.name ? req.body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `digital-product-${Date.now()}`),
-        description: req.body.description || '',
-        shortDescription: req.body.shortDescription || req.body.description || '',
-        price: Number(req.body.price || 0),
-        originalPrice: Number(req.body.originalPrice || req.body.price || 0),
-        image: req.body.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
-        categoryId: req.body.categoryId || '',
-        subcategoryId: req.body.subcategoryId || '',
-        googleDriveUrl: req.body.googleDriveUrl || '',
-        fileSize: req.body.fileSize || '10 MB',
-        fileType: req.body.fileType || 'ZIP',
-        version: req.body.version || 'v1.0',
-        compatibility: Array.isArray(req.body.compatibility) ? req.body.compatibility : [],
-        features: Array.isArray(req.body.features) ? req.body.features : [],
-        status: req.body.status || 'PUBLISHED',
-        featured: Boolean(req.body.featured),
-        createdAt: new Date().toISOString(),
+        id: body.id || `dig-prod-${Date.now()}`,
+        name: body.name || 'New Digital Product',
+        slug: body.slug || (body.name ? body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : `digital-product-${Date.now()}`),
+        productType: 'DIGITAL',
+        category: body.category || 'Software',
+        categoryId: body.categoryId || '',
+        subcategoryId: body.subcategoryId || '',
+        shortDescription: body.shortDescription || body.description || '',
+        fullDescription: body.fullDescription || body.description || body.shortDescription || '',
+        description: body.description || body.fullDescription || body.shortDescription || '',
+        price: Number(body.price ?? 0),
+        originalPrice: Number(body.originalPrice ?? body.price ?? 0),
+        discountPercent: Number(body.discountPercent ?? 0),
+        image: body.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+        screenshots: Array.isArray(body.screenshots) ? body.screenshots : [],
+        tags: Array.isArray(body.tags) && body.tags.length > 0 ? body.tags : ['Digital Product'],
+        googleDriveUrl: body.googleDriveUrl || body.fileUrl || '',
+        fileUrl: body.fileUrl || body.googleDriveUrl || '/api/downloads/digital',
+        fileSize: body.fileSize || body.downloadSize || 'Instant Access',
+        downloadSize: body.downloadSize || body.fileSize || 'Instant Access',
+        fileType: body.fileType || 'ZIP',
+        licenseType: body.licenseType || 'Instant Digital Download',
+        version: body.version || 'v1.0',
+        compatibility: Array.isArray(body.compatibility) ? body.compatibility : ['Windows 11', 'Windows 10'],
+        features: Array.isArray(body.features) ? body.features : ['Instant Product Access', 'Official Download Package'],
+        requirements: Array.isArray(body.requirements) ? body.requirements : ['Windows 10/11'],
+        versionHistory: Array.isArray(body.versionHistory) ? body.versionHistory : [],
+        status: body.status || 'PUBLISHED',
+        featured: Boolean(body.featured || body.isBestSeller),
+        isBestSeller: Boolean(body.isBestSeller || body.featured),
+        instantKeyAvailable: Boolean(body.instantKeyAvailable ?? true),
+        rating: Number(body.rating || 5.0),
+        reviewCount: Number(body.reviewCount || 1),
+        salesCount: Number(body.salesCount || 0),
+        createdAt: body.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      list.unshift(newProd);
+
+      const existingIndex = list.findIndex((p: any) => p.id === newProd.id || p.slug === newProd.slug);
+      if (existingIndex !== -1) {
+        list[existingIndex] = { ...list[existingIndex], ...newProd };
+      } else {
+        list.unshift(newProd);
+      }
+
       fs.writeFileSync(prodFile, JSON.stringify(list, null, 2));
       return res.json({ success: true, product: newProd });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
     }
-  });
+  };
+
+  app.post('/api/digital-products', handleSaveDigitalProduct);
+  app.post('/api/admin/digital-products', handleSaveDigitalProduct);
 
   const handleUpdateDigitalProd = (req: Request, res: Response) => {
     try {
@@ -1339,7 +1372,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       let updatedProd: any = null;
       list = list.map((p: any) => {
         if (p.id === req.params.id || p.slug === req.params.id) {
-          updatedProd = { ...p, ...req.body, id: p.id, updatedAt: new Date().toISOString() };
+          updatedProd = { ...p, ...req.body, id: p.id, productType: 'DIGITAL', updatedAt: new Date().toISOString() };
           return updatedProd;
         }
         return p;
@@ -1373,6 +1406,36 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   app.put('/api/admin/digital-products/:id', handleUpdateDigitalProd);
   app.delete('/api/digital-products/:id', handleDeleteDigitalProd);
   app.delete('/api/admin/digital-products/:id', handleDeleteDigitalProd);
+
+  const handleGetSingleDigitalProd = (req: Request, res: Response) => {
+    try {
+      const prodFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      let list = [];
+      if (fs.existsSync(prodFile)) {
+        list = JSON.parse(fs.readFileSync(prodFile, 'utf-8'));
+      }
+      const target = decodeURIComponent(req.params.id || '').toLowerCase().trim();
+      const prod = list.find((p: any) =>
+        (p.id || '').toLowerCase() === target ||
+        (p.slug || '').toLowerCase() === target ||
+        (p.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-') === target
+      );
+      if (!prod) {
+        return res.status(404).json({ success: false, error: 'Product not found' });
+      }
+      const isAdmin = req.path.includes('/admin/');
+      if (!isAdmin) {
+        const { googleDriveUrl, ...safeProd } = prod;
+        return res.json(safeProd);
+      }
+      return res.json(prod);
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  };
+
+  app.get('/api/digital-products/:id', handleGetSingleDigitalProd);
+  app.get('/api/admin/digital-products/:id', handleGetSingleDigitalProd);
 
   // Admin Registered Customer Accounts Directory & Deletion Endpoints
   app.get('/api/admin/customers', async (_req: Request, res: Response) => {
@@ -1476,53 +1539,6 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
-  // Create Digital Product
-  app.post('/api/admin/digital-products', (req: Request, res: Response) => {
-    try {
-      const prodData = req.body || {};
-      const newDigitalProduct: Product = {
-        id: prodData.id || `prod_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        name: prodData.name || 'Untitled Digital Product',
-        slug: prodData.slug || (prodData.name ? prodData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'untitled-digital-product'),
-        productType: 'DIGITAL',
-        category: prodData.category || 'Software',
-        tags: Array.isArray(prodData.tags) ? prodData.tags : ['Software', 'Digital Key'],
-        shortDescription: prodData.shortDescription || '',
-        fullDescription: prodData.fullDescription || '',
-        image: prodData.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
-        price: Number(prodData.price) || 499,
-        originalPrice: Number(prodData.originalPrice) || Number(prodData.price) || 999,
-        discountPercent: Number(prodData.discountPercent) || 0,
-        licenseType: prodData.licenseType || 'Lifetime License',
-        version: prodData.version || 'v2026.1',
-        downloadSize: prodData.downloadSize || '50 MB',
-        compatibility: Array.isArray(prodData.compatibility) ? prodData.compatibility : ['Windows 11', 'Windows 10'],
-        features: Array.isArray(prodData.features) ? prodData.features : ['Instant Access Key', 'Official Setup'],
-        screenshots: Array.isArray(prodData.screenshots) ? prodData.screenshots : [],
-        requirements: Array.isArray(prodData.requirements) ? prodData.requirements : ['Windows 10/11'],
-        versionHistory: Array.isArray(prodData.versionHistory) ? prodData.versionHistory : [],
-        fileUrl: prodData.fileUrl || '/api/downloads/setup',
-        instantKeyAvailable: Boolean(prodData.instantKeyAvailable ?? true),
-        rating: Number(prodData.rating) || 4.9,
-        reviewCount: Number(prodData.reviewCount) || 1,
-        salesCount: Number(prodData.salesCount) || 0,
-        isBestSeller: Boolean(prodData.isBestSeller),
-        status: prodData.status || 'PUBLISHED',
-        createdAt: new Date().toISOString()
-      };
-
-      dynamicProductsStore.unshift(newDigitalProduct);
-      currentCatalogVersion = Date.now();
-      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
-      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
-      autoPublishToGitHub('Create digital product: ' + newDigitalProduct.name);
-
-      res.json({ success: true, product: newDigitalProduct, version: currentCatalogVersion });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
   // Edit Store Product
   app.put('/api/admin/store-products/:id', (req: Request, res: Response) => {
     try {
@@ -1540,30 +1556,6 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
       fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
       autoPublishToGitHub('Edit store product: ' + dynamicProductsStore[idx].name);
-
-      res.json({ success: true, product: dynamicProductsStore[idx], version: currentCatalogVersion });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // Edit Digital Product
-  app.put('/api/admin/digital-products/:id', (req: Request, res: Response) => {
-    try {
-      const idx = dynamicProductsStore.findIndex(p => p.id === req.params.id);
-      if (idx === -1) return res.status(404).json({ error: 'Digital product not found' });
-
-      dynamicProductsStore[idx] = {
-        ...dynamicProductsStore[idx],
-        ...req.body,
-        productType: 'DIGITAL',
-        updatedAt: new Date().toISOString()
-      };
-
-      currentCatalogVersion = Date.now();
-      const filePath = path.join(process.cwd(), 'src', 'data', 'products.json');
-      fs.writeFileSync(filePath, JSON.stringify(dynamicProductsStore, null, 2));
-      autoPublishToGitHub('Edit digital product: ' + dynamicProductsStore[idx].name);
 
       res.json({ success: true, product: dynamicProductsStore[idx], version: currentCatalogVersion });
     } catch (err: any) {
