@@ -50,9 +50,11 @@ export interface Product {
   slug: string;
   productType: ProductType;
   category: ProductCategory;
+  categoryId?: string;
   subCategory?: string;
   shortDescription: string;
   fullDescription: string;
+  description?: string;
   price: number;
   originalPrice: number;
   discountPercent: number;

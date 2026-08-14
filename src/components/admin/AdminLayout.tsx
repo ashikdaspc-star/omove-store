@@ -4,6 +4,7 @@ import { AdminSidebar, AdminTab } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminGlobalSearchModal } from './AdminGlobalSearchModal';
 import { ProductEditorModal } from './modals/ProductEditorModal';
+import { DigitalProductEditorModal } from './modals/DigitalProductEditorModal';
 
 import { AdminDashboardView } from './views/AdminDashboardView';
 import { AdminStoreProductsView } from './views/AdminStoreProductsView';
@@ -160,28 +161,31 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       name: productData.name || (isDigital ? 'New Digital Product' : 'New Store Product'),
       slug: productData.slug || (productData.name ? productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `product-${Date.now()}`),
       productType: isDigital ? 'DIGITAL' : 'STORE',
-      category: productData.category || (isDigital ? 'Digital Software' : 'Software'),
-      tags: productData.tags || (isDigital ? ['Digital Key', 'Instant Download'] : ['Store Card', 'Software']),
-      shortDescription: productData.shortDescription || 'High performance digital software solution.',
-      fullDescription: productData.fullDescription || productData.shortDescription || 'Full digital product package.',
+      category: (productData.category || (isDigital ? 'Digital Software' : 'Software')) as any,
+      categoryId: (productData as any).categoryId,
+      tags: productData.tags || (isDigital ? ['Digital Product'] : ['Store Card', 'Software']),
+      shortDescription: productData.shortDescription || 'High performance digital solution.',
+      fullDescription: productData.fullDescription || productData.description || productData.shortDescription || 'Full digital product package.',
+      description: productData.description || productData.fullDescription || productData.shortDescription || 'Full digital product package.',
       image: productData.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
-      price: Number(productData.price) || 499,
-      originalPrice: Number(productData.originalPrice) || 999,
-      discountPercent: Number(productData.discountPercent) || 50,
-      licenseType: productData.licenseType || (isDigital ? 'Instant Digital Key' : 'Lifetime License'),
-      version: productData.version || 'v2026.1',
-      downloadSize: productData.downloadSize || '50 MB',
+      price: productData.price !== undefined ? Number(productData.price) : 499,
+      originalPrice: productData.originalPrice !== undefined ? Number(productData.originalPrice) : 999,
+      discountPercent: productData.discountPercent !== undefined ? Number(productData.discountPercent) : 0,
+      licenseType: (productData.licenseType || (isDigital ? 'Instant Digital Key' : 'Lifetime License')) as any,
+      version: productData.version || 'v1.0',
+      downloadSize: productData.downloadSize || 'Instant Access',
       compatibility: productData.compatibility || ['Windows 11', 'Windows 10'],
-      features: productData.features || ['Instant Product Access Key', 'Official Setup Package'],
+      features: productData.features || ['Instant Product Access', 'Official Download Package'],
       instantKeyAvailable: productData.instantKeyAvailable ?? true,
       isBestSeller: productData.isBestSeller ?? false,
       status: productData.status || 'PUBLISHED',
-      rating: productData.rating || 4.9,
+      rating: productData.rating || 5.0,
       reviewCount: productData.reviewCount || 1,
       screenshots: productData.screenshots || [],
       requirements: productData.requirements || ['Windows 10/11'],
       versionHistory: productData.versionHistory || [],
-      fileUrl: productData.fileUrl || '/api/downloads/setup',
+      fileUrl: productData.fileUrl || productData.googleDriveUrl || '/api/downloads/digital',
+      googleDriveUrl: productData.googleDriveUrl || (productData as any).fileUrl || '',
       salesCount: productData.salesCount || 0,
       createdAt: productData.createdAt || new Date().toISOString()
     };
@@ -348,13 +352,25 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       </div>
 
       {/* Product Wizard Modal */}
-      <ProductEditorModal
-        isOpen={showProductModal}
-        product={editingProduct}
-        targetProductType={targetProductType}
-        onClose={() => setShowProductModal(false)}
-        onSave={handleSaveProduct}
-      />
+      {showProductModal && (
+        targetProductType === 'DIGITAL' ? (
+          <DigitalProductEditorModal
+            isOpen={showProductModal}
+            product={editingProduct}
+            categories={digitalCategories}
+            onClose={() => setShowProductModal(false)}
+            onSave={handleSaveProduct}
+          />
+        ) : (
+          <ProductEditorModal
+            isOpen={showProductModal}
+            product={editingProduct}
+            targetProductType={targetProductType}
+            onClose={() => setShowProductModal(false)}
+            onSave={handleSaveProduct}
+          />
+        )
+      )}
 
       {/* Global Search Modal */}
       <AdminGlobalSearchModal
