@@ -1075,6 +1075,53 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     });
   });
 
+  // Dashboard stats endpoint for dev server
+  app.get('/api/admin/dashboard-stats', (_req: Request, res: Response) => {
+    try {
+      const storeFile = path.join(process.cwd(), 'src', 'data', 'products.json');
+      const digFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      let storeList: any[] = [];
+      let digList: any[] = [];
+
+      if (fs.existsSync(storeFile)) {
+        try { storeList = JSON.parse(fs.readFileSync(storeFile, 'utf-8')); } catch (e) {}
+      }
+      if (fs.existsSync(digFile)) {
+        try { digList = JSON.parse(fs.readFileSync(digFile, 'utf-8')); } catch (e) {}
+      }
+
+      const publishedDigital = (Array.isArray(digList) ? digList : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
+      const publishedStore = (Array.isArray(storeList) ? storeList : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
+
+      const allOrders = Array.from(ordersStore.values());
+      const paidOrders = allOrders.filter((o: any) => o && (o.paymentStatus === 'SUCCESS' || o.status === 'completed'));
+      const pendingOrders = allOrders.filter((o: any) => o && (o.paymentStatus !== 'SUCCESS' && o.status !== 'completed'));
+      const totalRevenue = paidOrders.reduce((sum: number, o: any) => sum + Number(o?.total || o?.totalAmount || 0), 0);
+
+      let usersCount = 1;
+      const userFile = path.join(process.cwd(), 'src', 'data', 'users.json');
+      if (fs.existsSync(userFile)) {
+        try { const uList = JSON.parse(fs.readFileSync(userFile, 'utf-8')); if (Array.isArray(uList)) usersCount = uList.length; } catch (e) {}
+      }
+
+      return res.json({
+        success: true,
+        stats: {
+          customers: Math.max(usersCount, 1),
+          totalOrders: allOrders.length,
+          paidOrders: paidOrders.length,
+          totalRevenue,
+          pendingVerification: pendingOrders.length,
+          digitalProducts: publishedDigital.length,
+          storeProducts: publishedStore.length,
+          remoteSupport: 0
+        }
+      });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   // Consolidated Server-Side Production Publish Endpoint (Direct GitHub REST API 1 commit on main branch)
   const handlePublishRequest = async (req: Request, res: Response) => {
     try {

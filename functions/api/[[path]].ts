@@ -1364,6 +1364,38 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     // ----------------------------------------------------
+    // DASHBOARD STATS ENDPOINT (/api/admin/dashboard-stats)
+    // ----------------------------------------------------
+    if (path === '/api/admin/dashboard-stats') {
+      const digitalList = await getWorkingData('src/data/digital_products.json', env);
+      const storeList = await getWorkingData('src/data/products.json', env);
+      const orders = await getD1Orders(env);
+      const bookings = await getD1Bookings(env);
+      const users = await getD1Users(env);
+
+      const publishedDigital = (Array.isArray(digitalList) ? digitalList : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
+      const publishedStore = (Array.isArray(storeList) ? storeList : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
+
+      const paidOrders = (orders || []).filter((o: any) => o && (o.paymentStatus === 'SUCCESS' || o.status === 'completed'));
+      const pendingOrders = (orders || []).filter((o: any) => o && (o.paymentStatus !== 'SUCCESS' && o.status !== 'completed'));
+      const totalRevenue = paidOrders.reduce((sum: number, o: any) => sum + Number(o?.total || o?.totalAmount || 0), 0);
+
+      return jsonResponse({
+        success: true,
+        stats: {
+          customers: Math.max(users.length, 1),
+          totalOrders: orders.length,
+          paidOrders: paidOrders.length,
+          totalRevenue,
+          pendingVerification: pendingOrders.length,
+          digitalProducts: publishedDigital.length,
+          storeProducts: publishedStore.length,
+          remoteSupport: bookings.length
+        }
+      });
+    }
+
+    // ----------------------------------------------------
     // DIGITAL CATEGORIES API (/api/digital-categories)
     // ----------------------------------------------------
     if (path.startsWith('/api/digital-categories') || path.startsWith('/api/admin/digital-categories')) {

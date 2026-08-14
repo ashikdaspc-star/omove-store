@@ -33,17 +33,42 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onOpenAddProductModal
 }) => {
   const [liveStats, setLiveStats] = React.useState<any>(null);
+  const [directDigitalProducts, setDirectDigitalProducts] = React.useState<any[]>([]);
+  const [directStoreProducts, setDirectStoreProducts] = React.useState<any[]>([]);
 
   const fetchLiveStats = React.useCallback(async () => {
     try {
-      const res = await fetch(`/api/admin/dashboard-stats?t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.stats) {
+      const [resStats, resDig, resStore] = await Promise.all([
+        fetch(`/api/admin/dashboard-stats?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+        }).catch(() => null),
+        fetch(`/api/admin/digital-products?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+        }).catch(() => null),
+        fetch(`/api/admin/store-products?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+        }).catch(() => null)
+      ]);
+
+      if (resStats && resStats.ok) {
+        const data = await resStats.json().catch(() => null);
+        if (data && data.success && data.stats) {
           setLiveStats(data.stats);
+        }
+      }
+      if (resDig && resDig.ok) {
+        const digData = await resDig.json().catch(() => null);
+        if (Array.isArray(digData)) {
+          setDirectDigitalProducts(digData.filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED'));
+        }
+      }
+      if (resStore && resStore.ok) {
+        const storeData = await resStore.json().catch(() => null);
+        if (Array.isArray(storeData)) {
+          setDirectStoreProducts(storeData.filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED'));
         }
       }
     } catch (e) {
@@ -61,15 +86,17 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const pendingOrders = (orders || []).filter((o) => o && (o.paymentStatus !== 'SUCCESS' && o.status !== 'completed'));
 
   const calcRevenue = paidOrders.reduce((sum, o) => sum + (o?.total || o?.totalAmount || 0), 0);
-  const digitalProductsCount = (products || []).filter((p) => p && (p.productType === 'DIGITAL' || (!p.productType && !p.tags?.includes('Store Card')))).length;
-  const storeProductsCount = (products || []).filter((p) => p && (p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card')))).length;
+
+  // Separate Digital vs Store Product counts robustly
+  const fallbackDigitalCount = (products || []).filter((p) => p && (p.productType === 'DIGITAL' || p.id?.startsWith('dig') || p.category === 'Digital Products')).length;
+  const fallbackStoreCount = (products || []).filter((p) => p && (p.productType === 'STORE' || p.tags?.includes('Store Card') || (!p.productType && !p.id?.startsWith('dig')))).length;
 
   const displayCustomers = liveStats?.customers ?? registeredUsersCount;
   const displayTotalOrders = liveStats?.totalOrders ?? (orders || []).length;
   const displayTotalRevenue = liveStats?.totalRevenue ?? calcRevenue;
   const displayPaidOrders = liveStats?.paidOrders ?? paidOrders.length;
-  const displayDigitalCatalog = liveStats?.digitalProducts ?? digitalProductsCount;
-  const displayStoreProducts = liveStats?.storeProducts ?? storeProductsCount;
+  const displayDigitalCatalog = liveStats?.digitalProducts ?? (directDigitalProducts.length > 0 ? directDigitalProducts.length : fallbackDigitalCount);
+  const displayStoreProducts = liveStats?.storeProducts ?? (directStoreProducts.length > 0 ? directStoreProducts.length : fallbackStoreCount);
   const displayRemoteSupport = liveStats?.remoteSupport ?? (bookings || []).length;
   const displayPendingVerification = liveStats?.pendingVerification ?? pendingOrders.length;
 
