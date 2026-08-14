@@ -107,9 +107,14 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
 
 
   const handleTriggerDownload = (productId: string, productName: string, fileUrl?: string, orderId?: string) => {
-    const targetUrl = fileUrl;
+    let targetUrl = fileUrl;
+    if (!targetUrl || targetUrl.trim() === '' || targetUrl === '#' || targetUrl === '/api/downloads/setup') {
+      if (orderId) {
+        targetUrl = `/api/downloads/setup?orderId=${encodeURIComponent(orderId)}&productId=${encodeURIComponent(productId)}`;
+      }
+    }
     if (!targetUrl || targetUrl.trim() === '' || targetUrl === '#') {
-      alert(`Google Drive download link for ${productName} is currently being prepared. Please check back under My Orders or contact support.`);
+      alert(`Download package link for ${productName} is currently being prepared. Please check back under My Orders or contact support.`);
       return;
     }
     window.open(targetUrl, '_blank', 'noopener,noreferrer');

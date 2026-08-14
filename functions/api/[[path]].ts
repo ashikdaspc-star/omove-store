@@ -1287,13 +1287,131 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const path = url.pathname;
   const method = request.method.toUpperCase();
 
-  // SECURITY BLOCK: Direct access to /api/downloads without verified purchase entitlement is DENIED.
+  // ----------------------------------------------------
+  // SECURE DIGITAL DOWNLOAD AUTHORIZATION ENDPOINT (/api/downloads/setup or /api/downloads/digital or /api/downloads/:orderId/:productId)
+  // ----------------------------------------------------
   if (path.startsWith('/api/downloads')) {
-    return jsonResponse({
-      success: false,
-      error: 'ACCESS_DENIED',
-      message: 'Verified purchase required. Direct access to digital download files is restricted.'
-    }, 403);
+    const orderIdParam = url.searchParams.get('orderId') || url.searchParams.get('orderNumber') || url.searchParams.get('order') || '';
+    const productIdParam = url.searchParams.get('productId') || url.searchParams.get('product') || '';
+
+    // Route segment matching: e.g. /api/downloads/:orderId/:productId
+    const pathParts = path.split('/').filter(Boolean);
+    const routeOrderId = pathParts.length >= 3 && pathParts[1] !== 'setup' && pathParts[1] !== 'digital' ? pathParts[1] : '';
+    const routeProdId = pathParts.length >= 4 ? pathParts[2] : '';
+
+    const targetOrderId = (orderIdParam || routeOrderId).trim();
+    const targetProdId = (productIdParam || routeProdId).trim();
+
+    // 1. Enforce verified order requirement: Unauthenticated/arbitrary requests without orderId are denied.
+    if (!targetOrderId) {
+      return jsonResponse({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'Verified purchase required. Direct access to digital download files is restricted.'
+      }, 403);
+    }
+
+    // 2. Query D1 for order
+    const d1Orders = await getD1Orders(env);
+    const matchedOrder = (d1Orders || []).find((o: any) =>
+      o && (
+        o.id === targetOrderId ||
+        o.orderNumber === targetOrderId ||
+        o.razorpayOrderId === targetOrderId ||
+        (o.id && o.id.toLowerCase() === targetOrderId.toLowerCase()) ||
+        (o.orderNumber && o.orderNumber.toLowerCase() === targetOrderId.toLowerCase())
+      )
+    );
+
+    if (!matchedOrder) {
+      return jsonResponse({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'Order record not found or invalid. Download authorization denied.'
+      }, 403);
+    }
+
+    // 3. Verify Payment Status: Must be SUCCESS or completed
+    const isPaid = matchedOrder.paymentStatus === 'SUCCESS' || matchedOrder.status === 'completed';
+    if (!isPaid) {
+      return jsonResponse({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'Payment verification incomplete or payment failed. Download access is restricted.'
+      }, 403);
+    }
+
+    // 4. Verify Product belongs to this verified order
+    const orderItems: any[] = Array.isArray(matchedOrder.items) ? matchedOrder.items : [];
+    let matchedItem = orderItems.find((it: any) =>
+      !targetProdId ||
+      it.productId === targetProdId ||
+      (it.productId && targetProdId && it.productId.toLowerCase() === targetProdId.toLowerCase()) ||
+      (it.productName && targetProdId && it.productName.toLowerCase().includes(targetProdId.toLowerCase()))
+    );
+
+    if (!matchedItem && orderItems.length > 0) {
+      if (!targetProdId) {
+        matchedItem = orderItems[0];
+      } else {
+        return jsonResponse({
+          success: false,
+          error: 'ACCESS_DENIED',
+          message: 'Requested product was not purchased in this verified order.'
+        }, 403);
+      }
+    }
+
+    if (!matchedItem) {
+      return jsonResponse({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'No digital items found in this verified order.'
+      }, 403);
+    }
+
+    // 5. Lookup authoritative Google Drive download link from order item or catalog
+    let downloadUrl = matchedItem.googleDriveUrl || matchedItem.fileUrl || '';
+    if (!downloadUrl || downloadUrl === '/api/downloads/setup' || downloadUrl === '/api/downloads/digital' || !downloadUrl.startsWith('http')) {
+      const digitalList = await getWorkingData('src/data/digital_products.json', env);
+      const storeList = await getWorkingData('src/data/products.json', env);
+      const allProds = [...(Array.isArray(digitalList) ? digitalList : []), ...(Array.isArray(storeList) ? storeList : [])];
+
+      const catalogProd = allProds.find((p: any) =>
+        p && (
+          p.id === matchedItem.productId ||
+          p.slug === matchedItem.productId ||
+          (p.name && matchedItem.productName && p.name.toLowerCase() === matchedItem.productName.toLowerCase())
+        )
+      );
+
+      if (catalogProd && (catalogProd.googleDriveUrl || catalogProd.fileUrl)) {
+        downloadUrl = catalogProd.googleDriveUrl || catalogProd.fileUrl;
+      }
+    }
+
+    if (!downloadUrl || !downloadUrl.startsWith('http')) {
+      return jsonResponse({
+        success: false,
+        error: 'DOWNLOAD_UNAVAILABLE',
+        message: 'Download package link is being prepared for this item. Please contact support.'
+      }, 404);
+    }
+
+    // 6. Return response: 302 Redirect for direct downloads, or JSON if format=json is requested
+    const acceptHeader = request.headers.get('Accept') || '';
+    if (url.searchParams.get('format') === 'json' || (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html'))) {
+      return jsonResponse({
+        success: true,
+        authorized: true,
+        orderId: matchedOrder.id,
+        orderNumber: matchedOrder.orderNumber,
+        productName: matchedItem.productName,
+        downloadUrl: downloadUrl
+      });
+    }
+
+    return Response.redirect(downloadUrl, 302);
   }
 
   let rawPath = path.replace(/\/$/, '') || '/';
@@ -2064,26 +2182,37 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const body: any = await request.json().catch(() => ({}));
       const orderId = body.id || `ord-${Date.now()}`;
 
-      const freshProds = await fetchFileFromGitHub('src/data/products.json', env);
-      if (Array.isArray(freshProds) && freshProds.length > 0) dynamicProductsStore = freshProds;
+      const storeProds = await getWorkingData('src/data/products.json', env);
+      const digProds = await getWorkingData('src/data/digital_products.json', env);
+      const allProds = [...(Array.isArray(storeProds) ? storeProds : []), ...(Array.isArray(digProds) ? digProds : [])];
 
       let subtotal = 0;
       const resolvedItems: any[] = [];
 
       if (Array.isArray(body.items)) {
         for (const item of body.items) {
-          const product = dynamicProductsStore.find((p: any) => p.id === item.productId);
+          const product = allProds.find((p: any) =>
+            p && (
+              p.id === item.productId ||
+              p.slug === item.productId ||
+              (p.name && item.productName && p.name.toLowerCase() === item.productName.toLowerCase())
+            )
+          );
           const price = product ? Number(product.price) : Number(item.price || 0);
           const qty = Number(item.quantity) || 1;
           subtotal += price * qty;
+
+          const resolvedDriveUrl = product ? (product.googleDriveUrl || product.fileUrl || '') : (item.googleDriveUrl || item.fileUrl || '');
+          const downloadEndpoint = `/api/downloads/setup?orderId=${encodeURIComponent(orderId)}&productId=${encodeURIComponent(item.productId || product?.id || '')}`;
+
           resolvedItems.push({
-            productId: item.productId,
+            productId: item.productId || product?.id || `prod-${Date.now()}`,
             productName: product ? product.name : (item.productName || 'Product'),
             price: price,
             quantity: qty,
-            fileSize: product ? (product.downloadSize || '45 MB') : (item.fileSize || '45 MB'),
-            googleDriveUrl: product ? (product.googleDriveUrl || product.fileUrl || '') : (item.googleDriveUrl || item.fileUrl || ''),
-            fileUrl: product ? (product.googleDriveUrl || product.fileUrl || '/api/downloads/setup') : (item.googleDriveUrl || item.fileUrl || '/api/downloads/setup'),
+            fileSize: product ? (product.downloadSize || 'Instant Access') : (item.fileSize || 'Instant Access'),
+            googleDriveUrl: resolvedDriveUrl,
+            fileUrl: downloadEndpoint,
             licenseKey: '',
             downloadLimit: 5,
             downloadsCount: 0
@@ -2095,7 +2224,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       let appliedCouponCode = '';
       const couponCode = (body.couponCode || '').trim().toUpperCase();
       if (couponCode) {
-        const freshCoupons = await fetchFileFromGitHub('src/data/coupons.json', env);
+        const freshCoupons = await getWorkingData('src/data/coupons.json', env);
         if (Array.isArray(freshCoupons) && freshCoupons.length > 0) dynamicCouponsStore = freshCoupons;
 
         const couponResult = validateCouponServerSide(couponCode, subtotal, dynamicCouponsStore);
@@ -2255,14 +2384,30 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       order.paymentVerifiedAt = new Date().toISOString();
       order.updatedAt = new Date().toISOString();
 
+      const storeList = await getWorkingData('src/data/products.json', env);
+      const digitalList = await getWorkingData('src/data/digital_products.json', env);
+      const allProdsList = [...(Array.isArray(storeList) ? storeList : []), ...(Array.isArray(digitalList) ? digitalList : [])];
+
       if (Array.isArray(order.items)) {
-        order.items = order.items.map((it: any) => ({
-          ...it,
-          licenseKey: it.licenseKey || generateLicenseKey(),
-          downloadLimit: it.downloadLimit || 5,
-          googleDriveUrl: it.googleDriveUrl || it.fileUrl || '',
-          fileUrl: it.googleDriveUrl || it.fileUrl || '/api/downloads/setup'
-        }));
+        order.items = order.items.map((it: any) => {
+          const product = allProdsList.find((p: any) =>
+            p && (
+              p.id === it.productId ||
+              p.slug === it.productId ||
+              (p.name && it.productName && p.name.toLowerCase() === it.productName.toLowerCase())
+            )
+          );
+          const resolvedDriveUrl = product ? (product.googleDriveUrl || product.fileUrl || '') : (it.googleDriveUrl || it.fileUrl || '');
+          const downloadEndpoint = `/api/downloads/setup?orderId=${encodeURIComponent(order.id || order.orderNumber)}&productId=${encodeURIComponent(it.productId || product?.id || '')}`;
+
+          return {
+            ...it,
+            licenseKey: it.licenseKey || generateLicenseKey(),
+            downloadLimit: it.downloadLimit || 5,
+            googleDriveUrl: resolvedDriveUrl,
+            fileUrl: downloadEndpoint
+          };
+        });
       }
 
       await saveD1Order(env, order);

@@ -1939,6 +1939,122 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     res.json(list);
   });
 
+  // Secure Digital Download Authorization Endpoint
+  app.get(['/api/downloads/setup', '/api/downloads/digital', '/api/downloads/:orderId/:productId', '/api/downloads/:orderId'], (req: Request, res: Response) => {
+    const orderIdParam = (req.query.orderId || req.query.orderNumber || req.query.order || req.params.orderId || '') as string;
+    const productIdParam = (req.query.productId || req.query.product || req.params.productId || '') as string;
+
+    const targetOrderId = orderIdParam.trim();
+    const targetProdId = productIdParam.trim();
+
+    if (!targetOrderId) {
+      return res.status(403).json({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'Verified purchase required. Direct access to digital download files is restricted.'
+      });
+    }
+
+    const allOrders = Array.from(ordersStore.values());
+    const matchedOrder = allOrders.find(o =>
+      o.id === targetOrderId ||
+      o.orderNumber === targetOrderId ||
+      (o.id && o.id.toLowerCase() === targetOrderId.toLowerCase()) ||
+      (o.orderNumber && o.orderNumber.toLowerCase() === targetOrderId.toLowerCase())
+    );
+
+    if (!matchedOrder) {
+      return res.status(403).json({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'Order record not found or invalid. Download authorization denied.'
+      });
+    }
+
+    const isPaid = matchedOrder.paymentStatus === 'SUCCESS' || matchedOrder.status === 'completed';
+    if (!isPaid) {
+      return res.status(403).json({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'Payment verification incomplete or payment failed. Download access is restricted.'
+      });
+    }
+
+    const orderItems = Array.isArray(matchedOrder.items) ? matchedOrder.items : [];
+    let matchedItem = orderItems.find((it: any) =>
+      !targetProdId ||
+      it.productId === targetProdId ||
+      (it.productId && targetProdId && it.productId.toLowerCase() === targetProdId.toLowerCase()) ||
+      (it.productName && targetProdId && it.productName.toLowerCase().includes(targetProdId.toLowerCase()))
+    );
+
+    if (!matchedItem && orderItems.length > 0) {
+      if (!targetProdId) {
+        matchedItem = orderItems[0];
+      } else {
+        return res.status(403).json({
+          success: false,
+          error: 'ACCESS_DENIED',
+          message: 'Requested product was not purchased in this verified order.'
+        });
+      }
+    }
+
+    if (!matchedItem) {
+      return res.status(403).json({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'No digital items found in this verified order.'
+      });
+    }
+
+    let downloadUrl = matchedItem.googleDriveUrl || matchedItem.fileUrl || '';
+    if (!downloadUrl || downloadUrl === '/api/downloads/setup' || downloadUrl === '/api/downloads/digital' || !downloadUrl.startsWith('http')) {
+      const digFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      const storeFile = path.join(process.cwd(), 'src', 'data', 'products.json');
+      let allCatalog: any[] = [];
+      if (fs.existsSync(digFile)) {
+        try { allCatalog = allCatalog.concat(JSON.parse(fs.readFileSync(digFile, 'utf-8'))); } catch (e) {}
+      }
+      if (fs.existsSync(storeFile)) {
+        try { allCatalog = allCatalog.concat(JSON.parse(fs.readFileSync(storeFile, 'utf-8'))); } catch (e) {}
+      }
+
+      const catalogProd = allCatalog.find((p: any) =>
+        p && (
+          p.id === matchedItem.productId ||
+          p.slug === matchedItem.productId ||
+          (p.name && matchedItem.productName && p.name.toLowerCase() === matchedItem.productName.toLowerCase())
+        )
+      );
+
+      if (catalogProd && (catalogProd.googleDriveUrl || catalogProd.fileUrl)) {
+        downloadUrl = catalogProd.googleDriveUrl || catalogProd.fileUrl;
+      }
+    }
+
+    if (!downloadUrl || !downloadUrl.startsWith('http')) {
+      return res.status(404).json({
+        success: false,
+        error: 'DOWNLOAD_UNAVAILABLE',
+        message: 'Download package link is being prepared for this item. Please contact support.'
+      });
+    }
+
+    if (req.query.format === 'json') {
+      return res.json({
+        success: true,
+        authorized: true,
+        orderId: matchedOrder.id,
+        orderNumber: matchedOrder.orderNumber,
+        productName: matchedItem.productName,
+        downloadUrl: downloadUrl
+      });
+    }
+
+    return res.redirect(downloadUrl);
+  });
+
   app.get('/api/admin/orders', (_req: Request, res: Response) => {
     const list = Array.from(ordersStore.values());
     res.json(list);

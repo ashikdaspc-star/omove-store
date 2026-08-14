@@ -63,10 +63,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     navigate('/my-account?tab=orders');
   };
 
-  const handleTriggerDownload = (googleDriveUrl?: string, fileUrl?: string, productName?: string) => {
-    const targetUrl = googleDriveUrl || fileUrl;
+  const handleTriggerDownload = (googleDriveUrl?: string, fileUrl?: string, productName?: string, productId?: string) => {
+    let targetUrl = googleDriveUrl || fileUrl;
+    if (!targetUrl || targetUrl.trim() === '' || targetUrl === '#' || targetUrl === '/api/downloads/setup') {
+      if (createdOrder) {
+        targetUrl = `/api/downloads/setup?orderId=${encodeURIComponent(createdOrder.id || createdOrder.orderNumber)}&productId=${encodeURIComponent(productId || '')}`;
+      }
+    }
     if (!targetUrl || targetUrl.trim() === '' || targetUrl === '#') {
-      alert(`Google Drive download link for ${productName || 'this product'} is currently being prepared. Please check back under My Orders or contact support.`);
+      alert(`Download package link for ${productName || 'this product'} is currently being prepared. Please check back under My Orders or contact support.`);
       return;
     }
     window.open(targetUrl, '_blank', 'noopener,noreferrer');
@@ -418,7 +423,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     {hasDownloadLink ? (
                       <button
                         type="button"
-                        onClick={() => handleTriggerDownload(item.googleDriveUrl, item.fileUrl, item.productName)}
+                        onClick={() => handleTriggerDownload(item.googleDriveUrl, item.fileUrl, item.productName, item.productId)}
                         className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-emerald-600/20 shrink-0"
                       >
                         <Download className="w-3.5 h-3.5" />
