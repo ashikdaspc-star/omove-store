@@ -1322,19 +1322,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const freshOrders = await getD1Orders(env);
       const freshUsers = await getD1Users(env);
       const freshBookings = await getD1Bookings(env);
-      const freshProducts = dynamicProductsStore;
+      const storeProducts = await getWorkingData('src/data/products.json', env);
+      const digitalProducts = await getWorkingData('src/data/digital_products.json', env);
 
-      const paidOrdersList = freshOrders.filter((o: any) => o.paymentStatus === 'SUCCESS' || o.status === 'completed');
+      const publishedDigital = (Array.isArray(digitalProducts) ? digitalProducts : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
+      const publishedStore = (Array.isArray(storeProducts) ? storeProducts : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
+
+      const paidOrdersList = (freshOrders || []).filter((o: any) => o.paymentStatus === 'SUCCESS' || o.status === 'completed');
       const totalRevenue = paidOrdersList.reduce((sum: number, o: any) => sum + (Number(o.total || o.totalAmount || 0) || 0), 0);
 
       const stats = {
-        customers: freshUsers.length,
+        customers: Math.max(freshUsers.length, 1),
         totalOrders: freshOrders.length,
         totalRevenue: totalRevenue,
         paidOrders: paidOrdersList.length,
         pendingVerification: freshOrders.length - paidOrdersList.length,
-        digitalProducts: freshProducts.filter((p: any) => p.productType === 'DIGITAL').length,
-        storeProducts: freshProducts.filter((p: any) => p.productType === 'STORE' || p.tags?.includes('Store Card')).length,
+        digitalProducts: publishedDigital.length,
+        storeProducts: publishedStore.length,
         remoteSupport: freshBookings.length
       };
 
@@ -1342,10 +1346,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         success: true,
         stats,
         orders: freshOrders,
-        customersCount: freshUsers.length,
+        customersCount: Math.max(freshUsers.length, 1),
         totalRevenue,
         totalOrders: freshOrders.length,
-        totalProducts: freshProducts.length
+        totalProducts: publishedDigital.length + publishedStore.length
       });
     }
 
@@ -1360,38 +1364,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         pendingCount: draftStore.pendingFiles.size,
         modifiedCount: draftStore.modifiedCount,
         lastModifiedAt: draftStore.lastModifiedAt
-      });
-    }
-
-    // ----------------------------------------------------
-    // DASHBOARD STATS ENDPOINT (/api/admin/dashboard-stats)
-    // ----------------------------------------------------
-    if (path === '/api/admin/dashboard-stats') {
-      const digitalList = await getWorkingData('src/data/digital_products.json', env);
-      const storeList = await getWorkingData('src/data/products.json', env);
-      const orders = await getD1Orders(env);
-      const bookings = await getD1Bookings(env);
-      const users = await getD1Users(env);
-
-      const publishedDigital = (Array.isArray(digitalList) ? digitalList : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
-      const publishedStore = (Array.isArray(storeList) ? storeList : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
-
-      const paidOrders = (orders || []).filter((o: any) => o && (o.paymentStatus === 'SUCCESS' || o.status === 'completed'));
-      const pendingOrders = (orders || []).filter((o: any) => o && (o.paymentStatus !== 'SUCCESS' && o.status !== 'completed'));
-      const totalRevenue = paidOrders.reduce((sum: number, o: any) => sum + Number(o?.total || o?.totalAmount || 0), 0);
-
-      return jsonResponse({
-        success: true,
-        stats: {
-          customers: Math.max(users.length, 1),
-          totalOrders: orders.length,
-          paidOrders: paidOrders.length,
-          totalRevenue,
-          pendingVerification: pendingOrders.length,
-          digitalProducts: publishedDigital.length,
-          storeProducts: publishedStore.length,
-          remoteSupport: bookings.length
-        }
       });
     }
 

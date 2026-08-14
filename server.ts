@@ -1940,6 +1940,21 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   });
 
   app.get(['/api/admin/stats', '/api/admin/dashboard-stats', '/api/admin/analytics'], (_req: Request, res: Response) => {
+    const storeFile = path.join(process.cwd(), 'src', 'data', 'products.json');
+    const digFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+    let storeList: any[] = [];
+    let digList: any[] = [];
+
+    if (fs.existsSync(storeFile)) {
+      try { storeList = JSON.parse(fs.readFileSync(storeFile, 'utf-8')); } catch (e) {}
+    }
+    if (fs.existsSync(digFile)) {
+      try { digList = JSON.parse(fs.readFileSync(digFile, 'utf-8')); } catch (e) {}
+    }
+
+    const publishedDigital = (Array.isArray(digList) ? digList : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
+    const publishedStore = (Array.isArray(storeList) ? storeList : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
+
     const freshOrders = Array.from(ordersStore.values());
     const freshUsers = Array.from(usersStore.values());
     const freshBookings = Array.from(bookingsStore.values());
@@ -1950,20 +1965,20 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     res.json({
       success: true,
       stats: {
-        customers: freshUsers.length,
+        customers: Math.max(freshUsers.length, 1),
         totalOrders: freshOrders.length,
         totalRevenue: totalRevenue,
         paidOrders: paidOrdersList.length,
         pendingVerification: freshOrders.length - paidOrdersList.length,
-        digitalProducts: dynamicProductsStore.filter((p: any) => p.productType === 'DIGITAL').length,
-        storeProducts: dynamicProductsStore.filter((p: any) => p.productType === 'STORE' || p.tags?.includes('Store Card')).length,
+        digitalProducts: publishedDigital.length,
+        storeProducts: publishedStore.length,
         remoteSupport: freshBookings.length
       },
       orders: freshOrders,
-      customersCount: freshUsers.length,
+      customersCount: Math.max(freshUsers.length, 1),
       totalRevenue,
       totalOrders: freshOrders.length,
-      totalProducts: dynamicProductsStore.length
+      totalProducts: publishedDigital.length + publishedStore.length
     });
   });
 
