@@ -523,12 +523,17 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   };
 
   function recordDraftMutation(filePath: string, updatedData: any[]) {
-    draftStore.hasPendingChanges = true;
-    draftStore.pendingFiles.add(filePath);
-    draftStore.lastModifiedAt = new Date().toISOString();
-    draftStore.modifiedCount += 1;
     draftStore.workingData.set(filePath, updatedData);
-    console.log(`[DRAFT STORE] Recorded mutation for ${filePath}. Total pending files: ${draftStore.pendingFiles.size}`);
+    const isProductFile = filePath.includes('products.json') || filePath.includes('digital_products.json');
+    if (!isProductFile) {
+      draftStore.hasPendingChanges = true;
+      draftStore.pendingFiles.add(filePath);
+      draftStore.lastModifiedAt = new Date().toISOString();
+      draftStore.modifiedCount += 1;
+      console.log(`[DRAFT STORE] Recorded mutation for ${filePath}. Total pending files: ${draftStore.pendingFiles.size}`);
+    } else {
+      console.log(`[DRAFT STORE] Direct-to-D1/disk product mutation saved: ${filePath}`);
+    }
   }
 
   function clearDraftStore() {

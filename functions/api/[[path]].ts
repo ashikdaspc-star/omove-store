@@ -872,15 +872,22 @@ async function clearDraftStore(env?: Env) {
 }
 
 async function recordDraftMutation(filePath: string, updatedData: any[], env?: Env) {
-  draftStore.hasPendingChanges = true;
-  draftStore.pendingFiles.add(filePath);
-  draftStore.lastModifiedAt = new Date().toISOString();
-  draftStore.modifiedCount += 1;
+  // Always update in-memory cache and write immediately to Cloudflare D1
   draftStore.workingData.set(filePath, updatedData);
 
   if (env) {
     await saveDraftToD1(filePath, updatedData, env);
     console.log(`[D1_CATALOG_WRITE] filePath: ${filePath} | recordCount: ${updatedData.length} | timestamp: ${new Date().toISOString()}`);
+  }
+
+  // Only mark pending changes for non-product files (e.g. blogs, coupons, services)
+  // Product CRUD (Store & Digital Products) is direct-to-D1 and immediately live without requiring GitHub publish.
+  const isProductFile = filePath.includes('products.json') || filePath.includes('digital_products.json');
+  if (!isProductFile) {
+    draftStore.hasPendingChanges = true;
+    draftStore.pendingFiles.add(filePath);
+    draftStore.lastModifiedAt = new Date().toISOString();
+    draftStore.modifiedCount += 1;
   }
 }
 
@@ -1513,7 +1520,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
         await recordDraftMutation('src/data/digital_products.json', updatedList, env);
 
-        return jsonResponse({ success: true, product: newProd, isDraft: true, message: 'Saved to draft state.' });
+        return jsonResponse({ success: true, product: newProd, isLive: true, isDraft: false, message: 'Saved and live in D1 database.' });
       }
     }
 
@@ -1564,7 +1571,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
         await recordDraftMutation(fileToMutate, updatedList, env);
 
-        return jsonResponse({ success: true, product: newProd, isDraft: true, message: 'Saved product.' });
+        return jsonResponse({ success: true, product: newProd, isLive: true, isDraft: false, message: 'Saved and live in D1 database.' });
       }
     }
 
@@ -1672,7 +1679,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
         await recordDraftMutation(targetFile, newList, env);
 
-        return jsonResponse({ success: true, product: updatedProduct, isDraft: true, message: 'Updated product.' });
+        return jsonResponse({ success: true, product: updatedProduct, isLive: true, isDraft: false, message: 'Product updated live in D1 database.' });
       }
 
       if (method === 'DELETE') {
@@ -1720,8 +1727,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           deleted: actionTaken === 'DELETED',
           archived: actionTaken === 'ARCHIVED',
           product: targetProduct,
-          isDraft: true,
-          message: actionTaken === 'ARCHIVED' ? 'Archived in draft state.' : 'Deleted in draft state.'
+          isLive: true,
+          isDraft: false,
+          message: actionTaken === 'ARCHIVED' ? 'Archived live in D1 database.' : 'Deleted live from D1 database.'
         });
       }
     }
