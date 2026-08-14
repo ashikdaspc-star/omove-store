@@ -4,6 +4,7 @@ import { AdminSidebar, AdminTab } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminGlobalSearchModal } from './AdminGlobalSearchModal';
 import { ProductEditorModal } from './modals/ProductEditorModal';
+import { StoreProductEditorModal } from './modals/StoreProductEditorModal';
 import { DigitalProductEditorModal } from './modals/DigitalProductEditorModal';
 
 import { AdminDashboardView } from './views/AdminDashboardView';
@@ -362,10 +363,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             onSave={handleSaveProduct}
           />
         ) : (
-          <ProductEditorModal
+          <StoreProductEditorModal
             isOpen={showProductModal}
             product={editingProduct}
-            targetProductType={targetProductType}
             onClose={() => setShowProductModal(false)}
             onSave={handleSaveProduct}
           />

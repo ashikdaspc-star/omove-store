@@ -394,29 +394,75 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </p>
             </div>
 
-            {/* Downloads List Box */}
+            {/* Products & Delivery Box */}
             <div className="space-y-3">
               <h4 className="font-bold text-[11px] uppercase tracking-wider text-slate-400 font-mono">
-                Digital Products
+                Purchased Items & Next Steps
               </h4>
 
-              {createdOrder.items.map((item, idx) => (
-                <div key={idx} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
-                  <div className="min-w-0 pr-2">
-                    <h5 className="font-bold text-xs text-white truncate">{item.productName}</h5>
-                    <span className="text-[10px] text-slate-400 font-mono">Size: {item.fileSize}</span>
+              {createdOrder.items.map((item, idx) => {
+                const hasDownloadLink = Boolean(item.googleDriveUrl || item.fileUrl);
+                const itemWhatsappUrl = `https://wa.me/918345968169?text=${encodeURIComponent(
+                  `Hi, I have completed the payment for ${item.productName}. My Order ID is #${createdOrder.orderNumber || createdOrder.id}.`
+                )}`;
+
+                return (
+                  <div key={idx} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
+                    <div className="min-w-0 pr-2">
+                      <h5 className="font-bold text-xs text-white truncate">{item.productName}</h5>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {hasDownloadLink ? `Digital Download • Size: ${item.fileSize || 'Instant Access'}` : 'Store Product • WhatsApp Order'}
+                      </span>
+                    </div>
+
+                    {hasDownloadLink ? (
+                      <button
+                        type="button"
+                        onClick={() => handleTriggerDownload(item.googleDriveUrl, item.fileUrl, item.productName)}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-emerald-600/20 shrink-0"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download</span>
+                      </button>
+                    ) : (
+                      <a
+                        href={itemWhatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-emerald-600/20 shrink-0 transition-transform hover:scale-105"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 fill-white" />
+                        <span>Contact on WhatsApp</span>
+                      </a>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleTriggerDownload(item.googleDriveUrl, item.fileUrl, item.productName)}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-emerald-600/20 shrink-0"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download</span>
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            {/* General Post-Payment WhatsApp Contact Banner for Store Items */}
+            {createdOrder.items.some((i) => !i.googleDriveUrl && !i.fileUrl) && (
+              <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 space-y-2.5">
+                <div className="flex items-center gap-2 text-emerald-400 font-mono font-bold text-xs">
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Next Step: Connect on WhatsApp</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Your payment has been confirmed. Click below to contact Omove Store on WhatsApp with your Order ID (<strong className="text-cyan-400 font-mono">#{createdOrder.orderNumber || createdOrder.id}</strong>) for instant assistance.
+                </p>
+                <a
+                  href={`https://wa.me/918345968169?text=${encodeURIComponent(
+                    `Hi, I have completed the payment for ${createdOrder.items.map((i) => i.productName).join(', ')}. My Order ID is #${createdOrder.orderNumber || createdOrder.id}.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.01]"
+                >
+                  <MessageSquare className="w-4 h-4 fill-white" />
+                  <span>CONTACT ON WHATSAPP</span>
+                </a>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="pt-2 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">

@@ -157,27 +157,57 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
               {/* Specs Card */}
               <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-300">
-                  <span className="flex items-center gap-1 text-slate-400">
-                    <Download className="w-3.5 h-3.5 text-cyan-400" />
-                    File Size:
-                  </span>
-                  <span className="font-mono text-white">{product.downloadSize}</span>
-                </div>
-                <div className="flex justify-between text-slate-300">
-                  <span className="flex items-center gap-1 text-slate-400">
-                    <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                    Version:
-                  </span>
-                  <span className="font-mono text-white">{product.version}</span>
-                </div>
-                <div className="flex justify-between text-slate-300">
-                  <span className="flex items-center gap-1 text-slate-400">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    Security Check:
-                  </span>
-                  <span className="text-emerald-400 font-semibold">100% Virus-Free Verified</span>
-                </div>
+                {product.productType === 'STORE' ? (
+                  <>
+                    <div className="flex justify-between text-slate-300">
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                        Category:
+                      </span>
+                      <span className="font-mono text-white">{product.category}</span>
+                    </div>
+                    {product.licenseType && (
+                      <div className="flex justify-between text-slate-300">
+                        <span className="flex items-center gap-1 text-slate-400">
+                          <Check className="w-3.5 h-3.5 text-cyan-400" />
+                          Note / Warranty:
+                        </span>
+                        <span className="font-mono text-white">{product.licenseType}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-slate-300">
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        Service Support:
+                      </span>
+                      <span className="text-emerald-400 font-semibold">WhatsApp Assistance Included</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-slate-300">
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <Download className="w-3.5 h-3.5 text-cyan-400" />
+                        File Size:
+                      </span>
+                      <span className="font-mono text-white">{product.downloadSize || 'Instant Access'}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                        Version:
+                      </span>
+                      <span className="font-mono text-white">{product.version || 'v1.0'}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        Security Check:
+                      </span>
+                      <span className="text-emerald-400 font-semibold">100% Virus-Free Verified</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -191,28 +221,41 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   </div>
                   <span className="text-xs text-slate-500">({product.reviewCount} customer reviews)</span>
                   <span className="text-xs text-emerald-400 font-medium ml-auto flex items-center gap-1 font-mono">
-                    <Zap className="w-3.5 h-3.5" />
-                    Google Drive File
+                    {product.productType === 'STORE' ? (
+                      <>
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        WhatsApp Inquiries
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3.5 h-3.5" />
+                        Instant Access
+                      </>
+                    )}
                   </span>
                 </div>
 
                 <h2 className="text-2xl font-bold text-white tracking-tight">{product.name}</h2>
-                <p className="text-sm text-slate-300 mt-2 leading-relaxed">{product.fullDescription}</p>
+                <p className="text-sm text-slate-300 mt-2 leading-relaxed">{product.fullDescription || product.shortDescription}</p>
               </div>
 
-              {/* Price & Buy Card */}
+              {/* Price & Buy / WhatsApp Card */}
               <div className="p-5 rounded-2xl bg-slate-950 border border-indigo-900/30 space-y-4">
                 <div className="flex items-baseline justify-between">
                   <div>
-                    <span className="text-xs text-slate-400 block mb-0.5">Special Digital Discount Price</span>
+                    <span className="text-xs text-slate-400 block mb-0.5">Product Price</span>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-extrabold font-mono text-white">₹{product.price}</span>
-                      {product.originalPrice > product.price && (
+                      <span className="text-3xl font-extrabold font-mono text-white">
+                        {product.price === 0 ? 'FREE' : `₹${product.price}`}
+                      </span>
+                      {product.originalPrice > product.price && product.price > 0 && (
                         <span className="text-sm text-slate-500 line-through font-mono">₹{product.originalPrice}</span>
                       )}
-                      <span className="px-2 py-0.5 text-xs font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                        Save {product.discountPercent}%
-                      </span>
+                      {product.discountPercent > 0 && product.price > 0 && (
+                        <span className="px-2 py-0.5 text-xs font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          Save {product.discountPercent}%
+                        </span>
+                      )}
                     </div>
                   </div>
                   <button
@@ -228,10 +271,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   <p className="text-xs text-emerald-400 font-medium">Link copied to clipboard!</p>
                 )}
 
+                {/* Purchase Action Buttons (Standard Pre-Payment Flow) */}
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <button
                     onClick={() => onAddToCart(product)}
-                    className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-2 border border-slate-700 transition-all"
+                    className="py-3.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-2 border border-slate-700 transition-all"
                   >
                     <ShoppingBag className="w-4 h-4" />
                     <span>ADD TO CART</span>
@@ -246,22 +290,22 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       onBuyNow(product);
                       onClose();
                     }}
-                    className={`py-3 px-4 rounded-xl text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-2 transition-all ${
+                    className={`py-3.5 px-4 rounded-xl text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-2 transition-all ${
                       !isOnline
                         ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
-                        : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 hover:scale-105'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 hover:scale-[1.02]'
                     }`}
                   >
                     <Zap className={`w-4 h-4 ${!isOnline ? 'text-slate-500' : ''}`} />
-                    <span>{isOnline ? 'BUY NOW' : 'OFFLINE — BUY UNAVAILABLE'}</span>
+                    <span>{isOnline ? 'BUY NOW' : 'OFFLINE'}</span>
                   </button>
                 </div>
 
                 <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono flex items-start gap-2.5">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold text-emerald-400 block text-xs">100% Refund Guarantee</span>
-                    <span className="text-[11px] text-slate-300 leading-snug block">If we're unable to resolve your issue, your payment will be automatically refunded within 2–3 business days.</span>
+                    <span className="font-bold text-emerald-400 block text-xs">100% Genuine & Verified</span>
+                    <span className="text-[11px] text-slate-300 leading-snug block">Connect directly on WhatsApp for full guidance and quick assistance.</span>
                   </div>
                 </div>
               </div>

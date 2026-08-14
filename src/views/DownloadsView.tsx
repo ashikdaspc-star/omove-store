@@ -233,21 +233,44 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                     </span>
                   </div>
 
-                  {/* Digital File Access Card */}
+                  {/* File Access or WhatsApp Fulfillment Card */}
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-sans">
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-mono font-extrabold text-emerald-800 uppercase block">DIGITAL FILE ACCESS</span>
-                      <p className="text-xs text-slate-600 font-sans">Ready for direct Google Drive download</p>
-                    </div>
+                    {item.googleDriveUrl || item.fileUrl ? (
+                      <>
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] font-mono font-extrabold text-emerald-800 uppercase block">DIGITAL FILE ACCESS</span>
+                          <p className="text-xs text-slate-600 font-sans">Ready for direct Google Drive download</p>
+                        </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleTriggerDownload(item.productId, item.productName, item.googleDriveUrl || item.fileUrl, item.orderId)}
-                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all shrink-0"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Download</span>
-                    </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerDownload(item.productId, item.productName, item.googleDriveUrl || item.fileUrl, item.orderId)}
+                          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all shrink-0"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>Download</span>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] font-mono font-extrabold text-emerald-800 uppercase block">STORE PRODUCT ORDER</span>
+                          <p className="text-xs text-slate-600 font-sans">Connect on WhatsApp with your verified Order ID</p>
+                        </div>
+
+                        <a
+                          href={`https://wa.me/918345968169?text=${encodeURIComponent(
+                            `Hi, I have completed the payment for ${item.productName}. My Order ID is #${item.orderNumber || item.orderId}.`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all shrink-0"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>Contact on WhatsApp</span>
+                        </a>
+                      </>
+                    )}
                   </div>
                 </div>
               );

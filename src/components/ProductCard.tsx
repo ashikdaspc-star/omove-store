@@ -72,16 +72,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
           </button>
 
-          {/* Version & Size overlay */}
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] font-mono text-white z-10">
-            <span className="px-2 py-0.5 rounded bg-slate-950/70 backdrop-blur-sm">
-              {product.version}
-            </span>
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-950/70 backdrop-blur-sm">
-              <Download className="w-3 h-3 text-emerald-400" />
-              {product.downloadSize}
-            </span>
-          </div>
+          {/* Version & Size overlay (Only for non-store digital items if present) */}
+          {product.productType !== 'STORE' && (product.version || product.downloadSize) && (
+            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] font-mono text-white z-10">
+              {product.version && (
+                <span className="px-2 py-0.5 rounded bg-slate-950/70 backdrop-blur-sm">
+                  {product.version}
+                </span>
+              )}
+              {product.downloadSize && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-950/70 backdrop-blur-sm">
+                  <Download className="w-3 h-3 text-emerald-400" />
+                  {product.downloadSize}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Content Body */}
