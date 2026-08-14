@@ -11,6 +11,7 @@ import { InvoicePrintModal } from './components/InvoicePrintModal';
 import { LiveChatWidget } from './components/LiveChatWidget';
 import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
+import { AdminLoginPage } from './components/AdminLoginPage';
 
 import { ShieldCheck, Lock } from 'lucide-react';
 import { fetchAndCacheCoupons } from './utils/couponManager';
@@ -1151,28 +1152,7 @@ export default function App() {
                   onPublishCatalog={handlePublishCatalog}
                 />
               ) : (
-                <div className="max-w-3xl mx-auto px-4 py-24 text-center space-y-6 animate-fadeIn">
-                  <div className="w-20 h-20 mx-auto rounded-3xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shadow-lg">
-                    <ShieldCheck className="w-10 h-10" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-mono">
-                      ADMIN SECURITY ACCESS RESTRICTED
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mt-2 font-mono">
-                      This area requires Administrator ID & Password authentication. Access is strictly locked.
-                    </p>
-                  </div>
-                  <div className="pt-2 flex justify-center">
-                    <button
-                      onClick={() => setIsAdminAuthModalOpen(true)}
-                      className="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold font-mono text-xs shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all hover:scale-105"
-                    >
-                      <Lock className="w-4 h-4" />
-                      <span>UNLOCK ADMIN COMMAND CENTER</span>
-                    </button>
-                  </div>
-                </div>
+                <AdminLoginPage onSuccess={handleAdminAuthSuccess} />
               )
             }
           />

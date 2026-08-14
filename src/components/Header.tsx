@@ -280,19 +280,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Admin Panel Access Button */}
-          <button
-            onClick={handleAdminToggle}
-            className={`px-3 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm min-h-[44px] ${
-              isAdminMode && location.pathname === '/admin'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-amber-500/20'
-                : 'bg-[#064E3B] hover:bg-[#04392b] text-white border border-emerald-700'
-            }`}
-            title="Admin Command Center"
-          >
-            <ShieldCheck className="w-4 h-4 text-emerald-300" />
-            <span className="hidden md:inline font-mono">{isAdminMode ? 'ADMIN ACTIVE' : 'ADMIN PORTAL 🔐'}</span>
-          </button>
+
 
           {/* Mobile Menu Toggle */}
           <button
@@ -398,15 +386,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
 
-          <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
-            <button
-              onClick={handleAdminToggle}
-              className="text-xs font-mono font-bold text-white bg-[#064E3B] px-4 py-3 rounded-xl flex items-center gap-2 shadow-sm flex-1 justify-center min-h-[44px]"
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              <span>{isAdminMode ? 'ADMIN ACTIVE' : 'ADMIN PORTAL 🔐'}</span>
-            </button>
-            <span className="text-xs text-slate-500 font-mono shrink-0">OMOVE v2026</span>
+          <div className="pt-3 border-t border-slate-200 flex items-center justify-end">
+            <span className="text-xs text-slate-500 font-mono">OMOVE v2026</span>
           </div>
         </div>
       )}
