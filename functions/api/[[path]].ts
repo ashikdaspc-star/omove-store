@@ -2,6 +2,7 @@
 // Architecture: Cloudflare Pages Functions + Cloudflare D1 SQL + GitHub REST API (No Vercel)
 // 100% Deterministic Data Synchronization & Anti-Caching Engine
 
+import digitalProductsData from '../../src/data/digital_products.json';
 import productsData from '../../src/data/products.json';
 import couponsData from '../../src/data/coupons.json';
 import servicesData from '../../src/data/services.json';
@@ -9,6 +10,14 @@ import usersData from '../../src/data/users.json';
 import blogsData from '../../src/data/blogs.json';
 import sessionsData from '../../src/data/sessions.json';
 import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS, MOCK_COUPONS } from '../../src/data/mockData';
+
+const BUNDLED_STATIC_DATA: Record<string, any[]> = {
+  'src/data/digital_products.json': Array.isArray(digitalProductsData) ? digitalProductsData : [],
+  'src/data/products.json': Array.isArray(productsData) ? productsData : [],
+  'src/data/coupons.json': Array.isArray(couponsData) ? couponsData : [],
+  'src/data/services.json': Array.isArray(servicesData) ? servicesData : [],
+  'src/data/blogs.json': Array.isArray(blogsData) ? blogsData : [],
+};
 
 const ordersData: any[] = [];
 const bookingsData: any[] = [];
@@ -857,14 +866,9 @@ async function clearDraftStore(env?: Env) {
   draftStore.pendingFiles.clear();
   draftStore.lastModifiedAt = null;
   draftStore.modifiedCount = 0;
-  draftStore.workingData.clear();
-  if (env && env.DB) {
-    try {
-      await env.DB.prepare(`DELETE FROM draft_catalog`).run();
-    } catch (e: any) {
-      console.warn(`[D1 CLEAR ALL DRAFTS ERROR] ${e.message}`);
-    }
-  }
+  // CRITICAL FIX: DO NOT delete from draft_catalog!
+  // Cloudflare D1 draft_catalog is the permanent authoritative runtime database.
+  console.log('[D1_CATALOG] Pending changes committed. D1 persistent records preserved.');
 }
 
 async function recordDraftMutation(filePath: string, updatedData: any[], env?: Env) {
@@ -876,19 +880,20 @@ async function recordDraftMutation(filePath: string, updatedData: any[], env?: E
 
   if (env) {
     await saveDraftToD1(filePath, updatedData, env);
+    console.log(`[D1_CATALOG_WRITE] filePath: ${filePath} | recordCount: ${updatedData.length} | timestamp: ${new Date().toISOString()}`);
   }
 }
 
 async function getWorkingData(filePath: string, env: Env): Promise<any[]> {
   // 1. Authoritative Primary Source: Always query Cloudflare D1 draft_catalog first
   const d1Draft = await getDraftFromD1(filePath, env);
-  if (Array.isArray(d1Draft)) {
-    // Keep in-memory cache synchronized with authoritative D1 data
+  if (Array.isArray(d1Draft) && d1Draft.length > 0) {
+    console.log(`[D1_CATALOG_READ] filePath: ${filePath} | recordCount: ${d1Draft.length}`);
     draftStore.workingData.set(filePath, d1Draft);
     return d1Draft;
   }
 
-  // 2. Secondary fallback: Use in-memory cache if D1 row does not exist yet but cache has data
+  // 2. Secondary source: In-memory workingData cache if it has valid data
   if (draftStore.workingData.has(filePath)) {
     const cached = draftStore.workingData.get(filePath);
     if (Array.isArray(cached) && cached.length > 0) {
@@ -896,11 +901,31 @@ async function getWorkingData(filePath: string, env: Env): Promise<any[]> {
     }
   }
 
-  // 3. Fallback to GitHub repository static file
+  // 3. Fallback to GitHub repository static file (Only if D1 is genuinely unseeded)
   const fresh = await fetchFileFromGitHub(filePath, env);
-  const list = Array.isArray(fresh) ? fresh : [];
-  draftStore.workingData.set(filePath, list);
-  return list;
+  if (Array.isArray(fresh) && fresh.length > 0) {
+    console.log(`[GITHUB_FALLBACK_SUCCESS] filePath: ${filePath} | recordCount: ${fresh.length}`);
+    draftStore.workingData.set(filePath, fresh);
+    // Seed D1 once with valid GitHub data so future queries hit D1 directly
+    await saveDraftToD1(filePath, fresh, env);
+    return fresh;
+  }
+
+  // 4. Bundled Compile-Time Static Baseline (Safety Net)
+  const bundled = BUNDLED_STATIC_DATA[filePath];
+  if (Array.isArray(bundled) && bundled.length > 0) {
+    console.log(`[BUNDLED_FALLBACK] filePath: ${filePath} | recordCount: ${bundled.length}`);
+    draftStore.workingData.set(filePath, bundled);
+    await saveDraftToD1(filePath, bundled, env);
+    return bundled;
+  }
+
+  // 5. If D1 had an explicit empty array record stored, return it; otherwise do not corrupt workingData
+  if (Array.isArray(d1Draft)) {
+    return d1Draft;
+  }
+
+  return [];
 }
 
 async function consolidatedMultiFileMutation(

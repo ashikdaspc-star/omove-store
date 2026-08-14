@@ -85,42 +85,68 @@ export default function App() {
     let fetchedData: Product[] | null = null;
     let source = '';
 
-    // Authoritative Primary & Only Source: Cloudflare API endpoint (/api/products)
+    // Authoritative Dual-Resilient Fetch: Ensure both Store and Digital products are queried
     try {
-      const res = await fetch(`/api/products?v=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-      if (res.ok) {
-        const text = await res.text();
-        if (text && text.trim().startsWith('[')) {
-          fetchedData = JSON.parse(text);
-          source = 'Backend API (/api/products)';
-          const serverVerHeader = res.headers.get('X-Catalog-Version');
-          if (serverVerHeader) {
-            catalogVersionRef.current = parseInt(serverVerHeader, 10);
+      const [resProd, resDig] = await Promise.all([
+        fetch(`/api/products?v=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
           }
+        }).catch(() => null),
+        fetch(`/api/digital-products?v=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        }).catch(() => null)
+      ]);
+
+      const map = new Map<string, Product>();
+
+      if (resDig && resDig.ok) {
+        const digList = await resDig.json().catch(() => []);
+        if (Array.isArray(digList)) {
+          digList.forEach((p: any) => {
+            if (p && p.id) map.set(p.id, { ...p, productType: 'DIGITAL' });
+          });
         }
+      }
+
+      if (resProd && resProd.ok) {
+        const prodList = await resProd.json().catch(() => []);
+        if (Array.isArray(prodList)) {
+          prodList.forEach((p: any) => {
+            if (p && p.id) map.set(p.id, p);
+          });
+        }
+      }
+
+      const combined = Array.from(map.values());
+      if (combined.length > 0) {
+        fetchedData = combined;
+        source = 'Backend APIs (/api/products + /api/digital-products)';
       }
     } catch (e) {
       console.log('[OMOVE SYNC] Backend API fetch skipped:', e);
     }
 
-    // Authoritative Catalog Update: Filter published products and update React state & localStorage
-    if (Array.isArray(fetchedData)) {
+    // Authoritative Catalog Update: NEVER overwrite with empty array if API fails or returned empty
+    if (Array.isArray(fetchedData) && fetchedData.length > 0) {
       const publishedOnly = fetchedData.filter((p: any) => p && p.id && (p.status || 'PUBLISHED') === 'PUBLISHED');
-      console.log(`[OMOVE SYNC] Store fetch result received from ${source}:`, publishedOnly.length, 'published items');
-      setProducts(publishedOnly);
-      try {
-        localStorage.setItem('omove_products', JSON.stringify(publishedOnly));
-        localStorage.setItem('omove_catalog_version', String(catalogVersionRef.current || Date.now()));
-      } catch (e) {
-        console.error(e);
+      if (publishedOnly.length > 0) {
+        console.log(`[OMOVE SYNC] Store fetch result received from ${source}:`, publishedOnly.length, 'published items');
+        setProducts(publishedOnly);
+        try {
+          localStorage.setItem('omove_products', JSON.stringify(publishedOnly));
+          localStorage.setItem('omove_catalog_version', String(catalogVersionRef.current || Date.now()));
+        } catch (e) {
+          console.error(e);
+        }
+        console.log('[OMOVE SYNC] UI re-rendered with latest catalog');
       }
-      console.log('[OMOVE SYNC] UI re-rendered with latest catalog');
     }
   }, []);
 

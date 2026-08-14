@@ -536,8 +536,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     draftStore.pendingFiles.clear();
     draftStore.lastModifiedAt = null;
     draftStore.modifiedCount = 0;
-    draftStore.workingData.clear();
-    console.log('[DRAFT STORE] Cleared pending draft store.');
+    console.log('[DRAFT STORE] Cleared pending draft flags. Persistent disk records preserved.');
   }
 
   async function consolidatedMultiFileMutation(
@@ -952,6 +951,47 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       res.status(500).json({ error: err.message });
     }
   });
+
+  // Unified Store & Digital Products GET Handler
+  const handleGetProducts = (req: Request, res: Response) => {
+    try {
+      const storeFile = path.join(process.cwd(), 'src', 'data', 'products.json');
+      const digFile = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      let storeList: any[] = [];
+      let digList: any[] = [];
+
+      if (fs.existsSync(storeFile)) {
+        try { storeList = JSON.parse(fs.readFileSync(storeFile, 'utf-8')); } catch (e) {}
+      }
+      if (fs.existsSync(digFile)) {
+        try { digList = JSON.parse(fs.readFileSync(digFile, 'utf-8')); } catch (e) {}
+      }
+
+      const map = new Map<string, any>();
+      if (Array.isArray(digList)) {
+        digList.forEach((p: any) => { if (p && p.id) map.set(p.id, { ...p, productType: 'DIGITAL' }); });
+      }
+      if (Array.isArray(storeList)) {
+        storeList.forEach((p: any) => { if (p && p.id) map.set(p.id, p); });
+      }
+
+      const combined = Array.from(map.values());
+      const isAdmin = req.path.includes('/admin/');
+      let filtered = [...combined];
+      if (!isAdmin) {
+        filtered = filtered.filter((p: any) => (p.status || 'PUBLISHED') === 'PUBLISHED');
+        filtered = filtered.map(({ googleDriveUrl, ...rest }: any) => rest);
+      }
+      return res.json(filtered);
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  };
+
+  app.get('/api/products', handleGetProducts);
+  app.get('/api/admin/products', handleGetProducts);
+  app.get('/api/store-products', handleGetProducts);
+  app.get('/api/admin/store-products', handleGetProducts);
 
   // Unified Universal Product DELETE handler (Store & Digital)
   const handleDeleteProductRequest = (req: Request, res: Response) => {
