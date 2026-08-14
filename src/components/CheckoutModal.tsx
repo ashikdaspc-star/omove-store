@@ -167,15 +167,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     try {
       const payload = {
-        items: cart.map((it) => ({
-          productId: it.product.id,
-          productName: it.product.name,
-          price: it.product.price,
-          quantity: it.quantity,
-          fileSize: it.product.downloadSize || '45 MB',
-          fileUrl: it.product.googleDriveUrl || it.product.fileUrl || '/api/downloads/setup',
-          googleDriveUrl: it.product.googleDriveUrl || it.product.fileUrl || ''
-        })),
+        items: cart.map((it) => {
+          const isDig = it.product.productType === 'DIGITAL' || it.product.id?.startsWith('dig') || it.product.category === 'Digital Products';
+          return {
+            productId: it.product.id,
+            productName: it.product.name,
+            productType: isDig ? ('DIGITAL' as const) : ('STORE' as const),
+            price: it.product.price,
+            quantity: it.quantity,
+            fileSize: isDig ? (it.product.downloadSize || 'Instant Access') : '',
+            fileUrl: isDig ? (it.product.googleDriveUrl || it.product.fileUrl || '/api/downloads/setup') : '',
+            googleDriveUrl: isDig ? (it.product.googleDriveUrl || it.product.fileUrl || '') : ''
+          };
+        }),
         customerName: generatedName,
         customerEmail: generatedEmail,
         customerPhone: formattedPhone,
@@ -229,12 +233,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           ...orderObj,
           paymentStatus: 'SUCCESS',
           status: 'completed',
-          items: (orderObj.items || []).map((it: any) => ({
-            ...it,
-            licenseKey: it.licenseKey || `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`,
-            downloadLimit: it.downloadLimit || 5,
-            fileUrl: it.fileUrl || '/api/downloads/setup'
-          }))
+          items: (orderObj.items || []).map((it: any) => {
+            const isDig = it.productType === 'DIGITAL' || it.productId?.startsWith('dig') || it.category === 'Digital Products';
+            return {
+              ...it,
+              productType: isDig ? 'DIGITAL' : 'STORE',
+              licenseKey: isDig ? (it.licenseKey || `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`) : '',
+              downloadLimit: isDig ? (it.downloadLimit || 5) : 0,
+              fileUrl: isDig ? (it.fileUrl || '/api/downloads/setup') : '',
+              googleDriveUrl: isDig ? (it.googleDriveUrl || '') : ''
+            };
+          })
         };
 
         setCreatedOrder(verifiedOrder);
@@ -245,7 +254,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           customerName: generatedName,
           email: generatedEmail,
           phone: formattedPhone,
-          title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name || 'Digital Item').join(', ') || 'Digital Product',
+          title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name || 'Product').join(', ') || 'Product',
           amount: 0,
           paymentId: 'FREE (100% Coupon Discount)',
           orderOrBookingId: verifiedOrder.orderNumber || orderObj.orderNumber
@@ -282,7 +291,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           amount: Math.round(serverTotal * 100),
           currency: 'INR',
           name: 'OMOVE STORE',
-          description: `Order ${orderObj.orderNumber} - Instant Access`,
+          description: `Order ${orderObj.orderNumber}`,
           order_id: serverRzpOrderId,
           image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80',
           prefill: {
@@ -316,7 +325,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   customerName: generatedName,
                   email: generatedEmail,
                   phone: formattedPhone,
-                  title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name).join(', ') || 'Digital Product',
+                  title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name).join(', ') || 'Product',
                   amount: verifiedOrder.total || verifiedOrder.totalAmount || serverTotal,
                   paymentId: response.razorpay_payment_id || 'VERIFIED',
                   orderOrBookingId: verifiedOrder.orderNumber || orderObj!.orderNumber
@@ -354,28 +363,30 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handleCopyKey = (key: string, idx: number) => {
     navigator.clipboard.writeText(key);
     setCopiedKeyIndex(idx);
-    setTimeout(() => setCopiedKeyIndex(null), 3000);
+    setTimeout(() => setCopiedKeyIndex(null), 2500);
   };
+
+  const hasStoreItems = createdOrder?.items.some((i) => i.productType === 'STORE' || (!i.productType && !i.productId?.startsWith('dig'))) ?? false;
+  const hasDigitalItems = createdOrder?.items.some((i) => i.productType === 'DIGITAL' || (!i.productType && i.productId?.startsWith('dig'))) ?? false;
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-4 transition-all">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 bg-slate-900/90 border-b border-slate-800/80">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30">
-              <Sparkles className="w-3.5 h-3.5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn font-sans">
+      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden text-slate-100 flex flex-col">
+        {/* Modal Header */}
+        <div className="px-5 py-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/50">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+              <Lock className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm text-white font-sans tracking-tight">
-                {createdOrder ? 'ORDER COMPLETED' : 'Secure Checkout'}
-              </h3>
-              <p className="text-[10px] text-slate-400 font-mono">
-                {createdOrder ? 'Instant Delivery Ready' : 'Complete your order in seconds'}
-              </p>
+              <h2 className="font-extrabold text-sm text-white">
+                {createdOrder ? 'Order Completed' : 'Express Checkout'}
+              </h2>
+              <span className="text-[10px] text-slate-400 font-mono">
+                {createdOrder ? `Order #${createdOrder.orderNumber || createdOrder.id}` : '100% Encrypted & Verified'}
+              </span>
             </div>
           </div>
           <button
@@ -395,18 +406,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
               <h3 className="text-lg font-extrabold text-white">Payment Successful!</h3>
               <p className="text-xs text-slate-300">
-                Order <strong className="font-mono text-cyan-400">{createdOrder.orderNumber}</strong> processed. Your digital downloads and order details are ready below.
+                Order <strong className="font-mono text-cyan-400">#{createdOrder.orderNumber}</strong> processed successfully.{' '}
+                {hasStoreItems && !hasDigitalItems
+                  ? 'Your payment has been received. Contact us on WhatsApp to continue with your order setup.'
+                  : hasDigitalItems && !hasStoreItems
+                  ? 'Your digital download is ready below.'
+                  : 'Your digital download and WhatsApp order details are ready below.'}
               </p>
             </div>
 
-            {/* Products & Delivery Box */}
+            {/* Products & Next Steps Box */}
             <div className="space-y-3">
               <h4 className="font-bold text-[11px] uppercase tracking-wider text-slate-400 font-mono">
-                Purchased Items & Next Steps
+                Purchased Product{createdOrder.items.length > 1 ? 's' : ''} & Next Steps
               </h4>
 
               {createdOrder.items.map((item, idx) => {
-                const hasDownloadLink = Boolean(item.googleDriveUrl || item.fileUrl);
+                const isDigitalItem = item.productType === 'DIGITAL' || (item.productId && item.productId.startsWith('dig'));
                 const itemWhatsappUrl = `https://wa.me/918345968169?text=${encodeURIComponent(
                   `Hi, I have completed the payment for ${item.productName}. My Order ID is #${createdOrder.orderNumber || createdOrder.id}.`
                 )}`;
@@ -416,11 +432,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <div className="min-w-0 pr-2">
                       <h5 className="font-bold text-xs text-white truncate">{item.productName}</h5>
                       <span className="text-[10px] text-slate-400 font-mono">
-                        {hasDownloadLink ? `Digital Download • Size: ${item.fileSize || 'Instant Access'}` : 'Store Product • WhatsApp Order'}
+                        {isDigitalItem
+                          ? `Digital Product • ${item.fileSize || 'Instant Access'}`
+                          : `Store Product • ₹${item.price.toFixed(2)}`}
                       </span>
                     </div>
 
-                    {hasDownloadLink ? (
+                    {isDigitalItem ? (
                       <button
                         type="button"
                         onClick={() => handleTriggerDownload(item.googleDriveUrl, item.fileUrl, item.productName, item.productId)}
@@ -446,14 +464,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
 
             {/* General Post-Payment WhatsApp Contact Banner for Store Items */}
-            {createdOrder.items.some((i) => !i.googleDriveUrl && !i.fileUrl) && (
-              <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 space-y-2.5">
+            {hasStoreItems && (
+              <div className="p-4 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 space-y-2.5">
                 <div className="flex items-center gap-2 text-emerald-400 font-mono font-bold text-xs">
                   <MessageSquare className="w-4 h-4" />
-                  <span>Next Step: Connect on WhatsApp</span>
+                  <span>NEXT STEP: CONNECT ON WHATSAPP</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Your payment has been confirmed. Click below to contact Omove Store on WhatsApp with your Order ID (<strong className="text-cyan-400 font-mono">#{createdOrder.orderNumber || createdOrder.id}</strong>) for instant assistance.
+                  Your payment has been received. Contact us on WhatsApp with your Order ID (<strong className="text-cyan-400 font-mono">#{createdOrder.orderNumber || createdOrder.id}</strong>) to proceed with your setup.
                 </p>
                 <a
                   href={`https://wa.me/918345968169?text=${encodeURIComponent(

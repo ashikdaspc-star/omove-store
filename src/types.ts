@@ -146,6 +146,7 @@ export interface OrderItem {
   productId: string;
   productName: string;
   price: number;
+  productType?: 'DIGITAL' | 'STORE';
   licenseKey: string;
   downloadLimit: number;
   downloadsCount: number;

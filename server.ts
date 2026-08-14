@@ -1829,21 +1829,24 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       items.forEach((it: any) => {
         const prod = dynamicProductsStore.find(p => p.id === it.productId);
         const price = prod ? Number(prod.price) : 499;
-        const name = prod ? prod.name : 'Digital Product';
+        const isDigital = prod ? (prod.productType === 'DIGITAL' || prod.id?.startsWith('dig') || prod.category === 'Digital Products') : (it.productType === 'DIGITAL' || it.productId?.startsWith('dig'));
+        const name = prod ? prod.name : (isDigital ? 'Digital Product' : 'Store Product');
         const qty = Number(it.quantity) || 1;
         subtotal += price * qty;
 
-        const licenseKey = `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+        const licenseKey = isDigital ? `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}` : '';
         orderItems.push({
           productId: it.productId,
           productName: name,
+          productType: isDigital ? 'DIGITAL' : 'STORE',
           price: price,
           quantity: qty,
           licenseKey: licenseKey,
-          downloadLimit: 5,
+          downloadLimit: isDigital ? 5 : 0,
           downloadsCount: 0,
-          fileSize: prod?.downloadSize || '45 MB',
-          fileUrl: prod?.fileUrl || '/api/downloads/setup'
+          fileSize: isDigital ? (prod?.downloadSize || 'Instant Access') : '',
+          googleDriveUrl: isDigital ? (prod?.googleDriveUrl || prod?.fileUrl || '') : '',
+          fileUrl: isDigital ? (prod?.fileUrl || '/api/downloads/setup') : ''
         });
       });
 

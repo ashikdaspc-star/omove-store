@@ -2202,19 +2202,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           const qty = Number(item.quantity) || 1;
           subtotal += price * qty;
 
-          const resolvedDriveUrl = product ? (product.googleDriveUrl || product.fileUrl || '') : (item.googleDriveUrl || item.fileUrl || '');
-          const downloadEndpoint = `/api/downloads/setup?orderId=${encodeURIComponent(orderId)}&productId=${encodeURIComponent(item.productId || product?.id || '')}`;
+          const isDigital = product ? (product.productType === 'DIGITAL' || product.id?.startsWith('dig') || product.category === 'Digital Products') : (item.productType === 'DIGITAL' || item.productId?.startsWith('dig'));
+          const resolvedDriveUrl = isDigital && product ? (product.googleDriveUrl || product.fileUrl || '') : (isDigital ? (item.googleDriveUrl || item.fileUrl || '') : '');
+          const downloadEndpoint = isDigital ? `/api/downloads/setup?orderId=${encodeURIComponent(orderId)}&productId=${encodeURIComponent(item.productId || product?.id || '')}` : '';
 
           resolvedItems.push({
             productId: item.productId || product?.id || `prod-${Date.now()}`,
-            productName: product ? product.name : (item.productName || 'Product'),
+            productName: product ? product.name : (item.productName || (isDigital ? 'Digital Product' : 'Store Product')),
+            productType: isDigital ? 'DIGITAL' : 'STORE',
             price: price,
             quantity: qty,
-            fileSize: product ? (product.downloadSize || 'Instant Access') : (item.fileSize || 'Instant Access'),
+            fileSize: isDigital ? (product?.downloadSize || item.fileSize || 'Instant Access') : '',
             googleDriveUrl: resolvedDriveUrl,
             fileUrl: downloadEndpoint,
-            licenseKey: '',
-            downloadLimit: 5,
+            licenseKey: isDigital ? generateLicenseKey() : '',
+            downloadLimit: isDigital ? 5 : 0,
             downloadsCount: 0
           });
         }
@@ -2397,13 +2399,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               (p.name && it.productName && p.name.toLowerCase() === it.productName.toLowerCase())
             )
           );
-          const resolvedDriveUrl = product ? (product.googleDriveUrl || product.fileUrl || '') : (it.googleDriveUrl || it.fileUrl || '');
-          const downloadEndpoint = `/api/downloads/setup?orderId=${encodeURIComponent(order.id || order.orderNumber)}&productId=${encodeURIComponent(it.productId || product?.id || '')}`;
+          const isDigital = product ? (product.productType === 'DIGITAL' || product.id?.startsWith('dig') || product.category === 'Digital Products') : (it.productType === 'DIGITAL' || it.productId?.startsWith('dig'));
+          const resolvedDriveUrl = isDigital && product ? (product.googleDriveUrl || product.fileUrl || '') : (isDigital ? (it.googleDriveUrl || it.fileUrl || '') : '');
+          const downloadEndpoint = isDigital ? `/api/downloads/setup?orderId=${encodeURIComponent(order.id || order.orderNumber)}&productId=${encodeURIComponent(it.productId || product?.id || '')}` : '';
 
           return {
             ...it,
-            licenseKey: it.licenseKey || generateLicenseKey(),
-            downloadLimit: it.downloadLimit || 5,
+            productType: isDigital ? 'DIGITAL' : 'STORE',
+            fileSize: isDigital ? (it.fileSize || product?.downloadSize || 'Instant Access') : '',
+            licenseKey: isDigital ? (it.licenseKey || generateLicenseKey()) : '',
+            downloadLimit: isDigital ? (it.downloadLimit || 5) : 0,
             googleDriveUrl: resolvedDriveUrl,
             fileUrl: downloadEndpoint
           };
