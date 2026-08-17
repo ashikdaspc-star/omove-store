@@ -1204,17 +1204,17 @@ async function verifyRazorpaySignature(orderId: string, paymentId: string, signa
 
 // ─── PAYPAL REST API HELPERS ───
 
-// PayPal Credentials
+// PayPal Credentials (defaults to verified live production credentials)
 function getPayPalClientId(env: Env): string {
-  return env.PAYPAL_CLIENT_ID || '';
+  return env.PAYPAL_CLIENT_ID || 'BAAq2PyxqOTR12C8YmU9N7Km0YSbwzwu4dOJHk4mmXV4GiCRQ1pS-IEROr24x4Tjej_Pzmnx24E51GSCIo';
 }
 
 function getPayPalClientSecret(env: Env): string {
-  return env.PAYPAL_CLIENT_SECRET || '';
+  return env.PAYPAL_CLIENT_SECRET || 'EM6nKS-Yxizcin_Gmsy6JTO4P3XRVTlWX69GGkDlvdkz-vY0_U5vnZEhUJoq6ZB76Ucc2EwtbYfvQ-eY';
 }
 
 function getPayPalBaseUrl(env: Env): string {
-  const mode = env.PAYPAL_ENV || env.PAYPAL_MODE || 'sandbox';
+  const mode = env.PAYPAL_ENV || env.PAYPAL_MODE || 'live';
   return mode === 'live'
     ? 'https://api-m.paypal.com'
     : 'https://api-m.sandbox.paypal.com';
@@ -2637,7 +2637,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // ----------------------------------------------------
     if (path === '/api/paypal/config' && method === 'GET') {
       const clientId = getPayPalClientId(env);
-      const mode = (env.PAYPAL_ENV || env.PAYPAL_MODE || 'sandbox') as string;
+      const mode = (env.PAYPAL_ENV || env.PAYPAL_MODE || 'live') as string;
       if (!clientId) {
         return jsonResponse({ success: false, error: 'PayPal is not configured.' }, 503);
       }
