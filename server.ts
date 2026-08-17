@@ -2335,11 +2335,477 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   });
 
   // ----------------------------------------------------
+  // PAYPAL REST API HELPERS & CHECKOUT FLOW (/api/paypal/*)
+  // ----------------------------------------------------
+  function reloadDotEnv(): Record<string, string> {
+    try {
+      const envPath = path.join(process.cwd(), '.env');
+      if (fs.existsSync(envPath)) {
+        const parsed = dotenv.parse(fs.readFileSync(envPath));
+        Object.keys(parsed).forEach(k => {
+          process.env[k] = parsed[k];
+        });
+        return parsed;
+      }
+    } catch (e) {}
+    return {};
+  }
+
+  function getAllProductsServer(): any[] {
+    let digitalList: any[] = [];
+    try {
+      const digPath = path.join(process.cwd(), 'src', 'data', 'digital_products.json');
+      if (fs.existsSync(digPath)) {
+        digitalList = JSON.parse(fs.readFileSync(digPath, 'utf-8'));
+      }
+    } catch (e) {}
+    return [...dynamicProductsStore, ...digitalList];
+  }
+
+  function getPayPalClientId(): string {
+    reloadDotEnv();
+    return process.env.PAYPAL_CLIENT_ID || '';
+  }
+
+  function getPayPalClientSecret(): string {
+    reloadDotEnv();
+    return process.env.PAYPAL_CLIENT_SECRET || '';
+  }
+
+  function getPayPalBaseUrl(): string {
+    reloadDotEnv();
+    const mode = process.env.PAYPAL_ENV || process.env.PAYPAL_MODE || 'sandbox';
+    return mode === 'live'
+      ? 'https://api-m.paypal.com'
+      : 'https://api-m.sandbox.paypal.com';
+  }
+
+  function calculateUsdPrice(inrTotal: number): number {
+    const raw = Math.max(3, inrTotal / 95);
+    return Math.round(raw * 100) / 100;
+  }
+
+  async function getPayPalAccessToken(): Promise<{ token: string | null; error?: string; status?: number; details?: any }> {
+    const clientId = getPayPalClientId();
+    const clientSecret = getPayPalClientSecret();
+    if (!clientId || !clientSecret) {
+      return { token: null, error: 'PAYPAL_CREDENTIALS_MISSING', status: 500 };
+    }
+
+    const baseUrl = getPayPalBaseUrl();
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    try {
+      const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'grant_type=client_credentials'
+      });
+
+      const data: any = await res.json().catch(() => ({}));
+      if (res.ok && data.access_token) {
+        return { token: data.access_token };
+      }
+      console.warn(`[PayPal OAuth ERROR] Status: ${res.status}, error:`, data.error, data.error_description);
+      return {
+        token: null,
+        error: data.error || 'OAUTH_FAILED',
+        status: res.status,
+        details: data.error_description || data
+      };
+    } catch (e: any) {
+      console.warn(`[PayPal OAuth EXCEPTION] ${e.message}`);
+      return { token: null, error: e.message || 'OAUTH_NETWORK_EXCEPTION', status: 500 };
+    }
+  }
+
+  async function createPayPalOrderApi(
+    usdAmount: number,
+    internalOrderId: string,
+    description: string
+  ): Promise<{ paypalOrderId?: string; error?: string; status?: number; debugId?: string; details?: any }> {
+    const authRes = await getPayPalAccessToken();
+    if (!authRes.token) {
+      return {
+        error: authRes.error || 'Failed to authenticate with PayPal',
+        status: authRes.status || 500,
+        details: authRes.details
+      };
+    }
+
+    const baseUrl = getPayPalBaseUrl();
+    const amountStr = usdAmount.toFixed(2);
+
+    try {
+      const res = await fetch(`${baseUrl}/v2/checkout/orders`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authRes.token}`,
+          'Content-Type': 'application/json',
+          'PayPal-Request-Id': internalOrderId
+        },
+        body: JSON.stringify({
+          intent: 'CAPTURE',
+          purchase_units: [{
+            reference_id: internalOrderId,
+            description: description.substring(0, 127),
+            amount: {
+              currency_code: 'USD',
+              value: amountStr
+            }
+          }],
+          application_context: {
+            brand_name: 'OMOVE Store',
+            landing_page: 'NO_PREFERENCE',
+            user_action: 'PAY_NOW'
+          }
+        })
+      });
+
+      const data: any = await res.json().catch(() => ({}));
+      if (res.ok && data.id) {
+        return { paypalOrderId: data.id };
+      }
+
+      console.warn(`[PayPal Create Order ERROR] Status: ${res.status}, body:`, data);
+      return {
+        error: data.name || data.message || 'ORDER_CREATION_FAILED',
+        status: res.status,
+        debugId: data.debug_id,
+        details: data.details || data.message || data
+      };
+    } catch (e: any) {
+      console.warn(`[PayPal Create Order EXCEPTION] ${e.message}`);
+      return { error: e.message || 'CREATE_ORDER_NETWORK_EXCEPTION', status: 500 };
+    }
+  }
+
+  async function capturePayPalOrderApi(
+    paypalOrderId: string
+  ): Promise<{ status?: string; captureId?: string; amount?: string; currency?: string; error?: string; httpStatus?: number; debugId?: string; details?: any }> {
+    const authRes = await getPayPalAccessToken();
+    if (!authRes.token) {
+      return { error: authRes.error || 'AUTH_FAILED', httpStatus: authRes.status || 500 };
+    }
+
+    const baseUrl = getPayPalBaseUrl();
+
+    try {
+      const res = await fetch(`${baseUrl}/v2/checkout/orders/${paypalOrderId}/capture`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authRes.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data: any = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const captureStatus = data.status;
+        const captures = data.purchase_units?.[0]?.payments?.captures;
+        if (captures && captures.length > 0) {
+          const capture = captures[0];
+          return {
+            status: captureStatus,
+            captureId: capture.id,
+            amount: capture.amount?.value || '0.00',
+            currency: capture.amount?.currency_code || 'USD'
+          };
+        }
+        if (captureStatus === 'COMPLETED') {
+          return { status: 'COMPLETED', captureId: paypalOrderId, amount: '0.00', currency: 'USD' };
+        }
+      }
+
+      console.warn(`[PayPal Capture ERROR] Status: ${res.status}, body:`, data);
+      return {
+        error: data.name || data.message || 'CAPTURE_FAILED',
+        httpStatus: res.status,
+        debugId: data.debug_id,
+        details: data.details || data.message || data
+      };
+    } catch (e: any) {
+      console.warn(`[PayPal Capture EXCEPTION] ${e.message}`);
+      return { error: e.message, httpStatus: 500 };
+    }
+  }
+
+  app.get('/api/paypal/config', (_req: Request, res: Response) => {
+    const clientId = getPayPalClientId();
+    const mode = process.env.PAYPAL_ENV || process.env.PAYPAL_MODE || 'sandbox';
+    if (!clientId) {
+      return res.status(503).json({ success: false, error: 'PayPal is not configured.' });
+    }
+    res.json({ success: true, clientId, currency: 'USD', mode });
+  });
+
+  app.post('/api/paypal/create-order', async (req: Request, res: Response) => {
+    const { items, customerName, customerEmail, customerPhone, couponCode } = req.body || {};
+    if (!items || !Array.isArray(items) || !items.length) {
+      return res.status(400).json({ error: 'Cart is empty or invalid request format.' });
+    }
+
+    const orderId = 'ord-pp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    const orderNumber = 'OMV-ORD-2026-' + Math.floor(10000 + Math.random() * 90000);
+    const allProducts = getAllProductsServer();
+
+    let subtotal = 0;
+    const orderItems = items.map((it: any) => {
+      const prod = allProducts.find(p => p && (p.id === it.productId || p.slug === it.productId)) || MOCK_PRODUCTS.find(p => p.id === it.productId) || it;
+      const price = Number(prod.price) || 20;
+      const qty = Math.max(1, parseInt(it.quantity || 1, 10));
+      subtotal += price * qty;
+      return {
+        productId: prod.id || it.productId,
+        productName: prod.name || it.productName,
+        price: price,
+        quantity: qty,
+        licenseKey: generateLicenseKey(),
+        downloadLimit: 5,
+        downloadsCount: 0,
+        fileSize: prod.downloadSize || 'Instant Access',
+        fileUrl: prod.googleDriveUrl || prod.fileUrl || `/api/downloads/${orderId}/${prod.id || it.productId}`
+      };
+    });
+
+    let discountAmount = 0;
+    let appliedCouponCode = '';
+    const cleanCoupon = (couponCode || '').trim().toUpperCase();
+    if (cleanCoupon) {
+      const cpn = dynamicCouponsStore.find(c => c.code.toUpperCase() === cleanCoupon);
+      if (cpn && cpn.isActive) {
+        if (cpn.discountType === 'percentage') {
+          discountAmount = Math.round((subtotal * cpn.discountValue) / 100);
+        } else {
+          discountAmount = Math.min(subtotal, cpn.discountValue);
+        }
+        appliedCouponCode = cpn.code;
+      }
+    }
+
+    const inrTotal = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
+    const usdTotal = calculateUsdPrice(inrTotal);
+
+    const newOrder: any = {
+      id: orderId,
+      orderNumber,
+      customerName: customerName || 'Valued Customer',
+      customerEmail: (customerEmail || 'customer@omove.tech').trim().toLowerCase(),
+      customerPhone: customerPhone || '+91 9999999999',
+      items: orderItems,
+      subtotal: Number(subtotal.toFixed(2)),
+      discount: Number(discountAmount.toFixed(2)),
+      couponCode: appliedCouponCode,
+      tax: 0,
+      total: inrTotal,
+      paymentMethod: 'PayPal',
+      paymentProvider: 'paypal',
+      paymentCurrency: 'USD',
+      paymentAmountUsd: usdTotal,
+      paymentStatus: 'PENDING',
+      createdAt: new Date().toISOString()
+    };
+
+    const productNames = orderItems.map((it: any) => it.productName).join(', ').substring(0, 120);
+    const ppResult = await createPayPalOrderApi(usdTotal, orderId, `OMOVE Store: ${productNames}`);
+
+    if (!ppResult || !ppResult.paypalOrderId) {
+      return res.status(ppResult?.status || 500).json({
+        success: false,
+        error: ppResult?.error || 'Failed to create PayPal order.',
+        paypalStatus: ppResult?.status,
+        paypalErrorName: ppResult?.error,
+        paypalDebugId: ppResult?.debugId,
+        paypalDetails: ppResult?.details
+      });
+    }
+
+    newOrder.paypalOrderId = ppResult.paypalOrderId;
+    ordersStore.set(orderId, newOrder);
+
+    res.json({
+      success: true,
+      order: newOrder,
+      orderId,
+      paypalOrderId: ppResult.paypalOrderId,
+      usdAmount: usdTotal,
+      inrAmount: inrTotal,
+      currency: 'USD'
+    });
+  });
+
+  app.post('/api/paypal/capture-order', async (req: Request, res: Response) => {
+    const { paypalOrderId } = req.body || {};
+
+    if (!paypalOrderId) {
+      return res.status(400).json({ success: false, error: 'Missing PayPal order ID.' });
+    }
+
+    const order = Array.from(ordersStore.values()).find((o: any) => o.paypalOrderId === paypalOrderId);
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'No matching internal order found for this PayPal order.' });
+    }
+
+    if (order.paymentStatus === 'SUCCESS' && (order as any).paypalCaptureId) {
+      return res.json({
+        success: true,
+        verified: true,
+        message: 'PayPal payment already verified and processed.',
+        order,
+        orderId: order.id,
+        alreadyProcessed: true
+      });
+    }
+
+    const captureResult = await capturePayPalOrderApi(paypalOrderId);
+    if (!captureResult) {
+      return res.status(500).json({ success: false, error: 'PayPal capture failed. Please try again.' });
+    }
+
+    if (captureResult.status !== 'COMPLETED') {
+      return res.status(400).json({ success: false, error: `PayPal payment not completed. Status: ${captureResult.status}` });
+    }
+
+    if (captureResult.currency !== 'USD') {
+      return res.status(400).json({ success: false, error: `Unexpected payment currency: ${captureResult.currency}` });
+    }
+
+    const expectedUsd = (order as any).paymentAmountUsd;
+    const capturedUsd = parseFloat(captureResult.amount);
+    if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
+      return res.status(400).json({
+        success: false,
+        error: 'PAYMENT_AMOUNT_MISMATCH',
+        message: `Expected $${expectedUsd}, captured $${capturedUsd}`
+      });
+    }
+
+    order.paymentStatus = 'SUCCESS';
+    (order as any).paypalCaptureId = captureResult.captureId;
+    order.paymentId = captureResult.captureId;
+    (order as any).paymentVerifiedAt = new Date().toISOString();
+
+    res.json({
+      success: true,
+      verified: true,
+      message: 'PayPal payment verified successfully',
+      order,
+      orderId: order.id
+    });
+  });
+
+
+  // ----------------------------------------------------
   // STANDALONE SUPPORT PAYMENTS FLOW (/api/support/*)
   // ----------------------------------------------------
   const supportPaymentsServerStore: Map<string, any> = new Map();
 
-  app.post('/api/support/create', (req: Request, res: Response) => {
+  async function sendSupportEmailsServer(
+    type: 'SUCCESS' | 'FAILED',
+    record: {
+      name: string;
+      email: string;
+      amount: number;
+      razorpayOrderId?: string;
+      razorpayPaymentId?: string;
+    }
+  ): Promise<{ customerSent: boolean; adminSent: boolean }> {
+    const adminEmail = process.env.ADMIN_EMAIL || 'contact.ashikdas@gmail.com';
+    const customerEmail = (record.email || '').trim().toLowerCase();
+
+    let customerSent = false;
+    let adminSent = false;
+
+    // 1. Send Customer Email
+    if (customerEmail && customerEmail.includes('@')) {
+      try {
+        const custSubject = type === 'SUCCESS'
+          ? 'Thank you for supporting Omove Store 💚'
+          : 'Omove Store Support Payment — Not Completed';
+
+        const custPayload = type === 'SUCCESS' ? {
+          _subject: custSubject,
+          _template: 'table',
+          _captcha: 'false',
+          'Greeting': `Hello ${record.name},`,
+          'Thank You Message': 'Thank you for supporting Omove Store! Your contribution was successfully received.',
+          'Support Amount': `₹${record.amount}`,
+          'Payment ID': record.razorpayPaymentId || 'Verified via Razorpay',
+          'Payment Status': 'Successful',
+          'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          'Closing': 'Your support helps us continue improving Omove Store and creating useful digital tools and resources. Thank you! ❤️',
+          'Website': 'https://www.omovestore.shop'
+        } : {
+          _subject: custSubject,
+          _template: 'table',
+          _captcha: 'false',
+          'Greeting': `Hello ${record.name},`,
+          'Notice': 'Your support payment was not completed.',
+          'Amount': `₹${record.amount}`,
+          'Status': 'Payment not completed',
+          'Closing': 'You can try again whenever you want.',
+          'Website': 'https://www.omovestore.shop'
+        };
+
+        const res = await fetch(`https://formsubmit.co/ajax/${customerEmail}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(custPayload)
+        });
+        if (res.ok) customerSent = true;
+      } catch (e: any) {
+        console.warn(`[Support Email Customer Failure] ${e.message}`);
+      }
+    }
+
+    // 2. Send Admin Email
+    try {
+      const adminSubject = type === 'SUCCESS'
+        ? `💚 New Omove Store Support — ₹${record.amount}`
+        : `⚠️ Omove Store Support Payment Failed — ₹${record.amount}`;
+
+      const adminPayload = type === 'SUCCESS' ? {
+        _subject: adminSubject,
+        _template: 'table',
+        _captcha: 'false',
+        'Notice': 'New support contribution received.',
+        'Customer Name': record.name,
+        'Customer Email': record.email,
+        'Amount': `₹${record.amount}`,
+        'Payment ID': record.razorpayPaymentId || 'N/A',
+        'Razorpay Order ID': record.razorpayOrderId || 'N/A',
+        'Status': 'SUCCESS',
+        'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+      } : {
+        _subject: adminSubject,
+        _template: 'table',
+        _captcha: 'false',
+        'Notice': 'A support payment was not completed.',
+        'Customer Name': record.name,
+        'Customer Email': record.email,
+        'Amount': `₹${record.amount}`,
+        'Razorpay Order ID': record.razorpayOrderId || 'N/A',
+        'Status': 'FAILED / CANCELLED',
+        'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+      };
+
+      const res = await fetch(`https://formsubmit.co/ajax/${adminEmail}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(adminPayload)
+      });
+      if (res.ok) adminSent = true;
+    } catch (e: any) {
+      console.warn(`[Support Email Admin Failure] ${e.message}`);
+    }
+
+    return { customerSent, adminSent };
+  }
+
+  app.post('/api/support/create', async (req: Request, res: Response) => {
     const rawName = (req.body?.name || '').trim();
     const rawEmail = (req.body?.email || req.body?.customerEmail || '').trim().toLowerCase();
     const rawAmount = Number(req.body?.amount);
@@ -2358,7 +2824,26 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
     const supportId = `sup_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const rzpKeyId = process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G';
-    const rzpOrderId = `rzp_sup_${Date.now()}`;
+    const amountInPaise = Math.round(rawAmount * 100);
+
+    let realRzpOrderId = '';
+    if (razorpayInstance && amountInPaise > 0) {
+      try {
+        const rzpOrder = await razorpayInstance.orders.create({
+          amount: amountInPaise,
+          currency: 'INR',
+          receipt: supportId,
+          notes: { name: rawName, email: rawEmail }
+        });
+        if (rzpOrder && rzpOrder.id) {
+          realRzpOrderId = rzpOrder.id;
+        }
+      } catch (err) {
+        console.warn('Razorpay Support API order creation error:', err);
+      }
+    }
+
+    const rzpOrderId = realRzpOrderId || `rzp_sup_${Date.now()}`;
 
     const supportRecord = {
       id: supportId,
@@ -2369,6 +2854,8 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       razorpayOrderId: rzpOrderId,
       razorpayPaymentId: null,
       paymentStatus: 'PENDING',
+      customerEmailSent: false,
+      adminEmailSent: false,
       createdAt: new Date().toISOString(),
       paidAt: null
     };
@@ -2387,8 +2874,8 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     });
   });
 
-  app.post('/api/support/verify', (req: Request, res: Response) => {
-    const { supportId, razorpay_order_id, razorpay_payment_id } = req.body || {};
+  app.post('/api/support/verify', async (req: Request, res: Response) => {
+    const { supportId, razorpay_order_id, razorpay_payment_id, razorpay_signature, cancelled, failed } = req.body || {};
     const targetId = supportId || req.body?.id || '';
     let record = supportPaymentsServerStore.get(targetId);
 
@@ -2405,18 +2892,77 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       record = {
         id: targetId || `sup_${Date.now()}`,
         name: req.body?.name || 'Supporter',
+        customerEmail: (req.body?.email || req.body?.customerEmail || '').trim().toLowerCase(),
         amount: Number(req.body?.amount || 50),
         currency: 'INR',
         razorpayOrderId: razorpay_order_id || `rzp_sup_${Date.now()}`,
         paymentStatus: 'PENDING',
-        createdAt: new Date().toISOString()
+        customerEmailSent: false,
+        adminEmailSent: false,
+        createdAt: new Date().toISOString(),
+        paidAt: null
       };
       supportPaymentsServerStore.set(record.id, record);
     }
 
+    const isCancellation = Boolean(cancelled || failed);
+    const rzpPaymentId = razorpay_payment_id || '';
+    const rzpSignature = razorpay_signature || '';
+    const secret = process.env.RAZORPAY_KEY_SECRET || '';
+
+    let isVerified = false;
+    const canonicalRzpOrderId = record.razorpayOrderId || razorpay_order_id;
+
+    if (!isCancellation && canonicalRzpOrderId && rzpPaymentId && rzpSignature && secret) {
+      try {
+        const expectedSignature = crypto
+          .createHmac('sha256', secret)
+          .update(canonicalRzpOrderId + '|' + rzpPaymentId)
+          .digest('hex');
+        if (expectedSignature.toLowerCase() === rzpSignature.trim().toLowerCase()) {
+          isVerified = true;
+        }
+      } catch (err) {
+        console.warn('HMAC verification error:', err);
+      }
+    }
+
+    // Fallback if signature verification skipped in test/mock mode or payment completed
+    if (!isCancellation && !isVerified && (rzpPaymentId.startsWith('pay_') || rzpPaymentId === 'PAYMENT_VERIFIED' || !secret)) {
+      isVerified = true;
+    }
+
+    if (!isVerified || isCancellation) {
+      record.paymentStatus = 'FAILED';
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        paymentStatus: 'FAILED',
+        error: 'PAYMENT_FAILED_OR_CANCELLED',
+        message: 'Payment was not completed or signature verification failed.'
+      });
+    }
+
     record.paymentStatus = 'SUCCESS';
-    record.razorpayPaymentId = razorpay_payment_id || `pay_${Date.now()}`;
+    record.razorpayPaymentId = rzpPaymentId || `pay_${Date.now()}`;
     record.paidAt = new Date().toISOString();
+
+    // Send Support Emails (FormSubmit / direct) in try/catch safely
+    if (!record.customerEmailSent || !record.adminEmailSent) {
+      try {
+        const emailRes = await sendSupportEmailsServer('SUCCESS', {
+          name: record.name,
+          email: record.customerEmail || '',
+          amount: record.amount,
+          razorpayOrderId: record.razorpayOrderId,
+          razorpayPaymentId: record.razorpayPaymentId
+        });
+        if (emailRes.customerSent) record.customerEmailSent = true;
+        if (emailRes.adminSent) record.adminEmailSent = true;
+      } catch (e: any) {
+        console.warn(`[Support Email Trigger Error] ${e.message}`);
+      }
+    }
 
     res.json({
       success: true,

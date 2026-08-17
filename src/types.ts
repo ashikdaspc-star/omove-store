@@ -166,11 +166,16 @@ export interface Order {
   discount: number;
   tax: number;
   total: number;
-  paymentMethod: 'Razorpay UPI' | 'Credit / Debit Card' | 'NetBanking' | 'Wallet';
+  paymentMethod: 'Razorpay UPI' | 'Credit / Debit Card' | 'NetBanking' | 'Wallet' | 'PayPal';
   paymentStatus: 'SUCCESS' | 'PENDING' | 'FAILED';
   paymentId?: string;
   razorpayPaymentId?: string;
   razorpayOrderId?: string;
+  paypalOrderId?: string;
+  paypalCaptureId?: string;
+  paymentProvider?: 'razorpay' | 'paypal';
+  paymentCurrency?: 'INR' | 'USD';
+  paymentAmountUsd?: number;
   status?: string;
   createdAt: string;
 }

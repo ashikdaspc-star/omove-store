@@ -675,7 +675,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
 
                     <h4 className="font-bold text-slate-900 text-base">{item.productName}</h4>
-                    <span className="text-xs font-mono text-emerald-700 font-bold block">Paid: ₹{item.price} ({item.paymentMethod})</span>
+                    <span className="text-xs font-mono text-emerald-700 font-bold block">
+                      {(item as any).orderObj?.paymentProvider === 'paypal'
+                        ? `Paid: $${((item as any).orderObj?.paymentAmountUsd || item.price).toFixed ? ((item as any).orderObj?.paymentAmountUsd || item.price).toFixed(2) : (item as any).orderObj?.paymentAmountUsd || item.price} USD (PayPal)`
+                        : `Paid: ₹${item.price} (${item.paymentMethod})`}
+                    </span>
                   </div>
 
                   {/* Digital File Download Box */}

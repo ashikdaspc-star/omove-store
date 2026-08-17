@@ -89,7 +89,7 @@ export const SupportView: React.FC = () => {
           currency: 'INR',
           name: 'Omove Store',
           description: `Buy Me a Coffee from ${trimmedName}`,
-          order_id: razorpayOrderId.startsWith('rzp_') ? razorpayOrderId : undefined,
+          order_id: (razorpayOrderId && razorpayOrderId.startsWith('order_')) ? razorpayOrderId : undefined,
           prefill: {
             name: trimmedName,
             email: trimmedEmail
@@ -137,22 +137,6 @@ export const SupportView: React.FC = () => {
           modal: {
             ondismiss: function () {
               setIsSubmitting(false);
-              setErrorMessage('Payment was not completed.');
-              setViewState('FAILED');
-
-              // Notify backend to record FAILED status and send FAILED email notifications
-              fetch('/api/support/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  supportId,
-                  cancelled: true,
-                  name: trimmedName,
-                  email: trimmedEmail,
-                  amount: validatedAmount,
-                  razorpay_order_id: razorpayOrderId
-                })
-              }).catch(() => {});
             }
           }
         };

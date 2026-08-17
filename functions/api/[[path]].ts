@@ -33,6 +33,10 @@ export interface Env {
   RAZORPAY_KEY_SECRET?: string;
   VITE_RAZORPAY_KEY_ID?: string;
   RAZORPAY_KEY_ID?: string;
+  PAYPAL_CLIENT_ID?: string;
+  PAYPAL_CLIENT_SECRET?: string;
+  PAYPAL_ENV?: string; // 'sandbox' | 'live'
+  PAYPAL_MODE?: string; // 'sandbox' | 'live'
   SMTP_HOST?: string;
   SMTP_PORT?: string;
   SMTP_USER?: string;
@@ -73,6 +77,11 @@ async function getD1Orders(env: Env): Promise<any[]> {
           razorpayOrderId: o.razorpay_order_id,
           razorpayPaymentId: o.razorpay_payment_id,
           paymentId: o.razorpay_payment_id,
+          paypalOrderId: o.paypal_order_id || null,
+          paypalCaptureId: o.paypal_capture_id || null,
+          paymentProvider: o.payment_provider || 'razorpay',
+          paymentCurrency: o.payment_currency || 'INR',
+          paymentAmountUsd: o.payment_amount_usd || null,
           customerName: o.customer_name,
           customerEmail: o.customer_email,
           customerPhone: o.customer_phone,
@@ -103,16 +112,29 @@ async function saveD1Order(env: Env, order: any): Promise<boolean> {
   if (!env.DB) return true;
 
   try {
+    // Ensure PayPal columns exist (idempotent ALTER TABLE)
+    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN paypal_order_id TEXT`).run(); } catch (_e) {}
+    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN paypal_capture_id TEXT`).run(); } catch (_e) {}
+    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN payment_provider TEXT DEFAULT 'razorpay'`).run(); } catch (_e) {}
+    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN payment_currency TEXT DEFAULT 'INR'`).run(); } catch (_e) {}
+    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN payment_amount_usd REAL`).run(); } catch (_e) {}
+
     const orderStmt = env.DB.prepare(`
       INSERT INTO orders (
         id, order_number, razorpay_order_id, razorpay_payment_id, customer_name,
         customer_email, customer_phone, subtotal, discount, coupon_code, tax,
         total, total_amount, payment_method, payment_status, status, payment_verified_at,
+        paypal_order_id, paypal_capture_id, payment_provider, payment_currency, payment_amount_usd,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         razorpay_order_id = excluded.razorpay_order_id,
         razorpay_payment_id = excluded.razorpay_payment_id,
+        paypal_order_id = excluded.paypal_order_id,
+        paypal_capture_id = excluded.paypal_capture_id,
+        payment_provider = excluded.payment_provider,
+        payment_currency = excluded.payment_currency,
+        payment_amount_usd = excluded.payment_amount_usd,
         payment_status = excluded.payment_status,
         status = excluded.status,
         payment_verified_at = excluded.payment_verified_at,
@@ -137,6 +159,11 @@ async function saveD1Order(env: Env, order: any): Promise<boolean> {
       order.paymentStatus || 'PENDING',
       order.status || 'pending',
       order.paymentVerifiedAt || null,
+      order.paypalOrderId || null,
+      order.paypalCaptureId || null,
+      order.paymentProvider || 'razorpay',
+      order.paymentCurrency || 'INR',
+      order.paymentAmountUsd != null ? Number(order.paymentAmountUsd) : null,
       order.createdAt || new Date().toISOString(),
       order.updatedAt || new Date().toISOString()
     ).run();
@@ -1172,6 +1199,184 @@ async function verifyRazorpaySignature(orderId: string, paymentId: string, signa
     return generated.toLowerCase() === signature.trim().toLowerCase();
   } catch (e) {
     return false;
+  }
+}
+
+// ─── PAYPAL REST API HELPERS ───
+
+// PayPal Credentials
+function getPayPalClientId(env: Env): string {
+  return env.PAYPAL_CLIENT_ID || '';
+}
+
+function getPayPalClientSecret(env: Env): string {
+  return env.PAYPAL_CLIENT_SECRET || '';
+}
+
+function getPayPalBaseUrl(env: Env): string {
+  const mode = env.PAYPAL_ENV || env.PAYPAL_MODE || 'sandbox';
+  return mode === 'live'
+    ? 'https://api-m.paypal.com'
+    : 'https://api-m.sandbox.paypal.com';
+}
+
+// INR → USD Conversion: MAX(3, INR / 95), rounded to 2 decimals
+function calculateUsdPrice(inrTotal: number): number {
+  const raw = Math.max(3, inrTotal / 95);
+  return Math.round(raw * 100) / 100;
+}
+
+// PayPal OAuth2: Get Access Token (server-side only)
+async function getPayPalAccessToken(env: Env): Promise<{ token: string | null; error?: string; status?: number; details?: any }> {
+  const clientId = getPayPalClientId(env);
+  const clientSecret = getPayPalClientSecret(env);
+  if (!clientId || !clientSecret) {
+    return { token: null, error: 'PAYPAL_CREDENTIALS_MISSING', status: 500 };
+  }
+
+  const baseUrl = getPayPalBaseUrl(env);
+  const auth = encodeBase64Safe(`${clientId}:${clientSecret}`);
+
+  try {
+    const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'grant_type=client_credentials'
+    });
+
+    const data: any = await res.json().catch(() => ({}));
+    if (res.ok && data.access_token) {
+      return { token: data.access_token };
+    }
+    console.warn(`[PayPal OAuth ERROR] Status: ${res.status}, error:`, data.error, data.error_description);
+    return {
+      token: null,
+      error: data.error || 'OAUTH_FAILED',
+      status: res.status,
+      details: data.error_description || data
+    };
+  } catch (e: any) {
+    console.warn(`[PayPal OAuth EXCEPTION] ${e.message}`);
+    return { token: null, error: e.message || 'OAUTH_NETWORK_EXCEPTION', status: 500 };
+  }
+}
+
+// PayPal: Create Order via REST API v2
+async function createPayPalOrderApi(
+  env: Env,
+  usdAmount: number,
+  internalOrderId: string,
+  description: string
+): Promise<{ paypalOrderId?: string; error?: string; status?: number; debugId?: string; details?: any }> {
+  const authRes = await getPayPalAccessToken(env);
+  if (!authRes.token) {
+    return {
+      error: authRes.error || 'Failed to authenticate with PayPal',
+      status: authRes.status || 500,
+      details: authRes.details
+    };
+  }
+
+  const baseUrl = getPayPalBaseUrl(env);
+  const amountStr = usdAmount.toFixed(2);
+
+  try {
+    const res = await fetch(`${baseUrl}/v2/checkout/orders`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authRes.token}`,
+        'Content-Type': 'application/json',
+        'PayPal-Request-Id': internalOrderId // Idempotency key
+      },
+      body: JSON.stringify({
+        intent: 'CAPTURE',
+        purchase_units: [{
+          reference_id: internalOrderId,
+          description: description.substring(0, 127),
+          amount: {
+            currency_code: 'USD',
+            value: amountStr
+          }
+        }],
+        application_context: {
+          brand_name: 'OMOVE Store',
+          landing_page: 'NO_PREFERENCE',
+          user_action: 'PAY_NOW'
+        }
+      })
+    });
+
+    const data: any = await res.json().catch(() => ({}));
+    if (res.ok && data.id) {
+      return { paypalOrderId: data.id };
+    }
+
+    console.warn(`[PayPal Create Order ERROR] Status: ${res.status}, body:`, data);
+    return {
+      error: data.name || data.message || 'ORDER_CREATION_FAILED',
+      status: res.status,
+      debugId: data.debug_id,
+      details: data.details || data.message || data
+    };
+  } catch (e: any) {
+    console.warn(`[PayPal Create Order EXCEPTION] ${e.message}`);
+    return { error: e.message || 'CREATE_ORDER_NETWORK_EXCEPTION', status: 500 };
+  }
+}
+
+// PayPal: Capture Order via REST API v2
+async function capturePayPalOrderApi(
+  env: Env,
+  paypalOrderId: string
+): Promise<{ status?: string; captureId?: string; amount?: string; currency?: string; error?: string; httpStatus?: number; debugId?: string; details?: any }> {
+  const authRes = await getPayPalAccessToken(env);
+  if (!authRes.token) {
+    return { error: authRes.error || 'AUTH_FAILED', httpStatus: authRes.status || 500 };
+  }
+
+  const baseUrl = getPayPalBaseUrl(env);
+
+  try {
+    const res = await fetch(`${baseUrl}/v2/checkout/orders/${paypalOrderId}/capture`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authRes.token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data: any = await res.json().catch(() => ({}));
+    if (res.ok) {
+      const captureStatus = data.status; // 'COMPLETED'
+      const captures = data.purchase_units?.[0]?.payments?.captures;
+      if (captures && captures.length > 0) {
+        const capture = captures[0];
+        return {
+          status: captureStatus,
+          captureId: capture.id,
+          amount: capture.amount?.value || '0.00',
+          currency: capture.amount?.currency_code || 'USD'
+        };
+      }
+      // Fallback if already captured
+      if (captureStatus === 'COMPLETED') {
+        return { status: 'COMPLETED', captureId: paypalOrderId, amount: '0.00', currency: 'USD' };
+      }
+    }
+
+    console.warn(`[PayPal Capture ERROR] Status: ${res.status}, body:`, data);
+    return {
+      error: data.name || data.message || 'CAPTURE_FAILED',
+      httpStatus: res.status,
+      debugId: data.debug_id,
+      details: data.details || data.message || data
+    };
+  } catch (e: any) {
+    console.warn(`[PayPal Capture EXCEPTION] ${e.message}`);
+    return { error: e.message, httpStatus: 500 };
   }
 }
 
@@ -2421,6 +2626,249 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         success: true,
         verified: true,
         message: 'Razorpay payment verified successfully',
+        order,
+        orderId: order.id,
+        sync: { success: true }
+      });
+    }
+
+    // ----------------------------------------------------
+    // PAYPAL CHECKOUT FLOW (/api/paypal/*)
+    // ----------------------------------------------------
+    if (path === '/api/paypal/config' && method === 'GET') {
+      const clientId = getPayPalClientId(env);
+      const mode = (env.PAYPAL_ENV || env.PAYPAL_MODE || 'sandbox') as string;
+      if (!clientId) {
+        return jsonResponse({ success: false, error: 'PayPal is not configured.' }, 503);
+      }
+      return jsonResponse({ success: true, clientId, currency: 'USD', mode });
+    }
+
+    if (path === '/api/paypal/create-order' && method === 'POST') {
+      const body: any = await request.json().catch(() => ({}));
+      const orderId = body.id || `ord-pp-${Date.now()}`;
+
+      // Load authoritative product prices from server-side catalog
+      const storeProds = await getWorkingData('src/data/products.json', env);
+      const digProds = await getWorkingData('src/data/digital_products.json', env);
+      const allProds = [...(Array.isArray(storeProds) ? storeProds : []), ...(Array.isArray(digProds) ? digProds : [])];
+
+      let subtotal = 0;
+      const resolvedItems: any[] = [];
+
+      if (Array.isArray(body.items)) {
+        for (const item of body.items) {
+          const product = allProds.find((p: any) =>
+            p && (
+              p.id === item.productId ||
+              p.slug === item.productId ||
+              (p.name && item.productName && p.name.toLowerCase() === item.productName.toLowerCase())
+            )
+          );
+          const price = product ? Number(product.price) : Number(item.price || 0);
+          const qty = Number(item.quantity) || 1;
+          subtotal += price * qty;
+
+          const isDigital = product ? (product.productType === 'DIGITAL' || product.id?.startsWith('dig') || product.category === 'Digital Products') : (item.productType === 'DIGITAL' || item.productId?.startsWith('dig'));
+          const resolvedDriveUrl = isDigital && product ? (product.googleDriveUrl || product.fileUrl || '') : (isDigital ? (item.googleDriveUrl || item.fileUrl || '') : '');
+          const downloadEndpoint = isDigital ? `/api/downloads/setup?orderId=${encodeURIComponent(orderId)}&productId=${encodeURIComponent(item.productId || product?.id || '')}` : '';
+
+          resolvedItems.push({
+            productId: item.productId || product?.id || `prod-${Date.now()}`,
+            productName: product ? product.name : (item.productName || (isDigital ? 'Digital Product' : 'Store Product')),
+            productType: isDigital ? 'DIGITAL' : 'STORE',
+            price: price,
+            quantity: qty,
+            fileSize: isDigital ? (product?.downloadSize || item.fileSize || 'Instant Access') : '',
+            googleDriveUrl: resolvedDriveUrl,
+            fileUrl: downloadEndpoint,
+            licenseKey: isDigital ? generateLicenseKey() : '',
+            downloadLimit: isDigital ? 5 : 0,
+            downloadsCount: 0
+          });
+        }
+      }
+
+      // Server-side coupon validation
+      let discountAmount = 0;
+      let appliedCouponCode = '';
+      const couponCode = (body.couponCode || '').trim().toUpperCase();
+      if (couponCode) {
+        const freshCoupons = await getWorkingData('src/data/coupons.json', env);
+        if (Array.isArray(freshCoupons) && freshCoupons.length > 0) dynamicCouponsStore = freshCoupons;
+        const couponResult = validateCouponServerSide(couponCode, subtotal, dynamicCouponsStore);
+        if (couponResult.valid) {
+          discountAmount = couponResult.discountAmount;
+          appliedCouponCode = couponResult.coupon?.code || couponCode;
+        }
+      }
+
+      const inrTotal = Math.max(0, subtotal - discountAmount);
+
+      // Server-side USD price calculation — NEVER trust frontend amount
+      const usdTotal = calculateUsdPrice(inrTotal);
+
+      // Create internal PENDING order in D1 (same unified order system as Razorpay)
+      const newOrder: any = {
+        id: orderId,
+        orderNumber: body.orderNumber || `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+        customerName: body.customerName || 'Customer',
+        customerEmail: body.customerEmail || 'customer@example.com',
+        customerPhone: body.customerPhone || '+91 8345968169',
+        items: resolvedItems,
+        subtotal: subtotal,
+        discount: discountAmount,
+        couponCode: appliedCouponCode,
+        tax: 0,
+        total: inrTotal,
+        totalAmount: inrTotal,
+        paymentMethod: 'PayPal',
+        paymentProvider: 'paypal',
+        paymentCurrency: 'USD',
+        paymentAmountUsd: usdTotal,
+        paymentStatus: 'PENDING',
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      // Create PayPal order via PayPal REST API
+      const productNames = resolvedItems.map((it: any) => it.productName).join(', ').substring(0, 120);
+      const ppResult = await createPayPalOrderApi(env, usdTotal, orderId, `OMOVE Store: ${productNames}`);
+
+      if (!ppResult || !ppResult.paypalOrderId) {
+        return jsonResponse({
+          success: false,
+          error: ppResult?.error || 'Failed to create PayPal order.',
+          paypalStatus: ppResult?.status,
+          paypalErrorName: ppResult?.error,
+          paypalDebugId: ppResult?.debugId,
+          paypalDetails: ppResult?.details
+        }, ppResult?.status || 500);
+      }
+
+      newOrder.paypalOrderId = ppResult.paypalOrderId;
+
+      await saveD1Order(env, newOrder);
+
+      return jsonResponse({
+        success: true,
+        order: newOrder,
+        orderId,
+        paypalOrderId: ppResult.paypalOrderId,
+        usdAmount: usdTotal,
+        inrAmount: inrTotal,
+        currency: 'USD',
+        sync: { success: true }
+      });
+    }
+
+    if (path === '/api/paypal/capture-order' && method === 'POST') {
+      const body: any = await request.json().catch(() => ({}));
+      const paypalOrderId = body.paypalOrderId || body.paypal_order_id || '';
+
+      if (!paypalOrderId) {
+        return jsonResponse({ success: false, error: 'Missing PayPal order ID.' }, 400);
+      }
+
+      // Find the internal D1 order that matches this PayPal order ID
+      let allOrders = await getD1Orders(env);
+      if (Array.isArray(allOrders)) {
+        allOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
+      }
+
+      let order = Array.from(ordersStore.values()).find((o: any) =>
+        o.paypalOrderId === paypalOrderId
+      );
+
+      if (!order) {
+        return jsonResponse({ success: false, error: 'No matching internal order found for this PayPal order.' }, 404);
+      }
+
+      // IDEMPOTENCY: If already captured, return existing result
+      if (order.paymentStatus === 'SUCCESS' && order.paypalCaptureId) {
+        return jsonResponse({
+          success: true,
+          verified: true,
+          message: 'PayPal payment already verified and processed.',
+          order,
+          orderId: order.id,
+          alreadyProcessed: true,
+          sync: { success: true }
+        });
+      }
+
+      // Capture the PayPal order
+      const captureResult = await capturePayPalOrderApi(env, paypalOrderId);
+
+      if (!captureResult) {
+        return jsonResponse({ success: false, error: 'PayPal capture failed. Please try again.' }, 500);
+      }
+
+      // Verify capture status
+      if (captureResult.status !== 'COMPLETED') {
+        return jsonResponse({ success: false, error: `PayPal payment not completed. Status: ${captureResult.status}` }, 400);
+      }
+
+      // Verify currency is USD
+      if (captureResult.currency !== 'USD') {
+        return jsonResponse({ success: false, error: `Unexpected payment currency: ${captureResult.currency}` }, 400);
+      }
+
+      // Verify amount matches server-calculated amount
+      const expectedUsd = order.paymentAmountUsd;
+      const capturedUsd = parseFloat(captureResult.amount);
+      if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
+        return jsonResponse({
+          success: false,
+          error: 'PAYMENT_AMOUNT_MISMATCH',
+          message: `Expected $${expectedUsd}, captured $${capturedUsd}`
+        }, 400);
+      }
+
+      // Mark internal order as SUCCESS (same as Razorpay verify)
+      order.paymentStatus = 'SUCCESS';
+      order.status = 'completed';
+      order.paypalCaptureId = captureResult.captureId;
+      order.paymentId = captureResult.captureId;
+      order.paymentVerifiedAt = new Date().toISOString();
+      order.updatedAt = new Date().toISOString();
+
+      // Re-resolve product items with download URLs (same logic as Razorpay verify)
+      const storeList = await getWorkingData('src/data/products.json', env);
+      const digitalList = await getWorkingData('src/data/digital_products.json', env);
+      const allProdsList = [...(Array.isArray(storeList) ? storeList : []), ...(Array.isArray(digitalList) ? digitalList : [])];
+
+      if (Array.isArray(order.items)) {
+        order.items = order.items.map((it: any) => {
+          const product = allProdsList.find((p: any) =>
+            p && (
+              p.id === it.productId ||
+              p.slug === it.productId ||
+              (p.name && it.productName && p.name.toLowerCase() === it.productName.toLowerCase())
+            )
+          );
+          const isDigital = product ? (product.productType === 'DIGITAL' || product.id?.startsWith('dig') || product.category === 'Digital Products') : (it.productType === 'DIGITAL' || it.productId?.startsWith('dig'));
+          const resolvedDriveUrl = isDigital && product ? (product.googleDriveUrl || product.fileUrl || '') : (isDigital ? (it.googleDriveUrl || it.fileUrl || '') : '');
+          const downloadEndpoint = isDigital ? `/api/downloads/setup?orderId=${encodeURIComponent(order.id || order.orderNumber)}&productId=${encodeURIComponent(it.productId || product?.id || '')}` : '';
+
+          return {
+            ...it,
+            productType: isDigital ? 'DIGITAL' : 'STORE',
+            fileSize: isDigital ? (it.fileSize || product?.downloadSize || 'Instant Access') : '',
+            licenseKey: isDigital ? (it.licenseKey || generateLicenseKey()) : '',
+            downloadLimit: isDigital ? (it.downloadLimit || 5) : 0,
+            googleDriveUrl: resolvedDriveUrl,
+            fileUrl: downloadEndpoint
+          };
+        });
+      }
+
+      await saveD1Order(env, order);
+
+      return jsonResponse({
+        success: true,
+        verified: true,
+        message: 'PayPal payment verified successfully',
         order,
         orderId: order.id,
         sync: { success: true }

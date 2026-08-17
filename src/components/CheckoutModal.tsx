@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { CartItem, Order } from '../types';
@@ -58,6 +58,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [copiedKeyIndex, setCopiedKeyIndex] = useState<number | null>(null);
   const [paymentFailedNotice, setPaymentFailedNotice] = useState('');
 
+  // Payment Method State (Razorpay or PayPal)
+  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'paypal'>('razorpay');
+  const [paypalReady, setPaypalReady] = useState(false);
+  const [paypalLoading, setPaypalLoading] = useState(false);
+  const createdOrderRef = useRef<Order | null>(null);
+
   const handleGoToMyOrders = () => {
     onClose();
     navigate('/my-account?tab=orders');
@@ -102,6 +108,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const finalTotal = Math.max(0, Number((subtotal - appliedDiscount).toFixed(2)));
+  const previewUsd = finalTotal > 0 ? Math.max(3, finalTotal / 95) : 0;
+  const previewUsdDisplay = previewUsd > 0 ? (Math.round(previewUsd * 100) / 100).toFixed(2) : '0.00';
 
   // Phone Number Validation: 10-digit Indian Mobile Number
   const cleanPhone = customerPhone.replace(/\D/g, '').slice(-10);
@@ -112,6 +120,195 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         ? 'Please enter complete 10-digit mobile number'
         : 'Please enter a valid Indian mobile number starting with 6, 7, 8, or 9'
       : '';
+
+  const paypalStateRef = useRef({
+    cart,
+    cleanPhone,
+    isPhoneValid,
+    appliedCode,
+    previewUsdDisplay
+  });
+
+  useEffect(() => {
+    paypalStateRef.current = {
+      cart,
+      cleanPhone,
+      isPhoneValid,
+      appliedCode,
+      previewUsdDisplay
+    };
+  }, [cart, cleanPhone, isPhoneValid, appliedCode, previewUsdDisplay]);
+
+  // PayPal SDK Auto-Loader & Smart Button Renderer
+  useEffect(() => {
+    if (!isOpen || paymentMethod !== 'paypal') {
+      setPaypalReady(false);
+      return;
+    }
+
+    let isCancelled = false;
+    setPaypalLoading(true);
+
+    async function initPayPal() {
+      try {
+        const cfgRes = await fetch('/api/paypal/config');
+        if (!cfgRes.ok) throw new Error('PayPal not configured');
+        const ppConfig = await cfgRes.json();
+        if (!ppConfig?.clientId || isCancelled) return;
+
+        // Check if script already in DOM with matching clientId
+        const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]') as HTMLScriptElement | null;
+        if (existingScript && !existingScript.src.includes(ppConfig.clientId)) {
+          existingScript.remove();
+          delete (window as any).paypal;
+        }
+
+        if (typeof (window as any).paypal === 'undefined') {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = `https://www.paypal.com/sdk/js?client-id=${ppConfig.clientId}&currency=USD&components=buttons&intent=capture`;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('PayPal SDK script load error'));
+            document.body.appendChild(script);
+          });
+        }
+
+        if (isCancelled || typeof (window as any).paypal === 'undefined') return;
+
+        const container = document.getElementById('paypal-button-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        (window as any).paypal.Buttons({
+          createOrder: async () => {
+            const curr = paypalStateRef.current;
+            if (!curr.isPhoneValid) {
+              setPhoneTouched(true);
+              setPaymentFailedNotice('Please enter a valid 10-digit WhatsApp number to continue.');
+              throw new Error('Valid WhatsApp number required');
+            }
+
+            setPaymentFailedNotice('');
+            setIsProcessing(true);
+
+            const formattedPhone = `+91 ${curr.cleanPhone}`;
+            const generatedEmail = `wa_${curr.cleanPhone}@omovestore.shop`;
+            const generatedName = `WhatsApp Customer (${curr.cleanPhone})`;
+
+            const payload = {
+              items: curr.cart.map((it) => {
+                const isDig = it.product.productType === 'DIGITAL' || it.product.id?.startsWith('dig') || it.product.category === 'Digital Products';
+                return {
+                  productId: it.product.id,
+                  productName: it.product.name,
+                  productType: isDig ? ('DIGITAL' as const) : ('STORE' as const),
+                  price: it.product.price,
+                  quantity: it.quantity,
+                  fileSize: isDig ? (it.product.downloadSize || 'Instant Access') : '',
+                  fileUrl: isDig ? (it.product.googleDriveUrl || it.product.fileUrl || '/api/downloads/setup') : '',
+                  googleDriveUrl: isDig ? (it.product.googleDriveUrl || it.product.fileUrl || '') : ''
+                };
+              }),
+              customerName: generatedName,
+              customerEmail: generatedEmail,
+              customerPhone: formattedPhone,
+              couponCode: curr.appliedCode || ''
+            };
+
+            const createRes = await fetch('/api/paypal/create-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            const createData = await createRes.json();
+            if (!createRes.ok || !createData.success || !createData.paypalOrderId) {
+              const errMsg = createData.message || createData.error || 'Failed to create PayPal order.';
+              setPaymentFailedNotice(errMsg);
+              setIsProcessing(false);
+              throw new Error(errMsg);
+            }
+
+            createdOrderRef.current = createData.order;
+            setIsProcessing(false);
+            return createData.paypalOrderId;
+          },
+          onApprove: async (data: any) => {
+            setIsProcessing(true);
+            setPaymentFailedNotice('');
+            try {
+              const captureRes = await fetch('/api/paypal/capture-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paypalOrderId: data.orderID })
+              });
+              const captureData = await captureRes.json();
+
+              if (captureRes.ok && captureData.success && captureData.verified) {
+                const verifiedOrder = captureData.order || createdOrderRef.current;
+                setCreatedOrder(verifiedOrder);
+                onOrderSuccess(verifiedOrder);
+                onClearCart();
+                const curr = paypalStateRef.current;
+                sendAdminOrderNotificationEmail({
+                  type: 'PRODUCT_PURCHASE',
+                  customerName: `WhatsApp Customer (${curr.cleanPhone})`,
+                  email: `wa_${curr.cleanPhone}@omovestore.shop`,
+                  phone: `+91 ${curr.cleanPhone}`,
+                  title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name).join(', ') || 'Product',
+                  amount: verifiedOrder.paymentAmountUsd || verifiedOrder.total || 0,
+                  paymentId: `PayPal: ${data.orderID}`,
+                  orderOrBookingId: verifiedOrder.orderNumber || createdOrderRef.current?.orderNumber
+                });
+                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+              } else {
+                setPaymentFailedNotice(captureData.message || captureData.error || 'PayPal payment verification failed.');
+              }
+            } catch (err: any) {
+              setPaymentFailedNotice('PayPal payment capture network error.');
+            } finally {
+              setIsProcessing(false);
+            }
+          },
+          onCancel: () => {
+            setPaymentFailedNotice('PayPal checkout was cancelled.');
+            setIsProcessing(false);
+          },
+          onError: (err: any) => {
+            console.error('PayPal Button Error:', err);
+            setPaymentFailedNotice('PayPal checkout encountered an issue. Please try again.');
+            setIsProcessing(false);
+          },
+          style: {
+            layout: 'vertical',
+            color: 'blue',
+            shape: 'rect',
+            label: 'paypal',
+            height: 44
+          }
+        }).render('#paypal-button-container');
+
+        if (!isCancelled) {
+          setPaypalReady(true);
+          setPaypalLoading(false);
+        }
+      } catch (e: any) {
+        console.error('PayPal setup failed:', e);
+        if (!isCancelled) {
+          setPaypalLoading(false);
+        }
+      }
+    }
+
+    const timer = setTimeout(() => {
+      initPayPal();
+    }, 60);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isOpen, paymentMethod]);
 
   const handleApplyCouponCode = async (codeToApply?: string) => {
     const code = (codeToApply || couponInput).trim();
@@ -155,6 +352,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     if (!cart || cart.length === 0) {
       setPaymentFailedNotice('Your cart is empty. Please select a product to purchase.');
+      return;
+    }
+
+    // ── Razorpay Flow (unchanged) ──
+    if (paymentMethod === 'paypal') {
+      // If PayPal is selected, PayPal smart buttons handle click directly
       return;
     }
 
@@ -680,41 +883,133 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               )}
             </div>
 
-            {/* Main Submit CTA */}
-            <button
-              type="submit"
-              disabled={isProcessing || !isOnline || (!isPhoneValid && phoneTouched)}
-              className={`w-full py-3.5 rounded-2xl font-extrabold text-xs font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all ${
-                !isOnline || (!isPhoneValid && phoneTouched)
-                  ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed shadow-none'
-                  : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-cyan-500/25 hover:scale-[1.01] active:scale-95'
-              }`}
-            >
-              {!isOnline ? (
-                <>
-                  <WifiOff className="w-4 h-4 text-rose-400" />
-                  <span>YOU ARE OFFLINE</span>
-                </>
-              ) : isProcessing ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>INITIALIZING PAYMENT...</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-3.5 h-3.5 text-cyan-200" />
-                  <span>
-                    {finalTotal <= 0
-                      ? 'GET INSTANT ACCESS'
-                      : `PAY ₹${finalTotal.toFixed(2)} & GET INSTANT ACCESS`}
+            {/* Payment Method Selector */}
+            {finalTotal > 0 && (
+              <div className="space-y-2">
+                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-mono font-bold block">
+                  Payment Method
+                </span>
+
+                {/* Razorpay Option */}
+                <button
+                  type="button"
+                  onClick={() => { setPaymentMethod('razorpay'); setPaypalReady(false); }}
+                  className={`w-full p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
+                    paymentMethod === 'razorpay'
+                      ? 'border-cyan-500 bg-cyan-950/40 shadow-md shadow-cyan-500/10'
+                      : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                    paymentMethod === 'razorpay' ? 'border-cyan-400' : 'border-slate-600'
+                  }`}>
+                    {paymentMethod === 'razorpay' && <div className="w-2 h-2 rounded-full bg-cyan-400" />}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-white block">Razorpay (UPI / Card / NetBanking)</span>
+                    <span className="text-[10px] text-slate-400 font-mono">Pay in INR • ₹{finalTotal.toFixed(2)}</span>
+                  </div>
+                </button>
+
+                {/* PayPal Option */}
+                <button
+                  type="button"
+                  onClick={() => { setPaymentMethod('paypal'); setPaypalReady(false); }}
+                  className={`w-full p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                    paymentMethod === 'paypal'
+                      ? 'border-blue-500 bg-blue-950/40 shadow-md shadow-blue-500/10'
+                      : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                    paymentMethod === 'paypal' ? 'border-blue-400' : 'border-slate-600'
+                  }`}>
+                    {paymentMethod === 'paypal' && <div className="w-2 h-2 rounded-full bg-blue-400" />}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white block">PayPal (International Checkout)</span>
+                      <span className="text-xs font-black text-blue-400 font-mono">${previewUsdDisplay} USD</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono block">
+                      Pay in USD • ₹{finalTotal.toFixed(2)} / 95 (Min. $3.00)
+                    </span>
+                  </div>
+                </button>
+
+                {/* PayPal Conversion Info Card (shown when PayPal is selected) */}
+                {paymentMethod === 'paypal' && (
+                  <div className="p-3.5 rounded-2xl bg-blue-950/30 border border-blue-500/20 text-xs font-mono space-y-2">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-slate-400">Product Price (Authoritative):</span>
+                      <span className="text-white font-bold">₹{finalTotal.toFixed(2)} INR</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-slate-400">Conversion Rate:</span>
+                      <span className="text-slate-300">₹95 = $1.00 USD</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-slate-400">Minimum PayPal Price:</span>
+                      <span className="text-slate-300">$3.00 USD</span>
+                    </div>
+                    <div className="pt-2 border-t border-blue-500/20 flex justify-between items-center font-bold">
+                      <span className="text-blue-300">PayPal Total (USD):</span>
+                      <span className="text-base text-blue-400">${previewUsdDisplay} USD</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PayPal Buttons Container (shown when PayPal is selected) */}
+            {paymentMethod === 'paypal' && (
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-blue-500/40 shadow-xl shadow-blue-500/10 space-y-2">
+                <div className="text-center">
+                  <span className="text-[11px] text-blue-400 font-mono font-bold">
+                    {paypalLoading ? 'Loading PayPal Secure Gateway...' : `Pay via PayPal • $${previewUsdDisplay} USD`}
                   </span>
-                </>
-              )}
-            </button>
+                </div>
+                <div id="paypal-button-container" className="min-h-[44px] w-full" />
+              </div>
+            )}
+
+            {/* Razorpay Submit CTA (rendered when Razorpay is active) */}
+            {paymentMethod === 'razorpay' && (
+              <button
+                type="submit"
+                disabled={isProcessing || !isOnline || (!isPhoneValid && phoneTouched)}
+                className={`w-full py-3.5 rounded-2xl font-extrabold text-xs font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all ${
+                  !isOnline || (!isPhoneValid && phoneTouched)
+                    ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed shadow-none'
+                    : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-cyan-500/25 hover:scale-[1.01] active:scale-95'
+                }`}
+              >
+                {!isOnline ? (
+                  <>
+                    <WifiOff className="w-4 h-4 text-rose-400" />
+                    <span>YOU ARE OFFLINE</span>
+                  </>
+                ) : isProcessing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>INITIALIZING PAYMENT...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-3.5 h-3.5 text-cyan-200" />
+                    <span>
+                      {finalTotal <= 0
+                        ? 'GET INSTANT ACCESS'
+                        : `PAY ₹${finalTotal.toFixed(2)} & GET INSTANT ACCESS`}
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
 
             <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400 font-mono pt-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Razorpay 256-Bit SSL Encrypted Payment</span>
+              <span>{paymentMethod === 'paypal' ? 'PayPal Buyer Protection • Secure Checkout' : 'Razorpay 256-Bit SSL Encrypted Payment'}</span>
             </div>
 
           </form>

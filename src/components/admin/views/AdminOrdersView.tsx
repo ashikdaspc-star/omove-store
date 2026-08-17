@@ -90,7 +90,11 @@ export const AdminOrdersView: React.FC<AdminOrdersViewProps> = ({ orders = [], o
                   <td className="py-3.5 text-slate-600">
                     {(ord.items || []).map((it) => it?.productName || 'Product').join(', ')}
                   </td>
-                  <td className="py-3.5 font-extrabold text-slate-900">₹{ord.total}</td>
+                  <td className="py-3.5 font-extrabold text-slate-900">
+                    {(ord as any).paymentProvider === 'paypal'
+                      ? `$${((ord as any).paymentAmountUsd || 0).toFixed(2)} USD`
+                      : `₹${ord.total}`}
+                  </td>
                   <td className="py-3.5">
                     <span
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
@@ -141,12 +145,32 @@ export const AdminOrdersView: React.FC<AdminOrdersViewProps> = ({ orders = [], o
                 <strong className="text-emerald-700">{selectedOrder.paymentStatus}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Razorpay Payment ID:</span>
-                <strong className="text-slate-900">{selectedOrder.razorpayPaymentId || 'N/A'}</strong>
+                <span className="text-slate-500">Payment Provider:</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  (selectedOrder as any).paymentProvider === 'paypal'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                }`}>
+                  {(selectedOrder as any).paymentProvider === 'paypal' ? 'PAYPAL' : 'RAZORPAY'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">
+                  {(selectedOrder as any).paymentProvider === 'paypal' ? 'PayPal Capture ID:' : 'Razorpay Payment ID:'}
+                </span>
+                <strong className="text-slate-900">
+                  {(selectedOrder as any).paymentProvider === 'paypal'
+                    ? ((selectedOrder as any).paypalCaptureId || 'N/A')
+                    : (selectedOrder.razorpayPaymentId || 'N/A')}
+                </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Total Payable:</span>
-                <strong className="text-slate-900 text-sm">₹{selectedOrder.total}</strong>
+                <strong className="text-slate-900 text-sm">
+                  {(selectedOrder as any).paymentProvider === 'paypal'
+                    ? `$${((selectedOrder as any).paymentAmountUsd || 0).toFixed(2)} USD`
+                    : `₹${selectedOrder.total}`}
+                </strong>
               </div>
             </div>
 
