@@ -1235,9 +1235,9 @@ function getPayPalBaseUrl(env: Env): string {
     : 'https://api-m.sandbox.paypal.com';
 }
 
-// INR → USD Conversion: MAX(3, INR / 95), rounded to 2 decimals
+// INR → USD Conversion: (INR / 95), rounded to 2 decimals
 function calculateUsdPrice(inrTotal: number): number {
-  const raw = Math.max(3, inrTotal / 95);
+  const raw = inrTotal > 0 ? inrTotal / 95 : 0;
   return Math.round(raw * 100) / 100;
 }
 

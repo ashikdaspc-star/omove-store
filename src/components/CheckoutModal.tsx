@@ -156,7 +156,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const finalTotal = Math.max(0, Number((subtotal - appliedDiscount).toFixed(2)));
-  const previewUsd = finalTotal > 0 ? Math.max(3, finalTotal / 95) : 0;
+  const previewUsd = finalTotal > 0 ? finalTotal / 95 : 0;
   const previewUsdDisplay = previewUsd > 0 ? (Math.round(previewUsd * 100) / 100).toFixed(2) : '0.00';
 
   // Country-aware Phone Validation
@@ -944,10 +944,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <div className="flex justify-between items-center text-[11px]">
                       <span className="text-slate-400">Conversion Rate:</span>
                       <span className="text-slate-300">₹95 = $1.00 USD</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="text-slate-400">Minimum PayPal Price:</span>
-                      <span className="text-slate-300">$3.00 USD</span>
                     </div>
                     <div className="pt-2 border-t border-blue-500/30 flex justify-between items-center font-bold">
                       <span className="text-blue-300">PayPal Total (USD):</span>

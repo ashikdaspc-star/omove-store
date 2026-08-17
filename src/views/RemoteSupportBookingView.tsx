@@ -71,7 +71,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
 
   const basePrice = selectedService?.price || 39;
   const finalPrice = Math.max(0, basePrice - appliedDiscount);
-  const previewUsd = finalPrice > 0 ? Math.max(3, finalPrice / 95) : 0;
+  const previewUsd = finalPrice > 0 ? finalPrice / 95 : 0;
   const previewUsdDisplay = (Math.round(previewUsd * 100) / 100).toFixed(2);
 
   const handleApplyBookingCoupon = (e?: React.FormEvent) => {

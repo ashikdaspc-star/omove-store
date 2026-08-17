@@ -2381,7 +2381,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   }
 
   function calculateUsdPrice(inrTotal: number): number {
-    const raw = Math.max(3, inrTotal / 95);
+    const raw = inrTotal > 0 ? inrTotal / 95 : 0;
     return Math.round(raw * 100) / 100;
   }
 

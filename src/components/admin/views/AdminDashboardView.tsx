@@ -89,7 +89,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const paypalPaidOrders = paidOrders.filter((o) => (o as any).paymentProvider === 'paypal' || o.paymentMethod?.toLowerCase().includes('paypal'));
 
   const calcInrRevenue = razorpayPaidOrders.reduce((sum, o) => sum + (o?.total || o?.totalAmount || 0), 0);
-  const calcUsdRevenue = paypalPaidOrders.reduce((sum, o) => sum + ((o as any).paymentAmountUsd || Math.max(3, (o?.total || 0) / 95)), 0);
+  const calcUsdRevenue = paypalPaidOrders.reduce((sum, o) => sum + ((o as any).paymentAmountUsd || ((o?.total || 0) / 95)), 0);
 
   // Separate Digital vs Store Product counts robustly
   const fallbackDigitalCount = (products || []).filter((p) => p && (p.productType === 'DIGITAL' || p.id?.startsWith('dig') || p.category === 'Digital Products')).length;

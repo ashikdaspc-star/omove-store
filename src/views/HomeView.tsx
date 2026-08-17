@@ -101,7 +101,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [couponMessage, setCouponMessage] = useState('');
 
   const finalPrice = activeBookingService ? Math.max(0, activeBookingService.price - appliedDiscount) : 0;
-  const previewUsd = finalPrice > 0 ? Math.max(3, finalPrice / 95) : 0;
+  const previewUsd = finalPrice > 0 ? finalPrice / 95 : 0;
   const previewUsdDisplay = (Math.round(previewUsd * 100) / 100).toFixed(2);
 
   const handleApplyBookingCoupon = (e?: React.FormEvent) => {

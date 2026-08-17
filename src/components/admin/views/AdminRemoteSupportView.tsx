@@ -123,7 +123,7 @@ export const AdminRemoteSupportView: React.FC<AdminRemoteSupportViewProps> = ({
                       {(bk as any).paymentProvider === 'paypal' || (bk as any).paypalOrderId ? (
                         <div>
                           <span className="text-blue-700 font-black block">
-                            ${((bk as any).paymentAmountUsd || Math.max(3, (bk.amount || 39) / 95)).toFixed(2)} USD
+                            ${((bk as any).paymentAmountUsd || ((bk.amount || 39) / 95)).toFixed(2)} USD
                           </span>
                           <span className="text-[10px] text-slate-400">Orig: ₹{bk.amount || 39} INR</span>
                         </div>

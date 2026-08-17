@@ -49,7 +49,7 @@ export const AdminSupportPaymentsView: React.FC = () => {
           .reduce((sum, p) => sum + (p.amount || 0), 0);
         const usdTotal = successPayments
           .filter((p) => p.paymentProvider === 'paypal' || p.paypalOrderId)
-          .reduce((sum, p) => sum + (p.usdAmount || Math.max(3, (p.amount || 0) / 95)), 0);
+          .reduce((sum, p) => sum + (p.usdAmount || ((p.amount || 0) / 95)), 0);
 
         setStats({
           totalSupport: inrTotal,
@@ -234,7 +234,7 @@ export const AdminSupportPaymentsView: React.FC = () => {
                 filteredPayments.map((payment) => {
                   const isPaypal = payment.paymentProvider === 'paypal' || !!payment.paypalOrderId || !!payment.paypalCaptureId;
                   const paymentId = payment.paypalCaptureId || payment.paypalOrderId || payment.razorpayPaymentId || payment.razorpayOrderId || '-';
-                  const usdVal = payment.usdAmount || Math.max(3, (payment.amount || 0) / 95);
+                  const usdVal = payment.usdAmount || ((payment.amount || 0) / 95);
 
                   return (
                     <tr key={payment.id} className="hover:bg-slate-50/50 transition-colors">

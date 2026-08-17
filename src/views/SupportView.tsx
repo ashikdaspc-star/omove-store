@@ -35,7 +35,7 @@ export const SupportView: React.FC = () => {
     ? Math.max(0, parseInt(customAmount, 10) || 0)
     : selectedPreset;
 
-  const previewUsd = activeAmount > 0 ? Math.max(3, activeAmount / 95) : 0;
+  const previewUsd = activeAmount > 0 ? activeAmount / 95 : 0;
   const previewUsdDisplay = (Math.round(previewUsd * 100) / 100).toFixed(2);
 
   // State ref for PayPal callbacks
@@ -645,10 +645,6 @@ export const SupportView: React.FC = () => {
                     <div className="flex justify-between items-center text-[11px]">
                       <span className="text-slate-400">Conversion Rate:</span>
                       <span className="text-slate-300">₹95 = $1.00 USD</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="text-slate-400">Minimum PayPal Price:</span>
-                      <span className="text-slate-300">$3.00 USD</span>
                     </div>
                     <div className="pt-1.5 border-t border-blue-500/30 flex justify-between items-center font-bold">
                       <span className="text-blue-300">PayPal Total (USD):</span>

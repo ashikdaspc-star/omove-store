@@ -16,7 +16,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onPublishC
   const [paypalClientSecret, setPaypalClientSecret] = useState('●●●●●●●●●●●●●●●●●●●●');
   const [paypalEnvironment, setPaypalEnvironment] = useState<'live' | 'sandbox'>('live');
   const [inrRatePerUsd, setInrRatePerUsd] = useState(95);
-  const [paypalMinUsd, setPaypalMinUsd] = useState(3.0);
+  const [paypalMinUsd, setPaypalMinUsd] = useState(0.0);
   const [paypalWebhookId, setPaypalWebhookId] = useState('WH-OMOVE-CAPTURE-VERIFIED');
 
   const [savedNotice, setSavedNotice] = useState(false);

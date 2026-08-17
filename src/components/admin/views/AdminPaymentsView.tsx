@@ -18,7 +18,7 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ orders = [
   const paypalOrders = paidOrders.filter((o) => (o as any).paymentProvider === 'paypal' || o.paymentMethod?.toLowerCase().includes('paypal'));
 
   const totalInrRevenue = razorpayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-  const totalUsdRevenue = paypalOrders.reduce((sum, o) => sum + ((o as any).paymentAmountUsd || Math.max(3, (o.total || 0) / 95)), 0);
+  const totalUsdRevenue = paypalOrders.reduce((sum, o) => sum + ((o as any).paymentAmountUsd || ((o.total || 0) / 95)), 0);
 
   const filteredOrders = paidOrders.filter((ord) => {
     const isPaypal = (ord as any).paymentProvider === 'paypal' || ord.paymentMethod?.toLowerCase().includes('paypal');
@@ -179,7 +179,7 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ orders = [
                 filteredOrders.map((ord) => {
                   const isPaypal = (ord as any).paymentProvider === 'paypal' || ord.paymentMethod?.toLowerCase().includes('paypal');
                   const paymentId = (ord as any).paypalCaptureId || (ord as any).paypalOrderId || ord.razorpayPaymentId || 'pay_live_verified';
-                  const usdAmount = (ord as any).paymentAmountUsd || Math.max(3, (ord.total || 0) / 95);
+                  const usdAmount = (ord as any).paymentAmountUsd || ((ord.total || 0) / 95);
 
                   return (
                     <tr key={ord.id} className="hover:bg-slate-50 transition-colors">
