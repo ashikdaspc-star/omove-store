@@ -119,23 +119,39 @@ export const AdminRemoteSupportView: React.FC<AdminRemoteSupportViewProps> = ({
                         <div className="text-[10px] text-slate-400 font-normal">Pass: {bk.remotePassword}</div>
                       )}
                     </td>
-                    <td className="py-3.5 font-bold text-slate-900">
-                      ₹{bk.amount !== undefined ? bk.amount : 39}
+                    <td className="py-3.5 font-bold">
+                      {(bk as any).paymentProvider === 'paypal' || (bk as any).paypalOrderId ? (
+                        <div>
+                          <span className="text-blue-700 font-black block">
+                            ${((bk as any).paymentAmountUsd || Math.max(3, (bk.amount || 39) / 95)).toFixed(2)} USD
+                          </span>
+                          <span className="text-[10px] text-slate-400">Orig: ₹{bk.amount || 39} INR</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-900">₹{bk.amount !== undefined ? bk.amount : 39} INR</span>
+                      )}
                     </td>
                     <td className="py-3.5">
-                      <span
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold inline-block ${
-                          bk.status === 'Resolved' || bk.status === 'Completed'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : bk.status === 'In Progress'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : bk.status === 'Cancelled'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                        }`}
-                      >
-                        {bk.status || 'Technician Assigned'}
-                      </span>
+                      <div className="space-y-1">
+                        <span
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold inline-block ${
+                            bk.status === 'Resolved' || bk.status === 'Completed'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : bk.status === 'In Progress'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : bk.status === 'Cancelled'
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                          }`}
+                        >
+                          {bk.status || 'Technician Assigned'}
+                        </span>
+                        {((bk as any).paymentProvider === 'paypal' || (bk as any).paypalOrderId) && (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200 block w-fit">
+                            PayPal Paid
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3.5 text-right">
                       <div className="inline-flex items-center gap-2 justify-end">

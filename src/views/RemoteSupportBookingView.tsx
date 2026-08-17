@@ -537,57 +537,57 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
       </div>
 
       {errorMessage && (
-        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-center gap-3 animate-fadeIn shadow-lg">
-          <AlertTriangle className="w-5 h-5 shrink-0 text-rose-400" />
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono flex items-center gap-3 animate-fadeIn shadow-sm">
+          <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600" />
           <span>{errorMessage}</span>
         </div>
       )}
 
       {confirmedBooking ? (
         /* Booking Confirmation Card */
-        <div className="p-8 rounded-3xl bg-slate-900 border border-emerald-500/40 shadow-2xl space-y-6 text-white">
+        <div className="p-8 rounded-3xl bg-white border-2 border-emerald-500/40 shadow-2xl space-y-6 text-slate-900">
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40">
+            <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center border border-emerald-200">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Remote Booking Confirmed!</h2>
-            <p className="text-xs text-slate-400 font-mono">
-              Booking ID: <strong className="font-mono text-emerald-400 text-sm">{confirmedBooking.bookingNumber}</strong>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Remote Booking Confirmed!</h2>
+            <p className="text-xs text-slate-500 font-mono">
+              Booking ID: <strong className="font-mono text-emerald-700 text-sm">{confirmedBooking.bookingNumber}</strong>
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4 font-mono text-xs text-slate-200">
+          <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-4 font-mono text-xs text-slate-800">
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Service Selected</span>
-                <span className="font-bold text-white text-sm">{confirmedBooking.serviceTitle}</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">Service Selected</span>
+                <span className="font-bold text-slate-900 text-sm">{confirmedBooking.serviceTitle}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Assigned Technician</span>
-                <span className="font-bold text-emerald-400 text-sm">{confirmedBooking.technicianName}</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">Assigned Technician</span>
+                <span className="font-bold text-emerald-700 text-sm">{confirmedBooking.technicianName}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Remote Tool</span>
-                <span className="font-bold text-white">AnyDesk Remote Support</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">Remote Tool</span>
+                <span className="font-bold text-slate-900">AnyDesk Remote Support</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Scheduled Time</span>
-                <span className="font-bold text-white">
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">Scheduled Time</span>
+                <span className="font-bold text-slate-900">
                   {confirmedBooking.preferredDate} at {confirmedBooking.preferredTime}
                 </span>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 leading-relaxed text-[11px] font-sans">
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 leading-relaxed text-[11px] font-sans">
               <strong>Instructions:</strong> Please keep your AnyDesk software running on your desktop. Our technician will connect at the scheduled time. You can view all connection logs in your Account Dashboard.
             </div>
 
             {/* Post-Purchase WhatsApp Support Button */}
-            <div className="p-6 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-center space-y-3 font-sans">
-              <span className="text-xs text-emerald-300 font-mono font-bold block uppercase tracking-wider">
+            <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3 font-sans">
+              <span className="text-xs text-emerald-800 font-mono font-bold block uppercase tracking-wider">
                 ✅ PAYMENT VERIFIED • TECHNICIAN ONLINE
               </span>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-slate-600">
                 Click below to start your live 1-on-1 remote PC inspection chat directly on WhatsApp!
               </p>
               <a
@@ -596,7 +596,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono text-sm font-extrabold inline-flex items-center gap-2.5 shadow-lg shadow-emerald-500/25 transition-all hover:scale-105"
+                className="px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-sm font-extrabold inline-flex items-center gap-2.5 shadow-lg shadow-emerald-600/25 transition-all hover:scale-105"
               >
                 <MessageSquare className="w-5 h-5" />
                 <span>CONNECT WITH TECHNICIAN ON WHATSAPP NOW</span>
@@ -608,27 +608,27 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
           <div className="flex justify-center gap-4">
             <button
               onClick={() => setCurrentView('dashboard')}
-              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold shadow-md cursor-pointer"
+              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-md cursor-pointer"
             >
               TRACK IN DASHBOARD
             </button>
           </div>
         </div>
       ) : (
-        /* Redesigned 2-Column Balanced Booking Flow */
+        /* Redesigned 2-Column Balanced Booking Flow (Crisp Light Cards) */
         <form onSubmit={handleSubmitBooking} className="grid lg:grid-cols-12 gap-8 items-start">
           {/* LEFT COLUMN (Main Booking & Payment Flow - 7 cols) */}
           <div className="lg:col-span-7 space-y-6">
             {/* STEP 1: Service Selection */}
-            <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
+            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-base text-white font-mono flex items-center gap-2.5">
-                  <span className="w-7 h-7 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center shadow-md shadow-emerald-500/20">
+                <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2.5">
+                  <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
                     1
                   </span>
                   <span>Select Remote Service</span>
                 </h3>
-                <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
+                <span className="text-[11px] font-mono text-emerald-700 font-bold flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
                   <span>Avg. Fix: ~20-40 mins</span>
                 </span>
@@ -643,27 +643,27 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                       onClick={() => setSelectedService(srv)}
                       className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between gap-4 ${
                         isSelected
-                          ? 'bg-gradient-to-r from-emerald-950/60 to-slate-900 border-emerald-500 text-white shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/50'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900/60'
+                          ? 'bg-emerald-50/90 border-emerald-600 text-slate-900 shadow-md ring-2 ring-emerald-500/30'
+                          : 'bg-slate-50/80 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                       }`}
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-sm text-white">{srv.title}</h4>
+                          <h4 className="font-bold text-sm text-slate-900">{srv.title}</h4>
                           {srv.popular && (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-950 font-mono tracking-wider">
                               POPULAR
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-400 line-clamp-1">{srv.description}</p>
-                        <span className="text-[10px] text-emerald-400 font-mono font-semibold inline-block">
+                        <p className="text-xs text-slate-500 line-clamp-1">{srv.description}</p>
+                        <span className="text-[10px] text-emerald-700 font-mono font-bold inline-block">
                           Est. Time: {srv.estimatedTime}
                         </span>
                       </div>
 
                       <div className="text-right font-mono shrink-0">
-                        <span className={`text-lg font-black ${isSelected ? 'text-emerald-400' : 'text-white'}`}>
+                        <span className={`text-lg font-black ${isSelected ? 'text-emerald-700' : 'text-slate-900'}`}>
                           ₹{srv.price}
                         </span>
                       </div>
@@ -674,9 +674,9 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
             </div>
 
             {/* STEP 2: Issue & Contact Information */}
-            <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-              <h3 className="font-bold text-base text-white font-mono flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center shadow-md shadow-emerald-500/20">
+            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-4">
+              <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2.5">
+                <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
                   2
                 </span>
                 <span>Customer & Contact Information</span>
@@ -684,8 +684,8 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
 
               <div className="grid sm:grid-cols-2 gap-3 text-xs font-sans">
                 <div>
-                  <label className="text-slate-300 font-semibold block mb-1.5 font-mono">
-                    YOUR FULL NAME <span className="text-emerald-400">*</span>
+                  <label className="text-slate-700 font-bold block mb-1.5 font-mono">
+                    YOUR FULL NAME <span className="text-emerald-600">*</span>
                   </label>
                   <input
                     type="text"
@@ -693,12 +693,12 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                     placeholder="e.g. Rahul Sharma"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-sans text-xs"
+                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition-all font-sans text-xs"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-300 font-semibold block mb-1.5 font-mono">
-                    EMAIL ADDRESS <span className="text-emerald-400">*</span>
+                  <label className="text-slate-700 font-bold block mb-1.5 font-mono">
+                    EMAIL ADDRESS <span className="text-emerald-600">*</span>
                   </label>
                   <input
                     type="email"
@@ -706,7 +706,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                     placeholder="e.g. rahul@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-sans text-xs"
+                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition-all font-sans text-xs"
                   />
                 </div>
               </div>
@@ -726,8 +726,8 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
               </div>
 
               <div>
-                <label className="text-slate-300 font-semibold block mb-1.5 text-xs font-mono">
-                  DESCRIBE PROBLEM / ERROR MESSAGES <span className="text-emerald-400">*</span>
+                <label className="text-slate-700 font-bold block mb-1.5 text-xs font-mono">
+                  DESCRIBE PROBLEM / ERROR MESSAGES <span className="text-emerald-600">*</span>
                 </label>
                 <textarea
                   rows={3}
@@ -735,34 +735,34 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                   placeholder="e.g. Blue Screen WHEA_UNCORRECTABLE_ERROR crash during gaming, Windows update error 0x80070002..."
                   value={problemDescription}
                   onChange={(e) => setProblemDescription(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-xs font-sans"
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition-all text-xs font-sans"
                 />
               </div>
             </div>
 
-            {/* STEP 3: Payment Method & Complete Checkout (Moved into Left Flow) */}
-            <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
+            {/* STEP 3: Payment Method & Complete Checkout (Light Premium Theme) */}
+            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-5">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-base text-white font-mono flex items-center gap-2.5">
-                  <span className="w-7 h-7 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center shadow-md shadow-emerald-500/20">
+                <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2.5">
+                  <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
                     3
                   </span>
                   <span>Payment & Confirmation</span>
                 </h3>
-                <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="text-[10px] text-emerald-700 font-mono font-bold flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>256-Bit SSL Encrypted</span>
                 </span>
               </div>
 
               {/* Promo Coupon Box */}
-              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-                <label className="text-slate-300 font-bold flex items-center justify-between text-xs font-mono">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <label className="text-slate-700 font-bold flex items-center justify-between text-xs font-mono">
                   <span className="flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                    <Tag className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Have a Discount Coupon?</span>
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">Try: OMOVE15</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Try: OMOVE15</span>
                 </label>
 
                 <div className="flex gap-2">
@@ -771,19 +771,19 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                     placeholder="ENTER COUPON CODE"
                     value={couponInput}
                     onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono font-bold text-white uppercase placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 uppercase placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                   />
                   <button
                     type="button"
                     onClick={handleApplyBookingCoupon}
-                    className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono text-xs font-bold transition-all cursor-pointer"
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold transition-all cursor-pointer shadow-sm"
                   >
                     APPLY
                   </button>
                 </div>
 
                 {couponMessage && (
-                  <p className={`text-[11px] font-mono font-bold ${appliedDiscount > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  <p className={`text-[11px] font-mono font-bold ${appliedDiscount > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                     {couponMessage}
                   </p>
                 )}
@@ -807,35 +807,36 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                     paypalSubtitle="International Checkout"
                     paypalTagline="Pay securely in USD"
                     themeAccent="emerald"
+                    variant="light"
                   />
 
                   {/* PayPal Conversion Info Card */}
                   {paymentMethod === 'paypal' && (
-                    <div className="p-4 rounded-2xl bg-blue-950/30 border border-blue-500/30 text-xs font-mono space-y-2 animate-fadeIn">
+                    <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs font-mono space-y-2 animate-fadeIn text-slate-800">
                       <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-slate-400">Service Fee:</span>
-                        <span className="text-white font-bold">₹{finalPrice} INR</span>
+                        <span className="text-slate-600">Service Fee:</span>
+                        <span className="text-slate-900 font-bold">₹{finalPrice} INR</span>
                       </div>
                       <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-slate-400">Conversion Rate:</span>
-                        <span className="text-slate-300">₹95 = $1.00 USD</span>
+                        <span className="text-slate-600">Conversion Rate:</span>
+                        <span className="text-slate-700">₹95 = $1.00 USD</span>
                       </div>
                       <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-slate-400">Minimum PayPal Amount:</span>
-                        <span className="text-slate-300">$3.00 USD</span>
+                        <span className="text-slate-600">Minimum PayPal Amount:</span>
+                        <span className="text-slate-700">$3.00 USD</span>
                       </div>
-                      <div className="pt-2 border-t border-blue-500/30 flex justify-between items-center font-bold">
-                        <span className="text-blue-300">PayPal Total (USD):</span>
-                        <span className="text-base text-blue-400">${previewUsdDisplay} USD</span>
+                      <div className="pt-2 border-t border-blue-200 flex justify-between items-center font-bold">
+                        <span className="text-blue-900">PayPal Total (USD):</span>
+                        <span className="text-base text-blue-700 font-black">${previewUsdDisplay} USD</span>
                       </div>
                     </div>
                   )}
 
                   {/* PayPal Button Container */}
                   {paymentMethod === 'paypal' && (
-                    <div className="p-4 rounded-2xl bg-slate-950 border border-blue-500/40 shadow-xl shadow-blue-500/10 space-y-2 animate-fadeIn">
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-blue-200 shadow-sm space-y-2 animate-fadeIn">
                       <div className="text-center mb-1">
-                        <span className="text-[11px] text-blue-400 font-mono font-bold">
+                        <span className="text-[11px] text-blue-800 font-mono font-bold">
                           {paypalLoading ? 'Loading PayPal Gateway...' : `Complete Payment • $${previewUsdDisplay} USD`}
                         </span>
                       </div>
@@ -850,18 +851,18 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                       disabled={isSubmitting || !isOnline || (phoneTouched && !phoneValidation.isValid)}
                       className={`w-full py-4 rounded-2xl font-black text-sm font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                         !isOnline || (phoneTouched && !phoneValidation.isValid)
-                          ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
-                          : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 hover:scale-[1.01]'
+                          ? 'bg-slate-300 text-slate-500 border border-slate-300 cursor-not-allowed shadow-none'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/25 hover:scale-[1.01]'
                       }`}
                     >
                       {!isOnline ? (
                         <>
-                          <WifiOff className="w-4 h-4 text-rose-400" />
+                          <WifiOff className="w-4 h-4 text-rose-500" />
                           <span>OFFLINE — CHECKOUT UNAVAILABLE</span>
                         </>
                       ) : isSubmitting ? (
                         <>
-                          <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                           <span>CONFIRMING BOOKING...</span>
                         </>
                       ) : (
@@ -878,15 +879,15 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 <button
                   type="submit"
                   disabled={isSubmitting || !isOnline}
-                  className="w-full py-4 rounded-2xl font-black text-sm font-mono tracking-wider bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.01]"
+                  className="w-full py-4 rounded-2xl font-black text-sm font-mono tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.01]"
                 >
                   <Lock className="w-4 h-4" />
                   <span>CONFIRM FREE BOOKING (₹0)</span>
                 </button>
               )}
 
-              <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400 font-mono">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 font-mono">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>
                   {paymentMethod === 'paypal'
                     ? 'PayPal Buyer Protection • 256-Bit SSL Encrypted Connection'
@@ -899,36 +900,36 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
           {/* RIGHT COLUMN (Sticky Sidebar: Order Summary, AnyDesk Guide & Trust Guarantee - 5 cols) */}
           <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
             {/* Live Booking Summary Card */}
-            <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-4 text-white">
-              <h3 className="font-bold text-base text-white font-mono flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-4 text-slate-900">
+              <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span>Booking Summary</span>
               </h3>
 
               <div className="space-y-3 text-xs font-mono">
-                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex justify-between items-center">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex justify-between items-center">
                   <div>
-                    <span className="text-slate-400 text-[11px] block">Service:</span>
-                    <span className="font-bold text-white text-sm">{selectedService?.title || 'Remote PC Support'}</span>
+                    <span className="text-slate-500 text-[11px] block">Service:</span>
+                    <span className="font-bold text-slate-900 text-sm">{selectedService?.title || 'Remote PC Support'}</span>
                   </div>
-                  <span className="text-emerald-400 font-bold text-sm">₹{basePrice}</span>
+                  <span className="text-emerald-700 font-black text-sm">₹{basePrice}</span>
                 </div>
 
                 {appliedDiscount > 0 && (
-                  <div className="flex justify-between items-center px-1 text-emerald-400 font-bold">
+                  <div className="flex justify-between items-center px-1 text-emerald-700 font-bold">
                     <span>Coupon Discount:</span>
                     <span>- ₹{appliedDiscount}</span>
                   </div>
                 )}
 
-                <div className="pt-2 border-t border-slate-800 flex justify-between items-baseline">
-                  <span className="text-slate-400 text-xs">Total Payable:</span>
+                <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline">
+                  <span className="text-slate-600 text-xs font-bold">Total Payable:</span>
                   <div className="text-right">
-                    <span className="text-2xl font-black text-emerald-400 font-mono">
+                    <span className="text-2xl font-black text-emerald-700 font-mono">
                       ₹{finalPrice}
                     </span>
                     {finalPrice > 0 && (
-                      <span className="text-[11px] text-blue-400 font-mono block">
+                      <span className="text-[11px] text-blue-700 font-mono font-bold block">
                         ≈ ${previewUsdDisplay} USD
                       </span>
                     )}
@@ -936,57 +937,57 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-[11px] flex items-center gap-2 font-mono">
-                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] flex items-center gap-2 font-mono font-semibold">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>Certified PC Expert Ready Online</span>
               </div>
             </div>
 
             {/* What is AnyDesk & How It Works Card */}
-            <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-4 text-white">
+            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-4 text-slate-900">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm text-white font-mono flex items-center gap-2">
-                  <HelpCircle className="w-4 h-4 text-emerald-400" />
+                <h3 className="font-bold text-sm text-slate-900 font-mono flex items-center gap-2">
+                  <HelpCircle className="w-4 h-4 text-emerald-600" />
                   <span>How Remote Support Works</span>
                 </h3>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[9px] font-mono font-bold">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-bold">
                   SECURE & SAFE
                 </span>
               </div>
 
-              <p className="text-xs text-slate-300 leading-relaxed">
-                We use <strong className="text-emerald-400 font-mono">AnyDesk</strong>, the lightweight remote software allowing certified experts to fix your PC while you watch live.
+              <p className="text-xs text-slate-600 leading-relaxed">
+                We use <strong className="text-emerald-700 font-mono">AnyDesk</strong>, the lightweight remote software allowing certified experts to fix your PC while you watch live.
               </p>
 
               {/* 3 Step Visual Flow */}
               <div className="space-y-2.5 text-xs font-sans">
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-400 font-mono font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-800 font-mono font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 border border-emerald-200">
                     1
                   </span>
                   <div>
-                    <h5 className="font-bold text-white text-[11px]">Download & Open AnyDesk</h5>
-                    <p className="text-[10px] text-slate-400 mt-0.5">No complex setup needed. Open and run.</p>
+                    <h5 className="font-bold text-slate-900 text-[11px]">Download & Open AnyDesk</h5>
+                    <p className="text-[10px] text-slate-500 mt-0.5">No complex setup needed. Open and run.</p>
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-400 font-mono font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-800 font-mono font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 border border-emerald-200">
                     2
                   </span>
                   <div>
-                    <h5 className="font-bold text-white text-[11px]">Share 9-Digit Code on WhatsApp</h5>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Give your AnyDesk address code to our technician.</p>
+                    <h5 className="font-bold text-slate-900 text-[11px]">Share 9-Digit Code on WhatsApp</h5>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Give your AnyDesk address code to our technician.</p>
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-400 font-mono font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-800 font-mono font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 border border-emerald-200">
                     3
                   </span>
                   <div>
-                    <h5 className="font-bold text-white text-[11px]">Accept Connection & Sit Back</h5>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Click "Accept". You retain full session control.</p>
+                    <h5 className="font-bold text-slate-900 text-[11px]">Accept Connection & Sit Back</h5>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Click "Accept". You retain full session control.</p>
                   </div>
                 </div>
               </div>
@@ -996,22 +997,22 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 href="https://anydesk.com/en/downloads"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-mono text-[11px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-mono text-[11px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
               >
-                <DownloadCloud className="w-3.5 h-3.5 text-emerald-400" />
+                <DownloadCloud className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Download AnyDesk (Official Site)</span>
                 <ExternalLink className="w-3 h-3 opacity-60" />
               </a>
             </div>
 
             {/* Satisfaction Guarantee Card */}
-            <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-200 space-y-2 font-sans text-xs">
-              <div className="flex items-center gap-2 font-mono font-bold text-emerald-300">
-                <ShieldCheck className="w-4.5 h-4.5 text-emerald-400" />
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 text-emerald-950 space-y-2 font-sans text-xs shadow-md">
+              <div className="flex items-center gap-2 font-mono font-bold text-emerald-900">
+                <ShieldCheck className="w-4.5 h-4.5 text-emerald-600" />
                 <span>Zero-Risk Repair Guarantee</span>
               </div>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                If our technician cannot resolve your issue, your booking fee will be refunded back to your account.
+              <p className="text-[11px] text-emerald-800 leading-relaxed font-medium">
+                If our technician cannot resolve your issue, your booking fee will be automatically refunded back to your account.
               </p>
             </div>
           </div>

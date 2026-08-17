@@ -85,7 +85,11 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const paidOrders = (orders || []).filter((o) => o && (o.paymentStatus === 'SUCCESS' || o.status === 'completed'));
   const pendingOrders = (orders || []).filter((o) => o && (o.paymentStatus !== 'SUCCESS' && o.status !== 'completed'));
 
-  const calcRevenue = paidOrders.reduce((sum, o) => sum + (o?.total || o?.totalAmount || 0), 0);
+  const razorpayPaidOrders = paidOrders.filter((o) => (o as any).paymentProvider !== 'paypal' && !o.paymentMethod?.toLowerCase().includes('paypal'));
+  const paypalPaidOrders = paidOrders.filter((o) => (o as any).paymentProvider === 'paypal' || o.paymentMethod?.toLowerCase().includes('paypal'));
+
+  const calcInrRevenue = razorpayPaidOrders.reduce((sum, o) => sum + (o?.total || o?.totalAmount || 0), 0);
+  const calcUsdRevenue = paypalPaidOrders.reduce((sum, o) => sum + ((o as any).paymentAmountUsd || Math.max(3, (o?.total || 0) / 95)), 0);
 
   // Separate Digital vs Store Product counts robustly
   const fallbackDigitalCount = (products || []).filter((p) => p && (p.productType === 'DIGITAL' || p.id?.startsWith('dig') || p.category === 'Digital Products')).length;
@@ -93,7 +97,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
 
   const displayCustomers = liveStats?.customers ?? registeredUsersCount;
   const displayTotalOrders = liveStats?.totalOrders ?? (orders || []).length;
-  const displayTotalRevenue = liveStats?.totalRevenue ?? calcRevenue;
+  const displayInrRevenue = liveStats?.totalRevenue ?? calcInrRevenue;
+  const displayUsdRevenue = liveStats?.totalUsdRevenue ?? calcUsdRevenue;
   const displayPaidOrders = liveStats?.paidOrders ?? paidOrders.length;
   const displayDigitalCatalog = liveStats?.digitalProducts ?? (directDigitalProducts.length > 0 ? directDigitalProducts.length : fallbackDigitalCount);
   const displayStoreProducts = liveStats?.storeProducts ?? (directStoreProducts.length > 0 ? directStoreProducts.length : fallbackStoreCount);
@@ -113,7 +118,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             Omove Store Administration Portal
           </h2>
           <p className="text-xs text-slate-300 font-sans max-w-xl">
-            Real-time server-authoritative e-commerce management. Manage software products, digital downloads, orders, customers, and payment verifications.
+            Real-time server-authoritative e-commerce management. Manage software products, digital downloads, orders, customers, and PayPal USD & Razorpay INR payment verifications.
           </p>
         </div>
 
@@ -167,14 +172,18 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-emerald-500/40 transition-all cursor-pointer space-y-2 group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold font-mono text-slate-500 uppercase">Total Revenue</span>
+            <span className="text-[11px] font-bold font-mono text-slate-500 uppercase">Revenue (INR / USD)</span>
             <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-extrabold font-mono text-slate-900">₹{displayTotalRevenue.toLocaleString()}</span>
-            <span className="text-[10px] text-slate-400 font-mono">Verified</span>
+          <div>
+            <div className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900">
+              ₹{displayInrRevenue.toLocaleString()}
+            </div>
+            <span className="text-xs font-mono font-bold text-blue-700 block">
+              + ${displayUsdRevenue.toFixed(2)} USD
+            </span>
           </div>
         </div>
 

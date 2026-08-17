@@ -6,6 +6,7 @@ import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCouponAsync, fetchAndCacheCoupons } from '../utils/couponManager';
 import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
 import { InternationalPhoneInput } from './InternationalPhoneInput';
+import { PaymentMethodCards } from './PaymentMethodCards';
 import {
   X,
   Lock,
@@ -633,10 +634,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn font-sans">
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden text-slate-100 flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-fadeIn font-sans">
+      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden text-slate-100 flex flex-col my-8">
         {/* Modal Header */}
-        <div className="px-5 py-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/50">
+        <div className="px-6 py-4.5 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/60">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
               <Lock className="w-4 h-4" />
@@ -782,7 +783,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </div>
         ) : (
           /* Redesigned Minimal Checkout Form */
-          <form onSubmit={handleProcessPayment} className="p-5 space-y-4 max-h-[82vh] overflow-y-auto">
+          <form onSubmit={handleProcessPayment} className="p-6 sm:p-7 space-y-5 max-h-[82vh] overflow-y-auto">
             
             {!isOnline && (
               <div className="p-3 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-center gap-2 shadow-lg">
@@ -844,6 +845,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               onBlur={() => setPhoneTouched(true)}
               errorMessage={phoneErrorMessage}
               disabled={isProcessing}
+              variant="dark"
             />
 
             {/* Expandable Promo Coupon Section */}
@@ -914,124 +916,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             {/* Redesigned Premium Payment Method Section */}
             {finalTotal > 0 && (
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-400 font-mono font-bold block">
-                    PAYMENT METHOD
-                  </span>
-                  <span className="text-[10px] text-cyan-400 font-mono flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" />
-                    <span>Encrypted & Verified</span>
-                  </span>
-                </div>
-
-                {/* Large Selectable Payment Method Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* RAZORPAY CARD */}
-                  <button
-                    type="button"
-                    onClick={() => { setPaymentMethod('razorpay'); setPaypalReady(false); }}
-                    className={`relative p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer select-none group ${
-                      paymentMethod === 'razorpay'
-                        ? 'border-cyan-400/90 bg-gradient-to-br from-cyan-950/50 via-slate-900 to-slate-950 shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-400/60'
-                        : 'border-slate-800 bg-slate-950/70 hover:border-slate-700 hover:bg-slate-900/60'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
-                          paymentMethod === 'razorpay'
-                            ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-sm shadow-cyan-500/30'
-                            : 'bg-slate-800/80 border-slate-700/60 text-slate-400'
-                        }`}>
-                          <RazorpayIcon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-extrabold text-xs text-white tracking-wide">RAZORPAY</span>
-                          </div>
-                          <span className="text-[10px] text-cyan-400 font-mono font-semibold block">
-                            UPI / Card / NetBanking
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Radio Indicator */}
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-                        paymentMethod === 'razorpay' ? 'border-cyan-400 bg-cyan-950' : 'border-slate-600 bg-slate-900'
-                      }`}>
-                        {paymentMethod === 'razorpay' && (
-                          <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400" />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-end justify-between">
-                      <div className="text-[10px] text-slate-400 font-mono leading-tight pr-2">
-                        <span>Secure Payment • Instant Processing • Trusted</span>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="font-mono text-cyan-400 text-sm font-black">
-                          ₹{finalTotal.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* PAYPAL CARD */}
-                  <button
-                    type="button"
-                    onClick={() => { setPaymentMethod('paypal'); setPaypalReady(false); }}
-                    className={`relative p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer select-none group ${
-                      paymentMethod === 'paypal'
-                        ? 'border-blue-400/90 bg-gradient-to-br from-blue-950/50 via-slate-900 to-slate-950 shadow-lg shadow-blue-500/20 ring-1 ring-blue-400/60'
-                        : 'border-slate-800 bg-slate-950/70 hover:border-slate-700 hover:bg-slate-900/60'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
-                          paymentMethod === 'paypal'
-                            ? 'bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-sm shadow-blue-500/30'
-                            : 'bg-slate-800/80 border-slate-700/60 text-slate-400'
-                        }`}>
-                          <PaypalIcon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-extrabold text-xs text-white tracking-wide">PAYPAL</span>
-                          </div>
-                          <span className="text-[10px] text-blue-400 font-mono font-semibold block">
-                            International Checkout
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Radio Indicator */}
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-                        paymentMethod === 'paypal' ? 'border-blue-400 bg-blue-950' : 'border-slate-600 bg-slate-900'
-                      }`}>
-                        {paymentMethod === 'paypal' && (
-                          <div className="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400" />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-end justify-between">
-                      <div className="text-[10px] text-slate-400 font-mono leading-tight pr-2">
-                        <span>Secure Checkout • USD Payment</span>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="font-mono text-blue-400 text-sm font-black">
-                          ${previewUsdDisplay} USD
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                </div>
+                <PaymentMethodCards
+                  paymentMethod={paymentMethod}
+                  onSelectMethod={(m) => {
+                    setPaymentMethod(m);
+                    setPaypalReady(false);
+                  }}
+                  inrAmount={finalTotal}
+                  usdAmountDisplay={previewUsdDisplay}
+                  razorpayTitle="RAZORPAY"
+                  razorpaySubtitle="UPI • Card • NetBanking"
+                  razorpayTagline="Instant Processing • 100% Secure"
+                  paypalTitle="PAYPAL"
+                  paypalSubtitle="International Checkout"
+                  paypalTagline="Pay in USD • Not Refundable"
+                  themeAccent="cyan"
+                  variant="dark"
+                />
 
                 {/* PayPal Conversion Info Card (shown when PayPal is selected) */}
                 {paymentMethod === 'paypal' && (
-                  <div className="p-3.5 rounded-2xl bg-blue-950/30 border border-blue-500/20 text-xs font-mono space-y-2 animate-fadeIn">
+                  <div className="p-3.5 rounded-2xl bg-blue-950/40 border border-blue-500/30 text-xs font-mono space-y-2 animate-fadeIn">
                     <div className="flex justify-between items-center text-[11px]">
                       <span className="text-slate-400">Product Price (Authoritative):</span>
                       <span className="text-white font-bold">₹{finalTotal.toFixed(2)} INR</span>
@@ -1044,7 +949,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <span className="text-slate-400">Minimum PayPal Price:</span>
                       <span className="text-slate-300">$3.00 USD</span>
                     </div>
-                    <div className="pt-2 border-t border-blue-500/20 flex justify-between items-center font-bold">
+                    <div className="pt-2 border-t border-blue-500/30 flex justify-between items-center font-bold">
                       <span className="text-blue-300">PayPal Total (USD):</span>
                       <span className="text-base text-blue-400">${previewUsdDisplay} USD</span>
                     </div>
