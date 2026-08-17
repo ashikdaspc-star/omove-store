@@ -1,21 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Coffee, CheckCircle2, AlertCircle, ArrowLeft, ShieldCheck, Sparkles, RefreshCw } from 'lucide-react';
+import { PaymentMethodCards } from '../components/PaymentMethodCards';
 
-const PRESET_AMOUNTS = [50, 100, 150, 200];
+const PRESET_AMOUNTS = [10, 25, 50, 100];
 
 export const SupportView: React.FC = () => {
-  const [selectedPreset, setSelectedPreset] = useState<number | 'custom'>(50);
+  const [selectedPreset, setSelectedPreset] = useState<number | 'custom'>(25);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [name, setName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Payment Method: 'razorpay' | 'paypal'
+  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'paypal'>('razorpay');
+  const [paypalReady, setPaypalReady] = useState(false);
+  const [paypalLoading, setPaypalLoading] = useState(false);
+
   // View States: 'FORM' | 'SUCCESS' | 'FAILED'
   const [viewState, setViewState] = useState<'FORM' | 'SUCCESS' | 'FAILED'>('FORM');
   const [completedPaymentDetails, setCompletedPaymentDetails] = useState<{
     amount: number;
+    usdAmount?: number;
     paymentId: string;
+    paypalOrderId?: string;
+    paypalCaptureId?: string;
+    paymentMethod?: 'Razorpay' | 'PayPal';
     name: string;
     email: string;
   } | null>(null);
@@ -24,9 +34,203 @@ export const SupportView: React.FC = () => {
     ? Math.max(0, parseInt(customAmount, 10) || 0)
     : selectedPreset;
 
+  const previewUsd = activeAmount > 0 ? Math.max(3, activeAmount / 95) : 0;
+  const previewUsdDisplay = (Math.round(previewUsd * 100) / 100).toFixed(2);
+
+  // State ref for PayPal callbacks
+  const paypalStateRef = useRef({
+    name,
+    email,
+    activeAmount,
+    previewUsdDisplay
+  });
+
+  useEffect(() => {
+    paypalStateRef.current = {
+      name,
+      email,
+      activeAmount,
+      previewUsdDisplay
+    };
+  }, [name, email, activeAmount, previewUsdDisplay]);
+
+  // PayPal SDK Auto-Loader & Smart Button Renderer for Support / Buy Me A Coffee
+  useEffect(() => {
+    if (paymentMethod !== 'paypal' || viewState !== 'FORM') {
+      setPaypalReady(false);
+      return;
+    }
+
+    let isCancelled = false;
+    setPaypalLoading(true);
+
+    async function initPayPal() {
+      try {
+        let ppConfig: any = null;
+        try {
+          const cfgRes = await fetch('/api/paypal/config');
+          if (cfgRes.ok) {
+            ppConfig = await cfgRes.json();
+          }
+        } catch (e) {}
+
+        const activeClientId = ppConfig?.clientId || import.meta.env.VITE_PAYPAL_CLIENT_ID || 'BAAq2PyxqOTR12C8YmU9N7Km0YSbwzwu4dOJHk4mmXV4GiCRQ1pS-IEROr24x4Tjej_Pzmnx24E51GSCIo';
+        if (!activeClientId || isCancelled) return;
+
+        const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]') as HTMLScriptElement | null;
+        if (existingScript && !existingScript.src.includes(activeClientId)) {
+          existingScript.remove();
+          delete (window as any).paypal;
+        }
+
+        if (typeof (window as any).paypal === 'undefined') {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = `https://www.paypal.com/sdk/js?client-id=${activeClientId}&currency=USD&components=buttons&intent=capture`;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('PayPal SDK script load error'));
+            document.body.appendChild(script);
+          });
+        }
+
+        if (isCancelled || typeof (window as any).paypal === 'undefined') return;
+
+        const container = document.getElementById('paypal-support-button-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        (window as any).paypal.Buttons({
+          createOrder: async () => {
+            const curr = paypalStateRef.current;
+            setErrorMessage(null);
+
+            const trimmedName = curr.name.trim();
+            const trimmedEmail = curr.email.trim().toLowerCase();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            if (!trimmedName) {
+              setErrorMessage('Please enter your name.');
+              throw new Error('Name required');
+            }
+
+            if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+              setErrorMessage('Please enter a valid email address.');
+              throw new Error('Valid email required');
+            }
+
+            if (!curr.activeAmount || curr.activeAmount < 1) {
+              setErrorMessage('Please select or enter an amount of at least ₹1.');
+              throw new Error('Amount required');
+            }
+
+            setIsSubmitting(true);
+
+            const payload = {
+              orderType: 'support',
+              name: trimmedName,
+              email: trimmedEmail,
+              amount: curr.activeAmount
+            };
+
+            const createRes = await fetch('/api/paypal/create-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            const createData = await createRes.json();
+            if (!createRes.ok || !createData.success || !createData.paypalOrderId) {
+              const errMsg = createData.message || createData.error || 'Failed to initialize PayPal support order.';
+              setErrorMessage(errMsg);
+              setIsSubmitting(false);
+              throw new Error(errMsg);
+            }
+
+            setIsSubmitting(false);
+            return createData.paypalOrderId;
+          },
+          onApprove: async (data: any) => {
+            setIsSubmitting(true);
+            setErrorMessage(null);
+            try {
+              const captureRes = await fetch('/api/paypal/capture-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paypalOrderId: data.orderID })
+              });
+              const captureData = await captureRes.json();
+
+              if (captureRes.ok && captureData.success && captureData.verified) {
+                setCompletedPaymentDetails({
+                  amount: paypalStateRef.current.activeAmount,
+                  usdAmount: captureData.support?.paymentAmountUsd || parseFloat(paypalStateRef.current.previewUsdDisplay),
+                  paymentId: captureData.support?.paypalCaptureId || data.orderID,
+                  paypalOrderId: data.orderID,
+                  paypalCaptureId: captureData.support?.paypalCaptureId,
+                  paymentMethod: 'PayPal',
+                  name: paypalStateRef.current.name.trim(),
+                  email: paypalStateRef.current.email.trim().toLowerCase()
+                });
+                setViewState('SUCCESS');
+              } else {
+                setErrorMessage(captureData.message || captureData.error || 'PayPal support verification failed.');
+                setViewState('FAILED');
+              }
+            } catch (err: any) {
+              setErrorMessage('PayPal verification error. Please try again.');
+              setViewState('FAILED');
+            } finally {
+              setIsSubmitting(false);
+            }
+          },
+          onCancel: () => {
+            setErrorMessage('PayPal support contribution was cancelled.');
+            setIsSubmitting(false);
+          },
+          onError: (err: any) => {
+            console.error('PayPal Support Error:', err);
+            setErrorMessage('PayPal checkout encountered an issue. Please try again.');
+            setIsSubmitting(false);
+          },
+          style: {
+            layout: 'vertical',
+            color: 'blue',
+            shape: 'rect',
+            label: 'paypal',
+            height: 44
+          }
+        }).render('#paypal-support-button-container');
+
+        if (!isCancelled) {
+          setPaypalReady(true);
+          setPaypalLoading(false);
+        }
+      } catch (e: any) {
+        console.error('PayPal setup failed:', e);
+        if (!isCancelled) {
+          setPaypalLoading(false);
+        }
+      }
+    }
+
+    const timer = setTimeout(() => {
+      initPayPal();
+    }, 60);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [paymentMethod, viewState]);
+
   const handleSupportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    if (paymentMethod === 'paypal') {
+      // Handled via PayPal smart buttons
+      return;
+    }
 
     const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
@@ -118,6 +322,7 @@ export const SupportView: React.FC = () => {
                 setCompletedPaymentDetails({
                   amount: validatedAmount,
                   paymentId: verifyData.razorpayPaymentId || response.razorpay_payment_id || 'PAYMENT_VERIFIED',
+                  paymentMethod: 'Razorpay',
                   name: trimmedName,
                   email: trimmedEmail
                 });
@@ -197,7 +402,7 @@ export const SupportView: React.FC = () => {
               </div>
 
               {errorMessage && (
-                <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-center gap-3">
+                <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-center gap-3 animate-fadeIn">
                   <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
                   <span>{errorMessage}</span>
                 </div>
@@ -218,7 +423,7 @@ export const SupportView: React.FC = () => {
                           setSelectedPreset(amt);
                           setCustomAmount('');
                         }}
-                        className={`py-3 rounded-2xl font-mono font-extrabold text-sm transition-all border ${
+                        className={`py-3 rounded-2xl font-mono font-extrabold text-sm transition-all border cursor-pointer ${
                           selectedPreset === amt
                             ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20 scale-[1.02]'
                             : 'bg-slate-800/80 text-slate-200 border-slate-700 hover:bg-slate-700 hover:border-slate-600'
@@ -235,7 +440,7 @@ export const SupportView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedPreset('custom')}
-                    className={`w-full py-2.5 rounded-xl font-mono text-xs font-bold transition-all border mb-3 ${
+                    className={`w-full py-2.5 rounded-xl font-mono text-xs font-bold transition-all border mb-3 cursor-pointer ${
                       selectedPreset === 'custom'
                         ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/50'
                         : 'bg-slate-800/40 text-slate-400 border-slate-800 hover:bg-slate-800/80'
@@ -292,38 +497,100 @@ export const SupportView: React.FC = () => {
                   />
                 </div>
 
-                {/* Amount Display & Action Button */}
-                <div className="pt-4 border-t border-slate-800/80">
-                  <div className="flex items-center justify-between mb-4 px-2">
-                    <span className="font-mono text-xs text-slate-400 uppercase tracking-wider">COFFEE TOTAL:</span>
-                    <span className="font-mono text-2xl font-black text-emerald-400">
-                      ₹{activeAmount || 0}
-                    </span>
-                  </div>
+                {/* Payment Method Cards */}
+                {activeAmount > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <PaymentMethodCards
+                      paymentMethod={paymentMethod}
+                      onSelectMethod={(m) => {
+                        setPaymentMethod(m);
+                        setPaypalReady(false);
+                      }}
+                      inrAmount={activeAmount}
+                      usdAmountDisplay={previewUsdDisplay}
+                      razorpayTitle="RAZORPAY"
+                      razorpaySubtitle="UPI / Card / NetBanking"
+                      razorpayTagline="Pay securely in INR"
+                      paypalTitle="PAYPAL"
+                      paypalSubtitle="International Checkout"
+                      paypalTagline="Pay securely in USD"
+                      themeAccent="emerald"
+                    />
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !activeAmount || activeAmount < 1 || !name.trim()}
-                    className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-mono font-extrabold text-sm tracking-wider shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                        <span>PROCESSING...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Coffee className="w-5 h-5" />
-                        <span>☕ Buy Me a Coffee</span>
-                      </>
+                    {/* PayPal Conversion Info Card */}
+                    {paymentMethod === 'paypal' && (
+                      <div className="p-3.5 rounded-2xl bg-blue-950/30 border border-blue-500/20 text-xs font-mono space-y-2 animate-fadeIn">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-slate-400">Contribution (Authoritative):</span>
+                          <span className="text-white font-bold">₹{activeAmount} INR</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-slate-400">Conversion Rate:</span>
+                          <span className="text-slate-300">₹95 = $1.00 USD</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-slate-400">Minimum PayPal Price:</span>
+                          <span className="text-slate-300">$3.00 USD</span>
+                        </div>
+                        <div className="pt-2 border-t border-blue-500/20 flex justify-between items-center font-bold">
+                          <span className="text-blue-300">PayPal Total (USD):</span>
+                          <span className="text-base text-blue-400">${previewUsdDisplay} USD</span>
+                        </div>
+                      </div>
                     )}
-                  </button>
-                </div>
+
+                    {/* PayPal Button Container */}
+                    {paymentMethod === 'paypal' && (
+                      <div className="p-3.5 rounded-2xl bg-slate-950 border border-blue-500/40 shadow-xl shadow-blue-500/10 space-y-2 animate-fadeIn">
+                        <div className="text-center">
+                          <span className="text-[11px] text-blue-400 font-mono font-bold">
+                            {paypalLoading ? 'Loading PayPal Gateway...' : `Pay via PayPal • $${previewUsdDisplay} USD`}
+                          </span>
+                        </div>
+                        <div id="paypal-support-button-container" className="min-h-[44px] w-full" />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Razorpay Submit Button */}
+                {paymentMethod === 'razorpay' && (
+                  <div className="pt-4 border-t border-slate-800/80">
+                    <div className="flex items-center justify-between mb-4 px-2">
+                      <span className="font-mono text-xs text-slate-400 uppercase tracking-wider">COFFEE TOTAL:</span>
+                      <span className="font-mono text-2xl font-black text-emerald-400">
+                        ₹{activeAmount || 0}
+                      </span>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !activeAmount || activeAmount < 1 || !name.trim()}
+                      className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-mono font-extrabold text-sm tracking-wider shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] cursor-pointer"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                          <span>PROCESSING...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Coffee className="w-5 h-5" />
+                          <span>☕ Buy Me a Coffee (₹{activeAmount || 0})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </form>
 
               <div className="mt-6 text-center flex items-center justify-center gap-2 text-[11px] font-mono text-slate-500">
                 <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <span>Secure payment powered by Razorpay (256-Bit SSL)</span>
+                <span>
+                  {paymentMethod === 'paypal'
+                    ? 'PayPal Buyer Protection • 256-Bit SSL Encrypted'
+                    : 'Secure payment powered by Razorpay (256-Bit SSL)'}
+                </span>
               </div>
             </div>
           )}
@@ -350,14 +617,33 @@ export const SupportView: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                  <span className="text-xs text-slate-400">Coffee Total:</span>
+                  <span className="text-xs text-slate-400">Coffee Total (INR):</span>
                   <span className="text-base font-black text-emerald-400">₹{completedPaymentDetails.amount}</span>
+                </div>
+
+                {completedPaymentDetails.usdAmount && (
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                    <span className="text-xs text-slate-400">PayPal Total (USD):</span>
+                    <span className="text-base font-black text-blue-400">${completedPaymentDetails.usdAmount.toFixed(2)} USD</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                  <span className="text-xs text-slate-400">Payment Method:</span>
+                  <span className="text-xs font-bold text-slate-200">{completedPaymentDetails.paymentMethod || 'Verified Gateway'}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-400">Payment ID:</span>
                   <span className="text-xs font-bold text-slate-300 select-all">{completedPaymentDetails.paymentId}</span>
                 </div>
+
+                {completedPaymentDetails.paypalOrderId && (
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                    <span className="text-xs text-slate-400">PayPal Order ID:</span>
+                    <span className="text-xs font-mono text-slate-400 select-all">{completedPaymentDetails.paypalOrderId}</span>
+                  </div>
+                )}
               </div>
 
               <a
@@ -391,7 +677,7 @@ export const SupportView: React.FC = () => {
                     setErrorMessage(null);
                     setViewState('FORM');
                   }}
-                  className="flex-1 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono font-extrabold text-xs tracking-wider transition-all"
+                  className="flex-1 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono font-extrabold text-xs tracking-wider transition-all cursor-pointer"
                 >
                   TRY AGAIN
                 </button>
@@ -415,4 +701,3 @@ export const SupportView: React.FC = () => {
     </div>
   );
 };
-

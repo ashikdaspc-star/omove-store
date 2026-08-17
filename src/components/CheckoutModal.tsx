@@ -4,25 +4,64 @@ import confetti from 'canvas-confetti';
 import { CartItem, Order } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCouponAsync, fetchAndCacheCoupons } from '../utils/couponManager';
+import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
+import { InternationalPhoneInput } from './InternationalPhoneInput';
 import {
   X,
   Lock,
   CheckCircle2,
   Download,
-  Copy,
-  Check,
   Printer,
   Tag,
   WifiOff,
   AlertTriangle,
   MessageSquare,
-  Sparkles,
   ChevronDown,
   ChevronUp,
   ShieldCheck,
   Package
 } from 'lucide-react';
 import { useOnlineStatus } from './OfflineBanner';
+
+// Custom Razorpay SVG Logo / Icon
+const RazorpayIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M14.28 2.05L7.05 13.52h5.12L8.72 21.95l10.4-12.02h-5.46l3.62-7.88h-3z"
+      fill="url(#rzp-blue-grad)"
+    />
+    <defs>
+      <linearGradient id="rzp-blue-grad" x1="7" y1="2" x2="19" y2="22" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#38bdf8" />
+        <stop offset="1" stopColor="#0284c7" />
+      </linearGradient>
+    </defs>
+  </svg>
+);
+
+// Custom PayPal SVG Logo / Icon
+const PaypalIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.802.802 0 0 1 .792-.67h6.634c2.81 0 4.885.666 5.845 1.877.944 1.192.983 2.872.115 5.002-1.077 2.645-3.084 4.095-5.965 4.31l-.226.012-.665 4.22-.054.34a.641.641 0 0 1-.633.526H7.076z"
+      fill="#0079C1"
+    />
+    <path
+      d="M8.765 17.575l1.04-6.597.185-.013c2.518-.187 4.272-1.455 5.216-3.768.761-1.867.728-3.339-.098-4.382-.843-1.062-2.658-1.646-5.118-1.646H5.736a.802.802 0 0 0-.792.67L2.47 20.597a.641.641 0 0 0 .633.74h4.606l1.056-3.762z"
+      fill="#00457C"
+      opacity="0.9"
+    />
+    <path
+      d="M17.485 8.929c-.87 2.13-2.876 3.58-5.757 3.795l-.226.012-.86 5.464a.641.641 0 0 1-.633.526h-3.47l-.248 1.57a.641.641 0 0 0 .633.741h3.94a.802.802 0 0 0 .792-.67l.033-.175.748-4.743.048-.262a.802.802 0 0 1 .792-.67h.499c2.81 0 5.01-.987 5.953-3.303.785-1.928.618-3.568-.49-4.285z"
+      fill="#0079C1"
+    />
+    <path
+      d="M16.33 8.243c-.234 1.597-1.326 2.766-3.084 3.013l-.24.034-.666 4.22-.054.34a.641.641 0 0 1-.633.526H9.155l1.45-9.208.106-.015c2.195-.164 3.728-1.27 4.553-3.29.67-1.644.64-2.94-.086-3.856a3.54 3.54 0 0 0-1.57-.96 5.688 5.688 0 0 1 2.722 9.206z"
+      fill="#002C6C"
+      opacity="0.3"
+    />
+  </svg>
+);
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -48,14 +87,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const isOnline = useOnlineStatus();
   const navigate = useNavigate();
 
-  // Customer WhatsApp Phone State
+  // Customer International WhatsApp Phone State
   const [customerPhone, setCustomerPhone] = useState('');
   const [phoneTouched, setPhoneTouched] = useState(false);
+  const [phoneValidation, setPhoneValidation] = useState<{
+    isValid: boolean;
+    cleanNumber: string;
+    e164: string;
+    country: Country;
+  }>(() => {
+    const def = getDefaultCountry();
+    return { ...validatePhoneNumber('', def), country: def };
+  });
 
   // Processing & Delivery State
   const [isProcessing, setIsProcessing] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
-  const [copiedKeyIndex, setCopiedKeyIndex] = useState<number | null>(null);
   const [paymentFailedNotice, setPaymentFailedNotice] = useState('');
 
   // Payment Method State (Razorpay or PayPal)
@@ -111,19 +158,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const previewUsd = finalTotal > 0 ? Math.max(3, finalTotal / 95) : 0;
   const previewUsdDisplay = previewUsd > 0 ? (Math.round(previewUsd * 100) / 100).toFixed(2) : '0.00';
 
-  // Phone Number Validation: 10-digit Indian Mobile Number
-  const cleanPhone = customerPhone.replace(/\D/g, '').slice(-10);
-  const isPhoneValid = cleanPhone.length === 10 && /^[6-9]\d{9}$/.test(cleanPhone);
+  // Country-aware Phone Validation
+  const isPhoneValid = phoneValidation.isValid;
+  const normalizedE164 = phoneValidation.e164;
+  const cleanDigits = phoneValidation.cleanNumber;
   const phoneErrorMessage =
     phoneTouched && !isPhoneValid
-      ? cleanPhone.length < 10
-        ? 'Please enter complete 10-digit mobile number'
-        : 'Please enter a valid Indian mobile number starting with 6, 7, 8, or 9'
+      ? 'Please enter a valid WhatsApp number for the selected country.'
       : '';
+
+  const handlePhoneInputChange = (
+    val: string,
+    validation: { isValid: boolean; cleanNumber: string; e164: string; country: Country }
+  ) => {
+    setCustomerPhone(val);
+    setPhoneValidation(validation);
+  };
 
   const paypalStateRef = useRef({
     cart,
-    cleanPhone,
+    phoneValidation,
     isPhoneValid,
     appliedCode,
     previewUsdDisplay
@@ -132,12 +186,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   useEffect(() => {
     paypalStateRef.current = {
       cart,
-      cleanPhone,
+      phoneValidation,
       isPhoneValid,
       appliedCode,
       previewUsdDisplay
     };
-  }, [cart, cleanPhone, isPhoneValid, appliedCode, previewUsdDisplay]);
+  }, [cart, phoneValidation, isPhoneValid, appliedCode, previewUsdDisplay]);
 
   // PayPal SDK Auto-Loader & Smart Button Renderer
   useEffect(() => {
@@ -188,18 +242,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         (window as any).paypal.Buttons({
           createOrder: async () => {
             const curr = paypalStateRef.current;
-            if (!curr.isPhoneValid) {
+            if (!curr.isPhoneValid || !curr.phoneValidation.e164) {
               setPhoneTouched(true);
-              setPaymentFailedNotice('Please enter a valid 10-digit WhatsApp number to continue.');
+              setPaymentFailedNotice('Please enter a valid WhatsApp number for the selected country.');
               throw new Error('Valid WhatsApp number required');
             }
 
             setPaymentFailedNotice('');
             setIsProcessing(true);
 
-            const formattedPhone = `+91 ${curr.cleanPhone}`;
-            const generatedEmail = `wa_${curr.cleanPhone}@omovestore.shop`;
-            const generatedName = `WhatsApp Customer (${curr.cleanPhone})`;
+            const e164Phone = curr.phoneValidation.e164;
+            const cleanDigitsOnly = e164Phone.replace(/\D/g, '');
+            const generatedEmail = `wa_${cleanDigitsOnly}@omovestore.shop`;
+            const generatedName = `WhatsApp Customer (${e164Phone})`;
 
             const payload = {
               items: curr.cart.map((it) => {
@@ -217,7 +272,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               }),
               customerName: generatedName,
               customerEmail: generatedEmail,
-              customerPhone: formattedPhone,
+              customerPhone: e164Phone,
               couponCode: curr.appliedCode || ''
             };
 
@@ -256,11 +311,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 onOrderSuccess(verifiedOrder);
                 onClearCart();
                 const curr = paypalStateRef.current;
+                const e164Phone = curr.phoneValidation.e164;
+                const cleanDigitsOnly = e164Phone.replace(/\D/g, '');
                 sendAdminOrderNotificationEmail({
                   type: 'PRODUCT_PURCHASE',
-                  customerName: `WhatsApp Customer (${curr.cleanPhone})`,
-                  email: `wa_${curr.cleanPhone}@omovestore.shop`,
-                  phone: `+91 ${curr.cleanPhone}`,
+                  customerName: `WhatsApp Customer (${e164Phone})`,
+                  email: `wa_${cleanDigitsOnly}@omovestore.shop`,
+                  phone: e164Phone,
                   title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name).join(', ') || 'Product',
                   amount: verifiedOrder.paymentAmountUsd || verifiedOrder.total || 0,
                   paymentId: `PayPal: ${data.orderID}`,
@@ -346,8 +403,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     e.preventDefault();
     setPhoneTouched(true);
 
-    if (!isPhoneValid) {
-      setPaymentFailedNotice('Please enter a valid 10-digit WhatsApp number to continue.');
+    if (!isPhoneValid || !normalizedE164) {
+      setPaymentFailedNotice('Please enter a valid WhatsApp number for the selected country.');
       return;
     }
 
@@ -370,9 +427,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsProcessing(true);
     setPaymentFailedNotice('');
 
-    const formattedPhone = `+91 ${cleanPhone}`;
-    const generatedEmail = `wa_${cleanPhone}@omovestore.shop`;
-    const generatedName = `WhatsApp Customer (${cleanPhone})`;
+    const e164Phone = normalizedE164;
+    const cleanDigitsOnly = e164Phone.replace(/\D/g, '');
+    const generatedEmail = `wa_${cleanDigitsOnly}@omovestore.shop`;
+    const generatedName = `WhatsApp Customer (${e164Phone})`;
 
     try {
       const payload = {
@@ -391,7 +449,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         }),
         customerName: generatedName,
         customerEmail: generatedEmail,
-        customerPhone: formattedPhone,
+        customerPhone: e164Phone,
         paymentMethod: 'Razorpay UPI',
         couponCode: appliedCode || ''
       };
@@ -462,7 +520,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           type: 'PRODUCT_PURCHASE',
           customerName: generatedName,
           email: generatedEmail,
-          phone: formattedPhone,
+          phone: e164Phone,
           title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name || 'Product').join(', ') || 'Product',
           amount: 0,
           paymentId: 'FREE (100% Coupon Discount)',
@@ -506,7 +564,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           prefill: {
             name: generatedName,
             email: generatedEmail,
-            contact: formattedPhone
+            contact: e164Phone
           },
           theme: { color: '#0ea5e9' },
           handler: async function (response: any) {
@@ -533,7 +591,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   type: 'PRODUCT_PURCHASE',
                   customerName: generatedName,
                   email: generatedEmail,
-                  phone: formattedPhone,
+                  phone: e164Phone,
                   title: (verifiedOrder.items || []).map((i: any) => i.productName || i.name).join(', ') || 'Product',
                   amount: verifiedOrder.total || verifiedOrder.totalAmount || serverTotal,
                   paymentId: response.razorpay_payment_id || 'VERIFIED',
@@ -569,12 +627,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
-  const handleCopyKey = (key: string, idx: number) => {
-    navigator.clipboard.writeText(key);
-    setCopiedKeyIndex(idx);
-    setTimeout(() => setCopiedKeyIndex(null), 2500);
-  };
-
   const hasStoreItems = createdOrder?.items.some((i) => i.productType === 'STORE' || (!i.productType && !i.productId?.startsWith('dig'))) ?? false;
   const hasDigitalItems = createdOrder?.items.some((i) => i.productType === 'DIGITAL' || (!i.productType && i.productId?.startsWith('dig'))) ?? false;
 
@@ -600,6 +652,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close checkout modal"
             className="p-1.5 rounded-xl bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
           >
             <X className="w-4 h-4" />
@@ -783,46 +836,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             </div>
 
-            {/* WhatsApp Number Section (Mandatory Single Field) */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                <span>WhatsApp Number *</span>
-              </label>
-
-              <div className="relative flex items-center">
-                <div className="absolute left-3 flex items-center gap-1 text-slate-400 text-xs font-mono font-bold border-r border-slate-800 pr-2">
-                  <span className="text-emerald-400">🇮🇳</span>
-                  <span>+91</span>
-                </div>
-                <input
-                  type="tel"
-                  required
-                  placeholder="Enter 10-digit WhatsApp number"
-                  value={customerPhone}
-                  onChange={(e) => {
-                    setCustomerPhone(e.target.value);
-                    if (!phoneTouched) setPhoneTouched(true);
-                  }}
-                  onBlur={() => setPhoneTouched(true)}
-                  className={`w-full pl-20 pr-3.5 py-3 rounded-2xl bg-slate-950 border text-xs text-white placeholder-slate-500 font-mono focus:outline-none transition-colors ${
-                    phoneTouched && !isPhoneValid
-                      ? 'border-rose-500/80 focus:border-rose-500'
-                      : isPhoneValid
-                      ? 'border-emerald-500/60 focus:border-emerald-500'
-                      : 'border-slate-800 focus:border-cyan-500'
-                  }`}
-                />
-              </div>
-
-              {phoneErrorMessage ? (
-                <p className="text-[11px] text-rose-400 font-mono">{phoneErrorMessage}</p>
-              ) : (
-                <p className="text-[10px] text-slate-400 font-mono leading-tight">
-                  Your order details and instant delivery information will be sent to this WhatsApp number.
-                </p>
-              )}
-            </div>
+            {/* International WhatsApp Number Section */}
+            <InternationalPhoneInput
+              value={customerPhone}
+              onChange={handlePhoneInputChange}
+              touched={phoneTouched}
+              onBlur={() => setPhoneTouched(true)}
+              errorMessage={phoneErrorMessage}
+              disabled={isProcessing}
+            />
 
             {/* Expandable Promo Coupon Section */}
             <div className="pt-1">
@@ -830,7 +852,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCouponInput(true)}
-                  className="text-xs font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold transition-colors"
+                  className="text-xs font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold transition-colors cursor-pointer"
                 >
                   <Tag className="w-3.5 h-3.5 text-amber-400" />
                   <span>Have a coupon code?</span>
@@ -846,7 +868,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowCouponInput(false)}
-                      className="text-slate-400 hover:text-white p-0.5"
+                      className="text-slate-400 hover:text-white p-0.5 cursor-pointer"
                     >
                       <ChevronUp className="w-3.5 h-3.5" />
                     </button>
@@ -863,7 +885,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleApplyCouponCode()}
-                      className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold font-mono text-xs transition-all active:scale-95"
+                      className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold font-mono text-xs transition-all active:scale-95 cursor-pointer"
                     >
                       APPLY
                     </button>
@@ -871,7 +893,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <button
                         type="button"
                         onClick={handleRemoveCouponCode}
-                        className="px-2.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-mono font-bold"
+                        className="px-2.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-mono font-bold cursor-pointer"
                       >
                         REMOVE
                       </button>
@@ -889,63 +911,127 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               )}
             </div>
 
-            {/* Payment Method Selector */}
+            {/* Redesigned Premium Payment Method Section */}
             {finalTotal > 0 && (
-              <div className="space-y-2">
-                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-mono font-bold block">
-                  Payment Method
-                </span>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wider text-slate-400 font-mono font-bold block">
+                    PAYMENT METHOD
+                  </span>
+                  <span className="text-[10px] text-cyan-400 font-mono flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>Encrypted & Verified</span>
+                  </span>
+                </div>
 
-                {/* Razorpay Option */}
-                <button
-                  type="button"
-                  onClick={() => { setPaymentMethod('razorpay'); setPaypalReady(false); }}
-                  className={`w-full p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
-                    paymentMethod === 'razorpay'
-                      ? 'border-cyan-500 bg-cyan-950/40 shadow-md shadow-cyan-500/10'
-                      : 'border-slate-800 bg-slate-950 hover:border-slate-700'
-                  }`}
-                >
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    paymentMethod === 'razorpay' ? 'border-cyan-400' : 'border-slate-600'
-                  }`}>
-                    {paymentMethod === 'razorpay' && <div className="w-2 h-2 rounded-full bg-cyan-400" />}
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold text-white block">Razorpay (UPI / Card / NetBanking)</span>
-                    <span className="text-[10px] text-slate-400 font-mono">Pay in INR • ₹{finalTotal.toFixed(2)}</span>
-                  </div>
-                </button>
+                {/* Large Selectable Payment Method Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* RAZORPAY CARD */}
+                  <button
+                    type="button"
+                    onClick={() => { setPaymentMethod('razorpay'); setPaypalReady(false); }}
+                    className={`relative p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer select-none group ${
+                      paymentMethod === 'razorpay'
+                        ? 'border-cyan-400/90 bg-gradient-to-br from-cyan-950/50 via-slate-900 to-slate-950 shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-400/60'
+                        : 'border-slate-800 bg-slate-950/70 hover:border-slate-700 hover:bg-slate-900/60'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
+                          paymentMethod === 'razorpay'
+                            ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-sm shadow-cyan-500/30'
+                            : 'bg-slate-800/80 border-slate-700/60 text-slate-400'
+                        }`}>
+                          <RazorpayIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-xs text-white tracking-wide">RAZORPAY</span>
+                          </div>
+                          <span className="text-[10px] text-cyan-400 font-mono font-semibold block">
+                            UPI / Card / NetBanking
+                          </span>
+                        </div>
+                      </div>
 
-                {/* PayPal Option */}
-                <button
-                  type="button"
-                  onClick={() => { setPaymentMethod('paypal'); setPaypalReady(false); }}
-                  className={`w-full p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all ${
-                    paymentMethod === 'paypal'
-                      ? 'border-blue-500 bg-blue-950/40 shadow-md shadow-blue-500/10'
-                      : 'border-slate-800 bg-slate-950 hover:border-slate-700'
-                  }`}
-                >
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                    paymentMethod === 'paypal' ? 'border-blue-400' : 'border-slate-600'
-                  }`}>
-                    {paymentMethod === 'paypal' && <div className="w-2 h-2 rounded-full bg-blue-400" />}
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-white block">PayPal (International Checkout)</span>
-                      <span className="text-xs font-black text-blue-400 font-mono">${previewUsdDisplay} USD</span>
+                      {/* Radio Indicator */}
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                        paymentMethod === 'razorpay' ? 'border-cyan-400 bg-cyan-950' : 'border-slate-600 bg-slate-900'
+                      }`}>
+                        {paymentMethod === 'razorpay' && (
+                          <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400" />
+                        )}
+                      </div>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono block">
-                      Pay in USD • ₹{finalTotal.toFixed(2)} / 95 (Min. $3.00)
-                    </span>
-                  </div>
-                </button>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-end justify-between">
+                      <div className="text-[10px] text-slate-400 font-mono leading-tight pr-2">
+                        <span>Secure Payment • Instant Processing • Trusted</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-mono text-cyan-400 text-sm font-black">
+                          ₹{finalTotal.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* PAYPAL CARD */}
+                  <button
+                    type="button"
+                    onClick={() => { setPaymentMethod('paypal'); setPaypalReady(false); }}
+                    className={`relative p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer select-none group ${
+                      paymentMethod === 'paypal'
+                        ? 'border-blue-400/90 bg-gradient-to-br from-blue-950/50 via-slate-900 to-slate-950 shadow-lg shadow-blue-500/20 ring-1 ring-blue-400/60'
+                        : 'border-slate-800 bg-slate-950/70 hover:border-slate-700 hover:bg-slate-900/60'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
+                          paymentMethod === 'paypal'
+                            ? 'bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-sm shadow-blue-500/30'
+                            : 'bg-slate-800/80 border-slate-700/60 text-slate-400'
+                        }`}>
+                          <PaypalIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-xs text-white tracking-wide">PAYPAL</span>
+                          </div>
+                          <span className="text-[10px] text-blue-400 font-mono font-semibold block">
+                            International Checkout
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Radio Indicator */}
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                        paymentMethod === 'paypal' ? 'border-blue-400 bg-blue-950' : 'border-slate-600 bg-slate-900'
+                      }`}>
+                        {paymentMethod === 'paypal' && (
+                          <div className="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400" />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-end justify-between">
+                      <div className="text-[10px] text-slate-400 font-mono leading-tight pr-2">
+                        <span>Secure Checkout • USD Payment</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-mono text-blue-400 text-sm font-black">
+                          ${previewUsdDisplay} USD
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                </div>
 
                 {/* PayPal Conversion Info Card (shown when PayPal is selected) */}
                 {paymentMethod === 'paypal' && (
-                  <div className="p-3.5 rounded-2xl bg-blue-950/30 border border-blue-500/20 text-xs font-mono space-y-2">
+                  <div className="p-3.5 rounded-2xl bg-blue-950/30 border border-blue-500/20 text-xs font-mono space-y-2 animate-fadeIn">
                     <div className="flex justify-between items-center text-[11px]">
                       <span className="text-slate-400">Product Price (Authoritative):</span>
                       <span className="text-white font-bold">₹{finalTotal.toFixed(2)} INR</span>
@@ -969,7 +1055,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             {/* PayPal Buttons Container (shown when PayPal is selected) */}
             {paymentMethod === 'paypal' && (
-              <div className="p-3.5 rounded-2xl bg-slate-950 border border-blue-500/40 shadow-xl shadow-blue-500/10 space-y-2">
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-blue-500/40 shadow-xl shadow-blue-500/10 space-y-2 animate-fadeIn">
                 <div className="text-center">
                   <span className="text-[11px] text-blue-400 font-mono font-bold">
                     {paypalLoading ? 'Loading PayPal Secure Gateway...' : `Pay via PayPal • $${previewUsdDisplay} USD`}
@@ -984,7 +1070,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <button
                 type="submit"
                 disabled={isProcessing || !isOnline || (!isPhoneValid && phoneTouched)}
-                className={`w-full py-3.5 rounded-2xl font-extrabold text-xs font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all ${
+                className={`w-full py-3.5 rounded-2xl font-extrabold text-xs font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                   !isOnline || (!isPhoneValid && phoneTouched)
                     ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed shadow-none'
                     : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-cyan-500/25 hover:scale-[1.01] active:scale-95'

@@ -1,23 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { RemoteService, RemoteBooking } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCoupon } from '../utils/couponManager';
 import { useOnlineStatus } from '../components/OfflineBanner';
+import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
+import { InternationalPhoneInput } from '../components/InternationalPhoneInput';
+import { PaymentMethodCards } from '../components/PaymentMethodCards';
 import {
-  Headphones,
   CheckCircle2,
   ShieldCheck,
-  Zap,
-  ArrowRight,
   Lock,
-  Download,
   DownloadCloud,
   ExternalLink,
   MessageSquare,
-  Wrench,
   Tag,
-  WifiOff
+  WifiOff,
+  AlertTriangle
 } from 'lucide-react';
 
 interface RemoteSupportBookingViewProps {
@@ -36,6 +35,17 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
   const [customerName, setCustomerName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [phoneValidation, setPhoneValidation] = useState<{
+    isValid: boolean;
+    cleanNumber: string;
+    e164: string;
+    country: Country;
+  }>(() => {
+    const def = getDefaultCountry();
+    return { ...validatePhoneNumber('', def), country: def };
+  });
+
   const [problemDescription, setProblemDescription] = useState('');
   const [preferredDate, setPreferredDate] = useState('');
   const [preferredTime, setPreferredTime] = useState('');
@@ -44,15 +54,25 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
   const [remotePassword, setRemotePassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<RemoteBooking | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Payment Method State: 'razorpay' | 'paypal'
+  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'paypal'>('razorpay');
+  const [paypalReady, setPaypalReady] = useState(false);
+  const [paypalLoading, setPaypalLoading] = useState(false);
 
   // Coupon state
   const [couponInput, setCouponInput] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
 
+  const basePrice = selectedService?.price || 39;
+  const finalPrice = Math.max(0, basePrice - appliedDiscount);
+  const previewUsd = finalPrice > 0 ? Math.max(3, finalPrice / 95) : 0;
+  const previewUsdDisplay = (Math.round(previewUsd * 100) / 100).toFixed(2);
+
   const handleApplyBookingCoupon = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const basePrice = selectedService?.price || 39;
     const res = validateAndApplyCoupon(couponInput, basePrice);
     if (res.valid) {
       setAppliedDiscount(res.discountAmount);
@@ -63,22 +83,291 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
     }
   };
 
+  // State ref for PayPal callbacks
+  const paypalStateRef = useRef({
+    selectedService,
+    customerName,
+    email,
+    phoneValidation,
+    problemDescription,
+    preferredDate,
+    preferredTime,
+    remoteTool,
+    remoteId,
+    remotePassword,
+    finalPrice,
+    couponInput
+  });
+
+  useEffect(() => {
+    paypalStateRef.current = {
+      selectedService,
+      customerName,
+      email,
+      phoneValidation,
+      problemDescription,
+      preferredDate,
+      preferredTime,
+      remoteTool,
+      remoteId,
+      remotePassword,
+      finalPrice,
+      couponInput
+    };
+  }, [selectedService, customerName, email, phoneValidation, problemDescription, preferredDate, preferredTime, remoteTool, remoteId, remotePassword, finalPrice, couponInput]);
+
+  // PayPal SDK Auto-Loader & Smart Button Renderer for Remote Support
+  useEffect(() => {
+    if (paymentMethod !== 'paypal' || confirmedBooking) {
+      setPaypalReady(false);
+      return;
+    }
+
+    let isCancelled = false;
+    setPaypalLoading(true);
+
+    async function initPayPal() {
+      try {
+        let ppConfig: any = null;
+        try {
+          const cfgRes = await fetch('/api/paypal/config');
+          if (cfgRes.ok) {
+            ppConfig = await cfgRes.json();
+          }
+        } catch (e) {}
+
+        const activeClientId = ppConfig?.clientId || import.meta.env.VITE_PAYPAL_CLIENT_ID || 'BAAq2PyxqOTR12C8YmU9N7Km0YSbwzwu4dOJHk4mmXV4GiCRQ1pS-IEROr24x4Tjej_Pzmnx24E51GSCIo';
+        if (!activeClientId || isCancelled) return;
+
+        const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]') as HTMLScriptElement | null;
+        if (existingScript && !existingScript.src.includes(activeClientId)) {
+          existingScript.remove();
+          delete (window as any).paypal;
+        }
+
+        if (typeof (window as any).paypal === 'undefined') {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = `https://www.paypal.com/sdk/js?client-id=${activeClientId}&currency=USD&components=buttons&intent=capture`;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('PayPal SDK script load error'));
+            document.body.appendChild(script);
+          });
+        }
+
+        if (isCancelled || typeof (window as any).paypal === 'undefined') return;
+
+        const container = document.getElementById('paypal-booking-button-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        (window as any).paypal.Buttons({
+          createOrder: async () => {
+            const curr = paypalStateRef.current;
+            setErrorMessage('');
+
+            // Validation
+            if (!curr.customerName.trim()) {
+              setErrorMessage('Please enter your full name.');
+              throw new Error('Name required');
+            }
+
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!curr.email.trim() || !emailRegex.test(curr.email.trim())) {
+              setErrorMessage('Please enter a valid email address.');
+              throw new Error('Valid email required');
+            }
+
+            if (!curr.phoneValidation.isValid || !curr.phoneValidation.e164) {
+              setPhoneTouched(true);
+              setErrorMessage('Please enter a valid WhatsApp number for the selected country.');
+              throw new Error('Valid WhatsApp number required');
+            }
+
+            if (!curr.problemDescription.trim()) {
+              setErrorMessage('Please describe the problem or error messages.');
+              throw new Error('Problem description required');
+            }
+
+            setIsSubmitting(true);
+            const e164Phone = curr.phoneValidation.e164;
+
+            const payload = {
+              orderType: 'booking',
+              booking: {
+                serviceId: curr.selectedService?.id || 'srv-001',
+                serviceTitle: curr.selectedService?.title || 'Remote PC Support',
+                issueCategory: curr.selectedService?.category || 'Windows Fix',
+                customerName: curr.customerName.trim(),
+                customerEmail: curr.email.trim().toLowerCase(),
+                customerPhone: e164Phone,
+                phone: e164Phone,
+                email: curr.email.trim().toLowerCase(),
+                problemDescription: curr.problemDescription.trim(),
+                preferredDate: curr.preferredDate || new Date().toISOString().split('T')[0],
+                preferredTime: curr.preferredTime || '10:00 AM',
+                remoteTool: curr.remoteTool || 'AnyDesk',
+                remoteId: curr.remoteId || '000 000 000',
+                remotePassword: curr.remotePassword || '',
+                couponCode: curr.couponInput || ''
+              }
+            };
+
+            const createRes = await fetch('/api/paypal/create-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            const createData = await createRes.json();
+            if (!createRes.ok || !createData.success || !createData.paypalOrderId) {
+              const errMsg = createData.message || createData.error || 'Failed to initialize PayPal booking order.';
+              setErrorMessage(errMsg);
+              setIsSubmitting(false);
+              throw new Error(errMsg);
+            }
+
+            setIsSubmitting(false);
+            return createData.paypalOrderId;
+          },
+          onApprove: async (data: any) => {
+            setIsSubmitting(true);
+            setErrorMessage('');
+            try {
+              const captureRes = await fetch('/api/paypal/capture-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paypalOrderId: data.orderID })
+              });
+              const captureData = await captureRes.json();
+
+              if (captureRes.ok && captureData.success && captureData.verified) {
+                const verifiedBooking = captureData.booking || {
+                  id: 'bk-' + Date.now(),
+                  bookingNumber: 'OMV-BOOK-' + Math.floor(1000 + Math.random() * 9000),
+                  customerName: paypalStateRef.current.customerName,
+                  email: paypalStateRef.current.email,
+                  phone: paypalStateRef.current.phoneValidation.e164,
+                  serviceTitle: paypalStateRef.current.selectedService?.title || 'Remote PC Support',
+                  technicianName: 'Certified Tech (Live Online)',
+                  preferredDate: paypalStateRef.current.preferredDate || new Date().toISOString().split('T')[0],
+                  preferredTime: paypalStateRef.current.preferredTime || '10:00 AM',
+                  remoteTool: paypalStateRef.current.remoteTool || 'AnyDesk',
+                  remoteId: paypalStateRef.current.remoteId || '000 000 000',
+                  amount: paypalStateRef.current.finalPrice,
+                  paymentStatus: 'Paid',
+                  status: 'Technician Assigned'
+                };
+
+                setConfirmedBooking(verifiedBooking);
+                onBookingSuccess(verifiedBooking);
+
+                sendAdminOrderNotificationEmail({
+                  type: 'REMOTE_BOOKING',
+                  customerName: verifiedBooking.customerName,
+                  email: verifiedBooking.email,
+                  phone: verifiedBooking.phone,
+                  title: verifiedBooking.serviceTitle,
+                  amount: verifiedBooking.amount,
+                  paymentId: `PayPal: ${data.orderID}`,
+                  orderOrBookingId: verifiedBooking.bookingNumber,
+                  remoteId: verifiedBooking.remoteId,
+                  problemDescription: verifiedBooking.problemDescription
+                });
+
+                confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+              } else {
+                setErrorMessage(captureData.message || captureData.error || 'PayPal payment verification failed.');
+              }
+            } catch (err: any) {
+              setErrorMessage('PayPal capture network error. Please try again.');
+            } finally {
+              setIsSubmitting(false);
+            }
+          },
+          onCancel: () => {
+            setErrorMessage('PayPal booking checkout was cancelled.');
+            setIsSubmitting(false);
+          },
+          onError: (err: any) => {
+            console.error('PayPal Booking Error:', err);
+            setErrorMessage('PayPal checkout encountered an issue. Please try again.');
+            setIsSubmitting(false);
+          },
+          style: {
+            layout: 'vertical',
+            color: 'blue',
+            shape: 'rect',
+            label: 'paypal',
+            height: 44
+          }
+        }).render('#paypal-booking-button-container');
+
+        if (!isCancelled) {
+          setPaypalReady(true);
+          setPaypalLoading(false);
+        }
+      } catch (e: any) {
+        console.error('PayPal setup failed:', e);
+        if (!isCancelled) {
+          setPaypalLoading(false);
+        }
+      }
+    }
+
+    const timer = setTimeout(() => {
+      initPayPal();
+    }, 60);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [paymentMethod, confirmedBooking]);
+
   const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    setPhoneTouched(true);
+    setErrorMessage('');
 
-    const basePrice = selectedService?.price || 39;
-    const finalPrice = Math.max(0, basePrice - appliedDiscount);
+    if (paymentMethod === 'paypal') {
+      // Handled via PayPal smart buttons
+      return;
+    }
+
+    if (!customerName.trim()) {
+      setErrorMessage('Please enter your full name.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
+    if (!phoneValidation.isValid || !phoneValidation.e164) {
+      setErrorMessage('Please enter a valid WhatsApp number for the selected country.');
+      return;
+    }
+
+    if (!problemDescription.trim()) {
+      setErrorMessage('Please describe your problem or error messages.');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     const generatedBookingNum = 'OMV-BOOK-' + Math.floor(1000 + Math.random() * 9000);
     const generatedId = 'bk-' + Date.now();
+    const e164Phone = phoneValidation.e164;
 
     const fullClientBooking: RemoteBooking = {
       id: generatedId,
       bookingNumber: generatedBookingNum,
       customerName: customerName || 'Client',
       email: email || 'customer@example.com',
-      phone: phone || '+91 8345968169',
+      phone: e164Phone,
       serviceId: selectedService?.id || 'srv-001',
       serviceTitle: selectedService?.title || 'Remote PC Support',
       issueCategory: selectedService?.category || 'Windows Fix',
@@ -86,7 +375,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
       preferredDate: preferredDate || new Date().toISOString().split('T')[0],
       preferredTime: preferredTime || '10:00 AM',
       remoteTool: remoteTool || 'AnyDesk',
-      remoteId: remoteId || '982 110 449',
+      remoteId: remoteId || '000 000 000',
       remotePassword: remotePassword || '',
       amount: finalPrice,
       paymentStatus: 'Paid',
@@ -111,32 +400,32 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
         }
       }
     } catch (err) {
-      console.warn('Backend API unavailable, using client-side booking construction:', err);
+      console.warn('Backend API note:', err);
     }
 
+    // Zero-total 100% Coupon Transition
     if (finalPrice <= 0) {
-      if (bookingObj) {
-        bookingObj.razorpayPaymentId = 'FREE_COUPON_' + Date.now();
-        setConfirmedBooking(bookingObj);
-        onBookingSuccess(bookingObj);
-        sendAdminOrderNotificationEmail({
-          type: 'REMOTE_BOOKING',
-          customerName: bookingObj.customerName,
-          email: bookingObj.email,
-          phone: bookingObj.phone,
-          title: bookingObj.serviceTitle,
-          amount: 0,
-          paymentId: 'FREE (100% Coupon Discount)',
-          orderOrBookingId: bookingObj.bookingNumber,
-          remoteId: bookingObj.remoteId,
-          problemDescription: bookingObj.problemDescription
-        });
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      }
+      bookingObj.razorpayPaymentId = 'FREE_COUPON_' + Date.now();
+      setConfirmedBooking(bookingObj);
+      onBookingSuccess(bookingObj);
+      sendAdminOrderNotificationEmail({
+        type: 'REMOTE_BOOKING',
+        customerName: bookingObj.customerName,
+        email: bookingObj.email,
+        phone: bookingObj.phone,
+        title: bookingObj.serviceTitle,
+        amount: 0,
+        paymentId: 'FREE (100% Coupon Discount)',
+        orderOrBookingId: bookingObj.bookingNumber,
+        remoteId: bookingObj.remoteId,
+        problemDescription: bookingObj.problemDescription
+      });
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       setIsSubmitting(false);
       return;
     }
 
+    // Razorpay Flow
     try {
       const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TMiCMOFsYnHr8G';
 
@@ -151,10 +440,9 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
       }
 
       if (typeof (window as any).Razorpay !== 'undefined') {
-        const targetAmount = selectedService?.price || 39;
         const options = {
           key: razorpayKey,
-          amount: Math.round(targetAmount * 100),
+          amount: Math.round(finalPrice * 100),
           currency: 'INR',
           name: 'OMOVE TECH',
           description: `Remote PC Service: ${bookingObj.serviceTitle}`,
@@ -162,7 +450,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
           prefill: {
             name: customerName,
             email: email,
-            contact: phone
+            contact: e164Phone
           },
           theme: { color: '#059669' },
           handler: function (response: any) {
@@ -187,7 +475,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
           },
           modal: {
             ondismiss: function () {
-              console.log('Razorpay payment popup closed by user.');
+              setIsSubmitting(false);
             }
           }
         };
@@ -212,23 +500,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
       }
     } catch (err) {
       console.error('Razorpay popup error:', err);
-      if (bookingObj) {
-        setConfirmedBooking(bookingObj);
-        onBookingSuccess(bookingObj);
-        sendAdminOrderNotificationEmail({
-          type: 'REMOTE_BOOKING',
-          customerName: bookingObj.customerName,
-          email: bookingObj.email,
-          phone: bookingObj.phone,
-          title: bookingObj.serviceTitle,
-          amount: bookingObj.amount,
-          paymentId: bookingObj.razorpayPaymentId || 'PAID_DIRECT',
-          orderOrBookingId: bookingObj.bookingNumber,
-          remoteId: bookingObj.remoteId,
-          problemDescription: bookingObj.problemDescription
-        });
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      }
+      setErrorMessage('Payment initialization error. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -261,6 +533,13 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
           </div>
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-center gap-3 animate-fadeIn shadow-lg">
+          <AlertTriangle className="w-5 h-5 shrink-0 text-rose-400" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
 
       {confirmedBooking ? (
         /* Booking Confirmation Card */
@@ -359,7 +638,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                       <div className="flex items-center gap-2">
                         <h4 className="font-bold text-sm text-slate-900">{srv.title}</h4>
                         {srv.popular && (
-                          <span className="px-2 py-0.2 rounded text-[9px] font-bold bg-amber-400 text-slate-950 font-mono">
+                          <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-400 text-slate-950 font-mono">
                             POPULAR
                           </span>
                         )}
@@ -378,7 +657,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
               </div>
             </div>
 
-            {/* Step 2: Problem Description & Details */}
+            {/* Step 2: Problem Description & Contact Information */}
             <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/40 shadow-xl space-y-4">
               <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2">
                 <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white text-xs flex items-center justify-center">2</span>
@@ -410,15 +689,17 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 </div>
               </div>
 
-              <div>
-                <label className="text-slate-700 font-semibold block mb-1 text-xs">WhatsApp Number *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="+91 98765 43210"
+              {/* International WhatsApp Phone Input */}
+              <div className="space-y-1">
+                <InternationalPhoneInput
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all text-xs"
+                  onChange={(val, valRes) => {
+                    setPhone(val);
+                    setPhoneValidation(valRes);
+                  }}
+                  touched={phoneTouched}
+                  onBlur={() => setPhoneTouched(true)}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -436,7 +717,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
             </div>
           </div>
 
-          {/* Right: Remote Tools & Checkout */}
+          {/* Right: Remote Tools & Payment */}
           <div className="lg:col-span-5 space-y-6">
             <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/40 shadow-xl space-y-5">
               <div className="flex items-center justify-between">
@@ -514,7 +795,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
               </div>
             </div>
 
-            {/* Price Summary & Submit */}
+            {/* Price Summary & Payment Selector */}
             <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 text-white space-y-4 shadow-xl">
               {/* Promo Coupon Box */}
               <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 space-y-2">
@@ -537,7 +818,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                   <button
                     type="button"
                     onClick={handleApplyBookingCoupon}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono text-xs font-bold transition-all"
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono text-xs font-bold transition-all cursor-pointer"
                   >
                     APPLY
                   </button>
@@ -550,43 +831,111 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 )}
               </div>
 
+              {/* Total Summary */}
               <div className="flex justify-between items-baseline border-b border-slate-800 pb-3">
                 <span className="text-xs text-slate-400">Total Payable Service Fee</span>
-                <span className="text-3xl font-extrabold font-mono text-emerald-400">
-                  ₹{Math.max(0, (selectedService?.price || 39) - appliedDiscount)}
+                <span className="text-2xl font-extrabold font-mono text-emerald-400">
+                  ₹{finalPrice}
                 </span>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting || !isOnline}
-                className={`w-full py-4 rounded-2xl font-black text-sm font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all ${
-                  !isOnline
-                    ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
-                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 hover:scale-[1.01]'
-                }`}
-              >
-                {!isOnline ? (
-                  <>
-                    <WifiOff className="w-4 h-4 text-rose-400" />
-                    <span>OFFLINE — CHECKOUT UNAVAILABLE</span>
-                  </>
-                ) : isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    <span>CONFIRMING BOOKING...</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    <span>SECURE CONFIRM & PAY ₹{Math.max(0, (selectedService?.price || 39) - appliedDiscount)}</span>
-                  </>
-                )}
-              </button>
+              {/* Payment Method Cards */}
+              {finalPrice > 0 && (
+                <div className="space-y-3">
+                  <PaymentMethodCards
+                    paymentMethod={paymentMethod}
+                    onSelectMethod={(m) => {
+                      setPaymentMethod(m);
+                      setPaypalReady(false);
+                    }}
+                    inrAmount={finalPrice}
+                    usdAmountDisplay={previewUsdDisplay}
+                    razorpayTitle="RAZORPAY"
+                    razorpaySubtitle="UPI / Card / NetBanking"
+                    razorpayTagline="Pay securely in INR"
+                    paypalTitle="PAYPAL"
+                    paypalSubtitle="International Checkout"
+                    paypalTagline="Pay securely in USD"
+                    themeAccent="emerald"
+                  />
+
+                  {/* PayPal Conversion Info Card */}
+                  {paymentMethod === 'paypal' && (
+                    <div className="p-3.5 rounded-2xl bg-blue-950/30 border border-blue-500/20 text-xs font-mono space-y-2 animate-fadeIn">
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-slate-400">Service Fee (Authoritative):</span>
+                        <span className="text-white font-bold">₹{finalPrice} INR</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-slate-400">Conversion Rate:</span>
+                        <span className="text-slate-300">₹95 = $1.00 USD</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-slate-400">Minimum PayPal Price:</span>
+                        <span className="text-slate-300">$3.00 USD</span>
+                      </div>
+                      <div className="pt-2 border-t border-blue-500/20 flex justify-between items-center font-bold">
+                        <span className="text-blue-300">PayPal Total (USD):</span>
+                        <span className="text-base text-blue-400">${previewUsdDisplay} USD</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PayPal Button Container */}
+                  {paymentMethod === 'paypal' && (
+                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-blue-500/40 shadow-xl shadow-blue-500/10 space-y-2 animate-fadeIn">
+                      <div className="text-center">
+                        <span className="text-[11px] text-blue-400 font-mono font-bold">
+                          {paypalLoading ? 'Loading PayPal Gateway...' : `Pay via PayPal • $${previewUsdDisplay} USD`}
+                        </span>
+                      </div>
+                      <div id="paypal-booking-button-container" className="min-h-[44px] w-full" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Razorpay Submit CTA Button (when Razorpay is selected or free coupon) */}
+              {(paymentMethod === 'razorpay' || finalPrice <= 0) && (
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !isOnline || (phoneTouched && !phoneValidation.isValid)}
+                  className={`w-full py-4 rounded-2xl font-black text-sm font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    !isOnline || (phoneTouched && !phoneValidation.isValid)
+                      ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
+                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 hover:scale-[1.01]'
+                  }`}
+                >
+                  {!isOnline ? (
+                    <>
+                      <WifiOff className="w-4 h-4 text-rose-400" />
+                      <span>OFFLINE — CHECKOUT UNAVAILABLE</span>
+                    </>
+                  ) : isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>CONFIRMING BOOKING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>
+                        {finalPrice <= 0
+                          ? 'CONFIRM FREE BOOKING'
+                          : `SECURE CONFIRM & PAY ₹${finalPrice}`}
+                      </span>
+                    </>
+                  )}
+                </button>
+              )}
 
               <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>256-Bit Encrypted Connection • 100% Satisfaction Guarantee</span>
+                <span>
+                  {paymentMethod === 'paypal'
+                    ? 'PayPal Buyer Protection • 256-Bit SSL Encrypted'
+                    : 'Razorpay 256-Bit SSL Encrypted Connection • 100% Satisfaction Guarantee'}
+                </span>
               </div>
             </div>
           </div>

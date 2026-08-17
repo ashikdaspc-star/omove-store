@@ -500,11 +500,17 @@ async function sendSupportEmails(
     amount: number;
     razorpayOrderId?: string;
     razorpayPaymentId?: string;
+    paymentProvider?: string;
+    paymentAmountUsd?: number;
+    paypalOrderId?: string;
+    paypalCaptureId?: string;
   },
   env?: Env
 ): Promise<{ customerSent: boolean; adminSent: boolean }> {
   const adminEmail = (env && (env as any).ADMIN_EMAIL) || 'contact.ashikdas@gmail.com';
   const customerEmail = (record.email || '').trim().toLowerCase();
+  const isPayPal = record.paymentProvider === 'PayPal' || Boolean(record.paypalOrderId);
+  const providerName = isPayPal ? 'PayPal' : 'Razorpay';
 
   let customerSent = false;
   let adminSent = false;
@@ -522,8 +528,11 @@ async function sendSupportEmails(
         _captcha: 'false',
         'Greeting': `Hello ${record.name},`,
         'Thank You Message': 'Thank you for supporting Omove Store! Your contribution was successfully received.',
-        'Support Amount': `₹${record.amount}`,
-        'Payment ID': record.razorpayPaymentId || 'Verified via Razorpay',
+        'Payment Method': providerName,
+        'Original Amount': `₹${record.amount}`,
+        ...(isPayPal && record.paymentAmountUsd ? { 'PayPal Amount': `$${record.paymentAmountUsd.toFixed(2)} USD` } : {}),
+        'Payment ID': record.paypalCaptureId || record.razorpayPaymentId || `Verified via ${providerName}`,
+        ...(record.paypalOrderId ? { 'PayPal Order ID': record.paypalOrderId } : {}),
         'Payment Status': 'Successful',
         'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
         'Closing': 'Your support helps us continue improving Omove Store and creating useful digital tools and resources. Thank you! ❤️',
@@ -534,6 +543,7 @@ async function sendSupportEmails(
         _captcha: 'false',
         'Greeting': `Hello ${record.name},`,
         'Notice': 'Your support payment was not completed.',
+        'Payment Method': providerName,
         'Amount': `₹${record.amount}`,
         'Status': 'Payment not completed',
         'Closing': 'You can try again whenever you want.',
@@ -554,7 +564,7 @@ async function sendSupportEmails(
   // 2. Send Admin Email
   try {
     const adminSubject = type === 'SUCCESS'
-      ? `💚 New Omove Store Support — ₹${record.amount}`
+      ? `💚 New Omove Store Support (${providerName}) — ₹${record.amount}`
       : `⚠️ Omove Store Support Payment Failed — ₹${record.amount}`;
 
     const adminPayload = type === 'SUCCESS' ? {
@@ -562,11 +572,14 @@ async function sendSupportEmails(
       _template: 'table',
       _captcha: 'false',
       'Notice': 'New support contribution received.',
+      'Payment Method': providerName,
       'Customer Name': record.name,
       'Customer Email': record.email,
-      'Amount': `₹${record.amount}`,
-      'Payment ID': record.razorpayPaymentId || 'N/A',
-      'Razorpay Order ID': record.razorpayOrderId || 'N/A',
+      'Original Amount': `₹${record.amount}`,
+      ...(isPayPal && record.paymentAmountUsd ? { 'PayPal Amount': `$${record.paymentAmountUsd.toFixed(2)} USD` } : {}),
+      'Payment ID': record.paypalCaptureId || record.razorpayPaymentId || 'N/A',
+      ...(record.paypalOrderId ? { 'PayPal Order ID': record.paypalOrderId } : {}),
+      ...(record.razorpayOrderId ? { 'Razorpay Order ID': record.razorpayOrderId } : {}),
       'Status': 'SUCCESS',
       'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
     } : {
@@ -574,10 +587,12 @@ async function sendSupportEmails(
       _template: 'table',
       _captcha: 'false',
       'Notice': 'A support payment was not completed.',
+      'Payment Method': providerName,
       'Customer Name': record.name,
       'Customer Email': record.email,
       'Amount': `₹${record.amount}`,
-      'Razorpay Order ID': record.razorpayOrderId || 'N/A',
+      ...(record.razorpayOrderId ? { 'Razorpay Order ID': record.razorpayOrderId } : {}),
+      ...(record.paypalOrderId ? { 'PayPal Order ID': record.paypalOrderId } : {}),
       'Status': 'FAILED / CANCELLED',
       'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
     };
@@ -2646,6 +2661,158 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (path === '/api/paypal/create-order' && method === 'POST') {
       const body: any = await request.json().catch(() => ({}));
+      const { items, booking, support, orderType, customerName, customerEmail, customerPhone, couponCode, name, email, amount, isSupport } = body;
+
+      // ── 1. Remote PC Support Booking Flow ──
+      if (orderType === 'booking' || booking) {
+        const bData = booking || body;
+        const srvId = bData.serviceId || 'srv-001';
+        const srvList = await getWorkingData('src/data/services.json', env);
+        const srv = Array.isArray(srvList) ? srvList.find((s: any) => s && s.id === srvId) : null;
+        const basePrice = srv ? Number(srv.price) : 39;
+
+        let discountAmount = 0;
+        let appliedCouponCode = '';
+        const cleanCoupon = (bData.couponCode || couponCode || '').trim().toUpperCase();
+        if (cleanCoupon) {
+          const freshCoupons = await getWorkingData('src/data/coupons.json', env);
+          if (Array.isArray(freshCoupons) && freshCoupons.length > 0) dynamicCouponsStore = freshCoupons;
+          const couponResult = validateCouponServerSide(cleanCoupon, basePrice, dynamicCouponsStore);
+          if (couponResult.valid) {
+            discountAmount = couponResult.discountAmount;
+            appliedCouponCode = couponResult.coupon?.code || cleanCoupon;
+          }
+        }
+
+        const inrTotal = Math.max(0, basePrice - discountAmount);
+        const usdTotal = calculateUsdPrice(inrTotal);
+
+        const bookingId = bData.id || `bk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const bookingNumber = bData.bookingNumber || `OMV-BOOK-${Math.floor(1000 + Math.random() * 9000)}`;
+        const serviceTitle = bData.serviceTitle || (srv ? srv.title : 'Remote PC Support');
+
+        const newBooking = {
+          id: bookingId,
+          bookingNumber,
+          customerName: bData.customerName || customerName || 'Customer',
+          email: (bData.email || bData.customerEmail || customerEmail || 'customer@example.com').toLowerCase(),
+          phone: bData.phone || bData.customerPhone || customerPhone || '+91 8345968169',
+          serviceId: srvId,
+          serviceTitle,
+          issueCategory: bData.issueCategory || (srv ? srv.category : 'Windows Fix'),
+          problemDescription: bData.problemDescription || 'Remote computer support requested.',
+          preferredDate: bData.preferredDate || bData.date || new Date().toISOString().split('T')[0],
+          preferredTime: bData.preferredTime || '10:00 AM',
+          remoteTool: bData.remoteTool || 'AnyDesk',
+          remoteId: bData.remoteId || '000 000 000',
+          remotePassword: bData.remotePassword || '',
+          amount: inrTotal,
+          paymentProvider: 'paypal',
+          paymentMethod: 'PayPal',
+          paymentAmountUsd: usdTotal,
+          couponCode: appliedCouponCode,
+          paymentStatus: 'Pending Payment',
+          status: 'Pending Payment',
+          technicianName: 'Certified Tech (Live Online)',
+          createdAt: new Date().toISOString()
+        };
+
+        const ppResult = await createPayPalOrderApi(env, usdTotal, bookingId, `Remote PC Support: ${serviceTitle.substring(0, 100)}`);
+        if (!ppResult || !ppResult.paypalOrderId) {
+          return jsonResponse({
+            success: false,
+            error: ppResult?.error || 'Failed to create PayPal order for booking.',
+            paypalStatus: ppResult?.status,
+            paypalErrorName: ppResult?.error,
+            paypalDebugId: ppResult?.debugId,
+            paypalDetails: ppResult?.details
+          }, ppResult?.status || 500);
+        }
+
+        (newBooking as any).paypalOrderId = ppResult.paypalOrderId;
+        await saveD1Booking(env, newBooking);
+
+        return jsonResponse({
+          success: true,
+          orderType: 'booking',
+          booking: newBooking,
+          bookingId,
+          paypalOrderId: ppResult.paypalOrderId,
+          usdAmount: usdTotal,
+          inrAmount: inrTotal,
+          currency: 'USD',
+          sync: { success: true }
+        });
+      }
+
+      // ── 2. Support / Buy Me a Coffee Flow ──
+      if (orderType === 'support' || support || isSupport) {
+        const rawName = (support?.name || name || customerName || '').trim();
+        const rawEmail = (support?.email || support?.customerEmail || email || customerEmail || '').trim().toLowerCase();
+        const rawAmount = Number(support?.amount !== undefined ? support.amount : amount);
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!rawName) {
+          return jsonResponse({ success: false, error: 'NAME_REQUIRED', message: 'Name is required.' }, 400);
+        }
+        if (!rawEmail || !emailRegex.test(rawEmail)) {
+          return jsonResponse({ success: false, error: 'INVALID_EMAIL', message: 'A valid email address is required.' }, 400);
+        }
+        if (isNaN(rawAmount) || rawAmount < 1) {
+          return jsonResponse({ success: false, error: 'INVALID_AMOUNT', message: 'Contribution amount must be at least ₹1.' }, 400);
+        }
+
+        const usdTotal = calculateUsdPrice(rawAmount);
+        const supportId = `sup_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+        const ppResult = await createPayPalOrderApi(env, usdTotal, supportId, `Buy Me a Coffee from ${rawName.substring(0, 80)}`);
+        if (!ppResult || !ppResult.paypalOrderId) {
+          return jsonResponse({
+            success: false,
+            error: ppResult?.error || 'Failed to create PayPal order for support.',
+            paypalStatus: ppResult?.status,
+            paypalErrorName: ppResult?.error,
+            paypalDebugId: ppResult?.debugId,
+            paypalDetails: ppResult?.details
+          }, ppResult?.status || 500);
+        }
+
+        const supportRecord = {
+          id: supportId,
+          name: rawName,
+          customerEmail: rawEmail,
+          amount: rawAmount,
+          currency: 'INR',
+          paymentProvider: 'paypal',
+          paymentMethod: 'PayPal',
+          paymentAmountUsd: usdTotal,
+          paypalOrderId: ppResult.paypalOrderId,
+          paypalPaymentId: null,
+          paymentStatus: 'PENDING',
+          customerEmailSent: false,
+          adminEmailSent: false,
+          createdAt: new Date().toISOString(),
+          paidAt: null
+        };
+
+        await saveD1SupportPayment(env, supportRecord);
+
+        return jsonResponse({
+          success: true,
+          orderType: 'support',
+          supportId,
+          supportRecord,
+          paypalOrderId: ppResult.paypalOrderId,
+          usdAmount: usdTotal,
+          inrAmount: rawAmount,
+          currency: 'USD',
+          name: rawName,
+          email: rawEmail,
+          sync: { success: true }
+        });
+      }
+
+      // ── 3. Product / Cart Checkout Flow ──
       const orderId = body.id || `ord-pp-${Date.now()}`;
 
       // Load authoritative product prices from server-side catalog
@@ -2692,20 +2859,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // Server-side coupon validation
       let discountAmount = 0;
       let appliedCouponCode = '';
-      const couponCode = (body.couponCode || '').trim().toUpperCase();
-      if (couponCode) {
+      const cleanCouponCode = (body.couponCode || '').trim().toUpperCase();
+      if (cleanCouponCode) {
         const freshCoupons = await getWorkingData('src/data/coupons.json', env);
         if (Array.isArray(freshCoupons) && freshCoupons.length > 0) dynamicCouponsStore = freshCoupons;
-        const couponResult = validateCouponServerSide(couponCode, subtotal, dynamicCouponsStore);
+        const couponResult = validateCouponServerSide(cleanCouponCode, subtotal, dynamicCouponsStore);
         if (couponResult.valid) {
           discountAmount = couponResult.discountAmount;
-          appliedCouponCode = couponResult.coupon?.code || couponCode;
+          appliedCouponCode = couponResult.coupon?.code || cleanCouponCode;
         }
       }
 
       const inrTotal = Math.max(0, subtotal - discountAmount);
-
-      // Server-side USD price calculation — NEVER trust frontend amount
       const usdTotal = calculateUsdPrice(inrTotal);
 
       // Create internal PENDING order in D1 (same unified order system as Razorpay)
@@ -2747,11 +2912,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       newOrder.paypalOrderId = ppResult.paypalOrderId;
-
       await saveD1Order(env, newOrder);
 
       return jsonResponse({
         success: true,
+        orderType: 'order',
         order: newOrder,
         orderId,
         paypalOrderId: ppResult.paypalOrderId,
@@ -2770,25 +2935,28 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return jsonResponse({ success: false, error: 'Missing PayPal order ID.' }, 400);
       }
 
-      // Find the internal D1 order that matches this PayPal order ID
+      // ── Lookup Order in D1 ──
       let allOrders = await getD1Orders(env);
-      if (Array.isArray(allOrders)) {
-        allOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
+      let order = Array.isArray(allOrders) ? allOrders.find((o: any) => o.paypalOrderId === paypalOrderId) : null;
+
+      // ── Lookup Booking in D1 ──
+      let allBookings = await getD1Bookings(env);
+      let booking = Array.isArray(allBookings) ? allBookings.find((b: any) => b.paypalOrderId === paypalOrderId) : null;
+
+      // ── Lookup Support Payment in D1 ──
+      let allSupport = await getD1SupportPayments(env);
+      let support = Array.isArray(allSupport) ? allSupport.find((s: any) => s.paypalOrderId === paypalOrderId) : null;
+
+      if (!order && !booking && !support) {
+        return jsonResponse({ success: false, error: 'No matching internal record found for this PayPal order.' }, 404);
       }
 
-      let order = Array.from(ordersStore.values()).find((o: any) =>
-        o.paypalOrderId === paypalOrderId
-      );
-
-      if (!order) {
-        return jsonResponse({ success: false, error: 'No matching internal order found for this PayPal order.' }, 404);
-      }
-
-      // IDEMPOTENCY: If already captured, return existing result
-      if (order.paymentStatus === 'SUCCESS' && order.paypalCaptureId) {
+      // ── Idempotency Check ──
+      if (order && order.paymentStatus === 'SUCCESS' && order.paypalCaptureId) {
         return jsonResponse({
           success: true,
           verified: true,
+          orderType: 'order',
           message: 'PayPal payment already verified and processed.',
           order,
           orderId: order.id,
@@ -2797,82 +2965,186 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         });
       }
 
-      // Capture the PayPal order
-      const captureResult = await capturePayPalOrderApi(env, paypalOrderId);
+      if (booking && (booking.paymentStatus === 'Paid' || booking.paymentStatus === 'SUCCESS') && booking.paypalCaptureId) {
+        return jsonResponse({
+          success: true,
+          verified: true,
+          orderType: 'booking',
+          message: 'PayPal booking already verified and processed.',
+          booking,
+          bookingId: booking.id,
+          alreadyProcessed: true,
+          sync: { success: true }
+        });
+      }
 
+      if (support && support.paymentStatus === 'SUCCESS' && support.paypalCaptureId) {
+        return jsonResponse({
+          success: true,
+          verified: true,
+          orderType: 'support',
+          message: 'PayPal support payment already verified and processed.',
+          support,
+          supportId: support.id,
+          alreadyProcessed: true,
+          sync: { success: true }
+        });
+      }
+
+      // ── Capture the PayPal order ──
+      const captureResult = await capturePayPalOrderApi(env, paypalOrderId);
       if (!captureResult) {
         return jsonResponse({ success: false, error: 'PayPal capture failed. Please try again.' }, 500);
       }
 
-      // Verify capture status
       if (captureResult.status !== 'COMPLETED') {
         return jsonResponse({ success: false, error: `PayPal payment not completed. Status: ${captureResult.status}` }, 400);
       }
 
-      // Verify currency is USD
       if (captureResult.currency !== 'USD') {
         return jsonResponse({ success: false, error: `Unexpected payment currency: ${captureResult.currency}` }, 400);
       }
 
-      // Verify amount matches server-calculated amount
-      const expectedUsd = order.paymentAmountUsd;
-      const capturedUsd = parseFloat(captureResult.amount);
-      if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
+      // ── 1. If Booking ──
+      if (booking) {
+        const expectedUsd = booking.paymentAmountUsd;
+        const capturedUsd = parseFloat(captureResult.amount || '0');
+        if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
+          return jsonResponse({
+            success: false,
+            error: 'PAYMENT_AMOUNT_MISMATCH',
+            message: `Expected $${expectedUsd}, captured $${capturedUsd}`
+          }, 400);
+        }
+
+        booking.paymentStatus = 'Paid';
+        booking.status = 'Technician Assigned';
+        booking.paypalCaptureId = captureResult.captureId;
+        booking.paymentId = captureResult.captureId;
+        booking.paidAt = new Date().toISOString();
+        await saveD1Booking(env, booking);
+
         return jsonResponse({
-          success: false,
-          error: 'PAYMENT_AMOUNT_MISMATCH',
-          message: `Expected $${expectedUsd}, captured $${capturedUsd}`
-        }, 400);
-      }
-
-      // Mark internal order as SUCCESS (same as Razorpay verify)
-      order.paymentStatus = 'SUCCESS';
-      order.status = 'completed';
-      order.paypalCaptureId = captureResult.captureId;
-      order.paymentId = captureResult.captureId;
-      order.paymentVerifiedAt = new Date().toISOString();
-      order.updatedAt = new Date().toISOString();
-
-      // Re-resolve product items with download URLs (same logic as Razorpay verify)
-      const storeList = await getWorkingData('src/data/products.json', env);
-      const digitalList = await getWorkingData('src/data/digital_products.json', env);
-      const allProdsList = [...(Array.isArray(storeList) ? storeList : []), ...(Array.isArray(digitalList) ? digitalList : [])];
-
-      if (Array.isArray(order.items)) {
-        order.items = order.items.map((it: any) => {
-          const product = allProdsList.find((p: any) =>
-            p && (
-              p.id === it.productId ||
-              p.slug === it.productId ||
-              (p.name && it.productName && p.name.toLowerCase() === it.productName.toLowerCase())
-            )
-          );
-          const isDigital = product ? (product.productType === 'DIGITAL' || product.id?.startsWith('dig') || product.category === 'Digital Products') : (it.productType === 'DIGITAL' || it.productId?.startsWith('dig'));
-          const resolvedDriveUrl = isDigital && product ? (product.googleDriveUrl || product.fileUrl || '') : (isDigital ? (it.googleDriveUrl || it.fileUrl || '') : '');
-          const downloadEndpoint = isDigital ? `/api/downloads/setup?orderId=${encodeURIComponent(order.id || order.orderNumber)}&productId=${encodeURIComponent(it.productId || product?.id || '')}` : '';
-
-          return {
-            ...it,
-            productType: isDigital ? 'DIGITAL' : 'STORE',
-            fileSize: isDigital ? (it.fileSize || product?.downloadSize || 'Instant Access') : '',
-            licenseKey: isDigital ? (it.licenseKey || generateLicenseKey()) : '',
-            downloadLimit: isDigital ? (it.downloadLimit || 5) : 0,
-            googleDriveUrl: resolvedDriveUrl,
-            fileUrl: downloadEndpoint
-          };
+          success: true,
+          verified: true,
+          orderType: 'booking',
+          message: 'PayPal remote support booking verified successfully',
+          booking,
+          bookingId: booking.id,
+          sync: { success: true }
         });
       }
 
-      await saveD1Order(env, order);
+      // ── 2. If Support Contribution ──
+      if (support) {
+        const expectedUsd = support.paymentAmountUsd;
+        const capturedUsd = parseFloat(captureResult.amount || '0');
+        if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
+          return jsonResponse({
+            success: false,
+            error: 'PAYMENT_AMOUNT_MISMATCH',
+            message: `Expected $${expectedUsd}, captured $${capturedUsd}`
+          }, 400);
+        }
 
-      return jsonResponse({
-        success: true,
-        verified: true,
-        message: 'PayPal payment verified successfully',
-        order,
-        orderId: order.id,
-        sync: { success: true }
-      });
+        support.paymentStatus = 'SUCCESS';
+        support.paypalCaptureId = captureResult.captureId;
+        support.paidAt = new Date().toISOString();
+        await saveD1SupportPayment(env, support);
+
+        if (!support.customerEmailSent || !support.adminEmailSent) {
+          try {
+            const emailRes = await sendSupportEmails('SUCCESS', {
+              name: support.name,
+              email: support.customerEmail,
+              amount: support.amount,
+              paymentProvider: 'PayPal',
+              paymentAmountUsd: support.paymentAmountUsd || capturedUsd,
+              paypalOrderId: paypalOrderId,
+              paypalCaptureId: captureResult.captureId
+            }, env);
+            if (emailRes.customerSent) support.customerEmailSent = true;
+            if (emailRes.adminSent) support.adminEmailSent = true;
+            await saveD1SupportPayment(env, support);
+          } catch (e: any) {
+            console.warn(`[PayPal Support Email Error] ${e.message}`);
+          }
+        }
+
+        return jsonResponse({
+          success: true,
+          verified: true,
+          orderType: 'support',
+          message: 'PayPal support contribution verified successfully',
+          support,
+          supportId: support.id,
+          sync: { success: true }
+        });
+      }
+
+      // ── 3. If Product Order ──
+      if (order) {
+        const expectedUsd = order.paymentAmountUsd;
+        const capturedUsd = parseFloat(captureResult.amount || '0');
+        if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
+          return jsonResponse({
+            success: false,
+            error: 'PAYMENT_AMOUNT_MISMATCH',
+            message: `Expected $${expectedUsd}, captured $${capturedUsd}`
+          }, 400);
+        }
+
+        order.paymentStatus = 'SUCCESS';
+        order.status = 'completed';
+        order.paypalCaptureId = captureResult.captureId;
+        order.paymentId = captureResult.captureId;
+        order.paymentVerifiedAt = new Date().toISOString();
+        order.updatedAt = new Date().toISOString();
+
+        // Re-resolve product items with download URLs
+        const storeList = await getWorkingData('src/data/products.json', env);
+        const digitalList = await getWorkingData('src/data/digital_products.json', env);
+        const allProdsList = [...(Array.isArray(storeList) ? storeList : []), ...(Array.isArray(digitalList) ? digitalList : [])];
+
+        if (Array.isArray(order.items)) {
+          order.items = order.items.map((it: any) => {
+            const product = allProdsList.find((p: any) =>
+              p && (
+                p.id === it.productId ||
+                p.slug === it.productId ||
+                (p.name && it.productName && p.name.toLowerCase() === it.productName.toLowerCase())
+              )
+            );
+            const isDigital = product ? (product.productType === 'DIGITAL' || product.id?.startsWith('dig') || product.category === 'Digital Products') : (it.productType === 'DIGITAL' || it.productId?.startsWith('dig'));
+            const resolvedDriveUrl = isDigital && product ? (product.googleDriveUrl || product.fileUrl || '') : (isDigital ? (it.googleDriveUrl || it.fileUrl || '') : '');
+            const downloadEndpoint = isDigital ? `/api/downloads/setup?orderId=${encodeURIComponent(order.id || order.orderNumber)}&productId=${encodeURIComponent(it.productId || product?.id || '')}` : '';
+
+            return {
+              ...it,
+              productType: isDigital ? 'DIGITAL' : 'STORE',
+              fileSize: isDigital ? (it.fileSize || product?.downloadSize || 'Instant Access') : '',
+              licenseKey: isDigital ? (it.licenseKey || generateLicenseKey()) : '',
+              downloadLimit: isDigital ? (it.downloadLimit || 5) : 0,
+              googleDriveUrl: resolvedDriveUrl,
+              fileUrl: downloadEndpoint
+            };
+          });
+        }
+
+        await saveD1Order(env, order);
+
+        return jsonResponse({
+          success: true,
+          verified: true,
+          orderType: 'order',
+          message: 'PayPal payment verified successfully',
+          order,
+          orderId: order.id,
+          sync: { success: true }
+        });
+      }
+
+      return jsonResponse({ success: false, error: 'Entity not found' }, 404);
     }
 
     // ----------------------------------------------------

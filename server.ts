@@ -2543,7 +2543,158 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   });
 
   app.post('/api/paypal/create-order', async (req: Request, res: Response) => {
-    const { items, customerName, customerEmail, customerPhone, couponCode } = req.body || {};
+    const { items, booking, support, orderType, customerName, customerEmail, customerPhone, couponCode, name, email, amount, isSupport } = req.body || {};
+
+    // ── 1. Remote PC Support Booking Flow ──
+    if (orderType === 'booking' || booking) {
+      const bData = booking || req.body;
+      const srvId = bData.serviceId || 'srv-001';
+      const srv = MOCK_SERVICES.find(s => s.id === srvId) || MOCK_SERVICES[0];
+      const basePrice = srv ? srv.price : 39;
+
+      let discountAmount = 0;
+      let appliedCouponCode = '';
+      const cleanCoupon = (bData.couponCode || couponCode || '').trim().toUpperCase();
+      if (cleanCoupon) {
+        const cpn = dynamicCouponsStore.find(c => c.code.toUpperCase() === cleanCoupon);
+        if (cpn && cpn.isActive) {
+          if (cpn.discountType === 'percentage') {
+            discountAmount = Math.round((basePrice * cpn.discountValue) / 100);
+          } else {
+            discountAmount = Math.min(basePrice, cpn.discountValue);
+          }
+          appliedCouponCode = cpn.code;
+        }
+      }
+
+      const inrTotal = Math.max(0, Number((basePrice - discountAmount).toFixed(2)));
+      const usdTotal = calculateUsdPrice(inrTotal);
+
+      const bookingId = bData.id || ('bk-' + Date.now());
+      const bookingNumber = bData.bookingNumber || ('OMV-BOOK-' + Math.floor(1000 + Math.random() * 9000));
+      const serviceTitle = bData.serviceTitle || (srv ? srv.title : 'Remote PC Support');
+
+      const newBooking: RemoteBooking = {
+        id: bookingId,
+        bookingNumber,
+        customerName: bData.customerName || customerName || 'Client',
+        email: (bData.email || bData.customerEmail || customerEmail || 'customer@example.com').trim().toLowerCase(),
+        phone: bData.phone || bData.customerPhone || customerPhone || '+91 8345968169',
+        serviceId: srvId,
+        serviceTitle,
+        issueCategory: bData.issueCategory || (srv ? srv.category : 'Windows Fix'),
+        problemDescription: bData.problemDescription || 'Remote computer support requested.',
+        preferredDate: bData.preferredDate || new Date().toISOString().split('T')[0],
+        preferredTime: bData.preferredTime || '10:00 AM',
+        remoteTool: bData.remoteTool || 'AnyDesk',
+        remoteId: bData.remoteId || '000 000 000',
+        remotePassword: bData.remotePassword || '',
+        amount: inrTotal,
+        paymentStatus: 'Pending',
+        status: 'Pending',
+        technicianName: 'Certified Tech (Live Online)',
+        createdAt: new Date().toISOString()
+      };
+
+      (newBooking as any).paymentProvider = 'paypal';
+      (newBooking as any).paymentMethod = 'PayPal';
+      (newBooking as any).paymentAmountUsd = usdTotal;
+      (newBooking as any).couponCode = appliedCouponCode;
+
+      const ppResult = await createPayPalOrderApi(usdTotal, bookingId, `Remote PC Support: ${serviceTitle.substring(0, 100)}`);
+      if (!ppResult || !ppResult.paypalOrderId) {
+        return res.status(ppResult?.status || 500).json({
+          success: false,
+          error: ppResult?.error || 'Failed to create PayPal order for remote booking.',
+          paypalStatus: ppResult?.status,
+          paypalErrorName: ppResult?.error,
+          paypalDebugId: ppResult?.debugId,
+          paypalDetails: ppResult?.details
+        });
+      }
+
+      (newBooking as any).paypalOrderId = ppResult.paypalOrderId;
+      bookingsStore.set(bookingId, newBooking);
+
+      return res.json({
+        success: true,
+        orderType: 'booking',
+        booking: newBooking,
+        bookingId,
+        paypalOrderId: ppResult.paypalOrderId,
+        usdAmount: usdTotal,
+        inrAmount: inrTotal,
+        currency: 'USD'
+      });
+    }
+
+    // ── 2. Support / Buy Me a Coffee Flow ──
+    if (orderType === 'support' || support || isSupport) {
+      const rawName = (support?.name || name || customerName || '').trim();
+      const rawEmail = (support?.email || support?.customerEmail || email || customerEmail || '').trim().toLowerCase();
+      const rawAmount = Number(support?.amount !== undefined ? support.amount : amount);
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!rawName) {
+        return res.status(400).json({ success: false, error: 'NAME_REQUIRED', message: 'Name is required.' });
+      }
+      if (!rawEmail || !emailRegex.test(rawEmail)) {
+        return res.status(400).json({ success: false, error: 'INVALID_EMAIL', message: 'A valid email address is required.' });
+      }
+      if (isNaN(rawAmount) || rawAmount < 1) {
+        return res.status(400).json({ success: false, error: 'INVALID_AMOUNT', message: 'Contribution amount must be at least ₹1.' });
+      }
+
+      const usdTotal = calculateUsdPrice(rawAmount);
+      const supportId = `sup_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+      const ppResult = await createPayPalOrderApi(usdTotal, supportId, `Buy Me a Coffee from ${rawName.substring(0, 80)}`);
+      if (!ppResult || !ppResult.paypalOrderId) {
+        return res.status(ppResult?.status || 500).json({
+          success: false,
+          error: ppResult?.error || 'Failed to create PayPal order for support contribution.',
+          paypalStatus: ppResult?.status,
+          paypalErrorName: ppResult?.error,
+          paypalDebugId: ppResult?.debugId,
+          paypalDetails: ppResult?.details
+        });
+      }
+
+      const supportRecord = {
+        id: supportId,
+        name: rawName,
+        customerEmail: rawEmail,
+        amount: rawAmount,
+        currency: 'INR',
+        paymentProvider: 'paypal',
+        paymentMethod: 'PayPal',
+        paymentAmountUsd: usdTotal,
+        paypalOrderId: ppResult.paypalOrderId,
+        paypalPaymentId: null,
+        paymentStatus: 'PENDING',
+        customerEmailSent: false,
+        adminEmailSent: false,
+        createdAt: new Date().toISOString(),
+        paidAt: null
+      };
+
+      supportPaymentsServerStore.set(supportId, supportRecord);
+
+      return res.json({
+        success: true,
+        orderType: 'support',
+        supportId,
+        supportRecord,
+        paypalOrderId: ppResult.paypalOrderId,
+        usdAmount: usdTotal,
+        inrAmount: rawAmount,
+        currency: 'USD',
+        name: rawName,
+        email: rawEmail
+      });
+    }
+
+    // ── 3. Product / Cart Checkout Flow ──
     if (!items || !Array.isArray(items) || !items.length) {
       return res.status(400).json({ error: 'Cart is empty or invalid request format.' });
     }
@@ -2628,6 +2779,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
     res.json({
       success: true,
+      orderType: 'order',
       order: newOrder,
       orderId,
       paypalOrderId: ppResult.paypalOrderId,
@@ -2644,15 +2796,21 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Missing PayPal order ID.' });
     }
 
+    // ── Find matching entity across orders, bookings, and support payments ──
     const order = Array.from(ordersStore.values()).find((o: any) => o.paypalOrderId === paypalOrderId);
-    if (!order) {
-      return res.status(404).json({ success: false, error: 'No matching internal order found for this PayPal order.' });
+    const booking = Array.from(bookingsStore.values()).find((b: any) => (b as any).paypalOrderId === paypalOrderId);
+    const support = Array.from(supportPaymentsServerStore.values()).find((s: any) => s.paypalOrderId === paypalOrderId);
+
+    if (!order && !booking && !support) {
+      return res.status(404).json({ success: false, error: 'No matching internal record found for this PayPal order.' });
     }
 
-    if (order.paymentStatus === 'SUCCESS' && (order as any).paypalCaptureId) {
+    // ── Idempotency Check ──
+    if (order && order.paymentStatus === 'SUCCESS' && (order as any).paypalCaptureId) {
       return res.json({
         success: true,
         verified: true,
+        orderType: 'order',
         message: 'PayPal payment already verified and processed.',
         order,
         orderId: order.id,
@@ -2660,6 +2818,31 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       });
     }
 
+    if (booking && (booking.paymentStatus === 'Paid' || (booking.paymentStatus as any) === 'SUCCESS') && (booking as any).paypalCaptureId) {
+      return res.json({
+        success: true,
+        verified: true,
+        orderType: 'booking',
+        message: 'PayPal booking payment already verified and processed.',
+        booking,
+        bookingId: booking.id,
+        alreadyProcessed: true
+      });
+    }
+
+    if (support && support.paymentStatus === 'SUCCESS' && (support as any).paypalCaptureId) {
+      return res.json({
+        success: true,
+        verified: true,
+        orderType: 'support',
+        message: 'PayPal support contribution already verified and processed.',
+        support,
+        supportId: support.id,
+        alreadyProcessed: true
+      });
+    }
+
+    // ── Execute Server-Side PayPal Capture ──
     const captureResult = await capturePayPalOrderApi(paypalOrderId);
     if (!captureResult) {
       return res.status(500).json({ success: false, error: 'PayPal capture failed. Please try again.' });
@@ -2673,30 +2856,114 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: `Unexpected payment currency: ${captureResult.currency}` });
     }
 
-    const expectedUsd = (order as any).paymentAmountUsd;
-    const capturedUsd = parseFloat(captureResult.amount);
-    if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
-      return res.status(400).json({
-        success: false,
-        error: 'PAYMENT_AMOUNT_MISMATCH',
-        message: `Expected $${expectedUsd}, captured $${capturedUsd}`
+    // ── 1. If Matched a Booking ──
+    if (booking) {
+      const expectedUsd = (booking as any).paymentAmountUsd;
+      const capturedUsd = parseFloat(captureResult.amount || '0');
+      if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
+        return res.status(400).json({
+          success: false,
+          error: 'PAYMENT_AMOUNT_MISMATCH',
+          message: `Expected $${expectedUsd}, captured $${capturedUsd}`
+        });
+      }
+
+      booking.paymentStatus = 'Paid';
+      booking.status = 'Technician Assigned';
+      (booking as any).paypalCaptureId = captureResult.captureId;
+      (booking as any).paymentId = captureResult.captureId;
+      (booking as any).paidAt = new Date().toISOString();
+
+      bookingsStore.set(booking.id, booking);
+
+      return res.json({
+        success: true,
+        verified: true,
+        orderType: 'booking',
+        message: 'PayPal remote support booking verified successfully',
+        booking,
+        bookingId: booking.id
       });
     }
 
-    order.paymentStatus = 'SUCCESS';
-    (order as any).paypalCaptureId = captureResult.captureId;
-    order.paymentId = captureResult.captureId;
-    (order as any).paymentVerifiedAt = new Date().toISOString();
+    // ── 2. If Matched a Support Contribution ──
+    if (support) {
+      const expectedUsd = (support as any).paymentAmountUsd;
+      const capturedUsd = parseFloat(captureResult.amount || '0');
+      if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
+        return res.status(400).json({
+          success: false,
+          error: 'PAYMENT_AMOUNT_MISMATCH',
+          message: `Expected $${expectedUsd}, captured $${capturedUsd}`
+        });
+      }
 
-    res.json({
-      success: true,
-      verified: true,
-      message: 'PayPal payment verified successfully',
-      order,
-      orderId: order.id
-    });
+      support.paymentStatus = 'SUCCESS';
+      support.paypalCaptureId = captureResult.captureId;
+      support.paidAt = new Date().toISOString();
+      supportPaymentsServerStore.set(support.id, support);
+
+      // Send Customer & Admin Confirmation Emails
+      if (!support.customerEmailSent || !support.adminEmailSent) {
+        try {
+          const emailRes = await sendSupportEmailsServer('SUCCESS', {
+            name: support.name,
+            email: support.customerEmail,
+            amount: support.amount,
+            paymentProvider: 'PayPal',
+            paymentAmountUsd: support.paymentAmountUsd || capturedUsd,
+            paypalOrderId: paypalOrderId,
+            paypalCaptureId: captureResult.captureId
+          });
+          if (emailRes.customerSent) support.customerEmailSent = true;
+          if (emailRes.adminSent) support.adminEmailSent = true;
+          supportPaymentsServerStore.set(support.id, support);
+        } catch (e: any) {
+          console.warn(`[PayPal Support Email Error] ${e.message}`);
+        }
+      }
+
+      return res.json({
+        success: true,
+        verified: true,
+        orderType: 'support',
+        message: 'PayPal support contribution verified successfully',
+        support,
+        supportId: support.id
+      });
+    }
+
+    // ── 3. If Matched a Product Order ──
+    if (order) {
+      const expectedUsd = (order as any).paymentAmountUsd;
+      const capturedUsd = parseFloat(captureResult.amount || '0');
+      if (expectedUsd && Math.abs(capturedUsd - expectedUsd) > 0.01) {
+        return res.status(400).json({
+          success: false,
+          error: 'PAYMENT_AMOUNT_MISMATCH',
+          message: `Expected $${expectedUsd}, captured $${capturedUsd}`
+        });
+      }
+
+      order.paymentStatus = 'SUCCESS';
+      (order as any).paypalCaptureId = captureResult.captureId;
+      order.paymentId = captureResult.captureId;
+      (order as any).paymentVerifiedAt = new Date().toISOString();
+
+      ordersStore.set(order.id, order);
+
+      return res.json({
+        success: true,
+        verified: true,
+        orderType: 'order',
+        message: 'PayPal payment verified successfully',
+        order,
+        orderId: order.id
+      });
+    }
+
+    return res.status(404).json({ success: false, error: 'Entity not found' });
   });
-
 
   // ----------------------------------------------------
   // STANDALONE SUPPORT PAYMENTS FLOW (/api/support/*)
@@ -2711,10 +2978,16 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       amount: number;
       razorpayOrderId?: string;
       razorpayPaymentId?: string;
+      paymentProvider?: string;
+      paymentAmountUsd?: number;
+      paypalOrderId?: string;
+      paypalCaptureId?: string;
     }
   ): Promise<{ customerSent: boolean; adminSent: boolean }> {
     const adminEmail = process.env.ADMIN_EMAIL || 'contact.ashikdas@gmail.com';
     const customerEmail = (record.email || '').trim().toLowerCase();
+    const isPayPal = record.paymentProvider === 'PayPal' || Boolean(record.paypalOrderId);
+    const providerName = isPayPal ? 'PayPal' : 'Razorpay';
 
     let customerSent = false;
     let adminSent = false;
@@ -2732,8 +3005,11 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
           _captcha: 'false',
           'Greeting': `Hello ${record.name},`,
           'Thank You Message': 'Thank you for supporting Omove Store! Your contribution was successfully received.',
-          'Support Amount': `₹${record.amount}`,
-          'Payment ID': record.razorpayPaymentId || 'Verified via Razorpay',
+          'Payment Method': providerName,
+          'Original Amount': `₹${record.amount}`,
+          ...(isPayPal && record.paymentAmountUsd ? { 'PayPal Amount': `$${record.paymentAmountUsd.toFixed(2)} USD` } : {}),
+          'Payment ID': record.paypalCaptureId || record.razorpayPaymentId || `Verified via ${providerName}`,
+          ...(record.paypalOrderId ? { 'PayPal Order ID': record.paypalOrderId } : {}),
           'Payment Status': 'Successful',
           'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           'Closing': 'Your support helps us continue improving Omove Store and creating useful digital tools and resources. Thank you! ❤️',
@@ -2744,6 +3020,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
           _captcha: 'false',
           'Greeting': `Hello ${record.name},`,
           'Notice': 'Your support payment was not completed.',
+          'Payment Method': providerName,
           'Amount': `₹${record.amount}`,
           'Status': 'Payment not completed',
           'Closing': 'You can try again whenever you want.',
@@ -2764,7 +3041,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     // 2. Send Admin Email
     try {
       const adminSubject = type === 'SUCCESS'
-        ? `💚 New Omove Store Support — ₹${record.amount}`
+        ? `💚 New Omove Store Support (${providerName}) — ₹${record.amount}`
         : `⚠️ Omove Store Support Payment Failed — ₹${record.amount}`;
 
       const adminPayload = type === 'SUCCESS' ? {
@@ -2772,11 +3049,14 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         _template: 'table',
         _captcha: 'false',
         'Notice': 'New support contribution received.',
+        'Payment Method': providerName,
         'Customer Name': record.name,
         'Customer Email': record.email,
-        'Amount': `₹${record.amount}`,
-        'Payment ID': record.razorpayPaymentId || 'N/A',
-        'Razorpay Order ID': record.razorpayOrderId || 'N/A',
+        'Original Amount': `₹${record.amount}`,
+        ...(isPayPal && record.paymentAmountUsd ? { 'PayPal Amount': `$${record.paymentAmountUsd.toFixed(2)} USD` } : {}),
+        'Payment ID': record.paypalCaptureId || record.razorpayPaymentId || 'N/A',
+        ...(record.paypalOrderId ? { 'PayPal Order ID': record.paypalOrderId } : {}),
+        ...(record.razorpayOrderId ? { 'Razorpay Order ID': record.razorpayOrderId } : {}),
         'Status': 'SUCCESS',
         'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
       } : {
@@ -2784,10 +3064,12 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         _template: 'table',
         _captcha: 'false',
         'Notice': 'A support payment was not completed.',
+        'Payment Method': providerName,
         'Customer Name': record.name,
         'Customer Email': record.email,
         'Amount': `₹${record.amount}`,
-        'Razorpay Order ID': record.razorpayOrderId || 'N/A',
+        ...(record.razorpayOrderId ? { 'Razorpay Order ID': record.razorpayOrderId } : {}),
+        ...(record.paypalOrderId ? { 'PayPal Order ID': record.paypalOrderId } : {}),
         'Status': 'FAILED / CANCELLED',
         'Date': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
       };
