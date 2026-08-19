@@ -30,15 +30,19 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
   const [digitalCats, setDigitalCats] = useState<DigitalCategory[]>(categories);
   const [digitalProds, setDigitalProds] = useState<DigitalProduct[]>([]);
 
-  // Fetch dynamic categories
+  // Sync or fetch dynamic categories
   useEffect(() => {
-    fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) setDigitalCats(data);
-      })
-      .catch(() => {});
-  }, []);
+    if (categories && categories.length > 0) {
+      setDigitalCats(categories);
+    } else {
+      fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) setDigitalCats(data);
+        })
+        .catch(() => {});
+    }
+  }, [categories]);
 
   const topLevelCategories = useMemo(() => {
     return digitalCats.filter((c) => !c.parentId && c.active !== false);

@@ -31,22 +31,26 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
   const [digitalCats, setDigitalCats] = useState<DigitalCategory[]>(categories);
 
   useEffect(() => {
-    // 1. Fetch categories
-    fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) setDigitalCats(data);
-      })
-      .catch(() => {});
+    // Only fetch categories if not supplied via props
+    if (!categories || categories.length === 0) {
+      fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) setDigitalCats(data);
+        })
+        .catch(() => {});
+    }
 
-    // 2. Fetch authoritative digital products to ensure instant hydration on direct URL / hard refresh
-    fetch('/api/digital-products?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) setFetchedDigitalProds(data);
-      })
-      .catch(() => {});
-  }, []);
+    // Only fetch digital products if not already available in parent products
+    if (!products || products.length === 0) {
+      fetch('/api/digital-products?v=' + Date.now(), { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) setFetchedDigitalProds(data);
+        })
+        .catch(() => {});
+    }
+  }, [categories, products]);
 
   // Merge products from props and fetched digital products
   const productMap = new Map<string, any>();

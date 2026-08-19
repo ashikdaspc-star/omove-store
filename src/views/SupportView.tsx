@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Coffee, ShieldCheck, Heart, ArrowLeft, ArrowRight, RefreshCw, AlertCircle, Sparkles, CheckCircle2, Lock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PaymentMethodCards } from '../components/PaymentMethodCards';
+import { loadPayPalSDK } from '../utils/paypalLoader';
 
 const PRESET_AMOUNTS = [10, 25, 50, 100];
 
@@ -67,39 +68,14 @@ export const SupportView: React.FC = () => {
 
     async function initPayPal() {
       try {
-        let ppConfig: any = null;
-        try {
-          const cfgRes = await fetch('/api/paypal/config');
-          if (cfgRes.ok) {
-            ppConfig = await cfgRes.json();
-          }
-        } catch (e) {}
-
-        const activeClientId = ppConfig?.clientId || (window as any).__PAYPAL_CLIENT_ID__ || 'sb';
-
-        const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]') as HTMLScriptElement | null;
-        if (existingScript && !existingScript.src.includes(activeClientId)) {
-          existingScript.remove();
-          delete (window as any).paypal;
-        }
-
-        if (typeof (window as any).paypal === 'undefined') {
-          await new Promise<void>((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = `https://www.paypal.com/sdk/js?client-id=${activeClientId}&currency=USD&components=buttons&intent=capture`;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('PayPal SDK script load error'));
-            document.body.appendChild(script);
-          });
-        }
-
-        if (isCancelled || typeof (window as any).paypal === 'undefined') return;
+        const paypal = await loadPayPalSDK();
+        if (isCancelled || !paypal || typeof paypal.Buttons !== 'function') return;
 
         const container = document.getElementById('paypal-support-button-container');
         if (!container) return;
         container.innerHTML = '';
 
-        (window as any).paypal.Buttons({
+        paypal.Buttons({
           createOrder: async () => {
             const curr = paypalStateRef.current;
             setErrorMessage(null);
@@ -225,7 +201,7 @@ export const SupportView: React.FC = () => {
 
     const timer = setTimeout(() => {
       initPayPal();
-    }, 60);
+    }, 40);
 
     return () => {
       isCancelled = true;

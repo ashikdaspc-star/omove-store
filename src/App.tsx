@@ -191,11 +191,13 @@ export default function App() {
     window.addEventListener('storage', handleStorageChange);
 
     const pollInterval = setInterval(async () => {
-      console.log('[OMOVE SYNC] 7. Background version check starting...');
+      // Skip background polling if tab is minimized or hidden in background
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
 
       // Skip polling if admin just made a local edit (sync cooldown)
       if (Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) {
-        console.log('[OMOVE SYNC] Skipping background poll — sync cooldown active after admin edit');
         return;
       }
 
@@ -214,19 +216,20 @@ export default function App() {
         }
       } catch (e) {}
 
-      // Poll Remote Support Bookings queue for real-time live admin updates
-      try {
-        const bRes = await fetch(`/api/bookings?t=${Date.now()}`, { cache: 'no-store' });
-        if (bRes.ok) {
-          const bData = await bRes.json();
-          if (Array.isArray(bData)) {
-            setBookings(bData);
-            try { localStorage.setItem('omove_bookings', JSON.stringify(bData)); } catch (e) {}
+      // Poll Remote Support Bookings queue ONLY when admin is active
+      const isAdminActive = sessionStorage.getItem('omove_admin_session') === 'true' || localStorage.getItem('omove_admin_session') === 'true';
+      if (isAdminActive) {
+        try {
+          const bRes = await fetch(`/api/bookings?t=${Date.now()}`, { cache: 'no-store' });
+          if (bRes.ok) {
+            const bData = await bRes.json();
+            if (Array.isArray(bData)) {
+              setBookings(bData);
+              try { localStorage.setItem('omove_bookings', JSON.stringify(bData)); } catch (e) {}
+            }
           }
-        }
-      } catch (e) {}
-
-      // Fallback: If catalog version is not updated, no changes needed from server
+        } catch (e) {}
+      }
     }, 30000); // 30-second poll interval to check catalog version
 
     return () => {
@@ -483,13 +486,6 @@ export default function App() {
           } catch (e) {}
         }
       });
-
-    fetch('/api/bookings', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) setBookings(data);
-      })
-      .catch((err) => console.warn('Server bookings verify note:', err));
   }, []);
 
   const handleLoginSuccess = (user: { name: string; email: string; phone: string; location: string }) => {

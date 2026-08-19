@@ -5,6 +5,7 @@ import { CartItem, Order } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCouponAsync, fetchAndCacheCoupons } from '../utils/couponManager';
 import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
+import { loadPayPalSDK } from '../utils/paypalLoader';
 import { InternationalPhoneInput } from './InternationalPhoneInput';
 import { PaymentMethodCards } from './PaymentMethodCards';
 import {
@@ -206,41 +207,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     async function initPayPal() {
       try {
-        let ppConfig: any = null;
-        try {
-          const cfgRes = await fetch('/api/paypal/config');
-          if (cfgRes.ok) {
-            ppConfig = await cfgRes.json();
-          }
-        } catch (e) {}
-
-        const activeClientId = ppConfig?.clientId || import.meta.env.VITE_PAYPAL_CLIENT_ID || 'BAAq2PyxqOTR12C8YmU9N7Km0YSbwzwu4dOJHk4mmXV4GiCRQ1pS-IEROr24x4Tjej_Pzmnx24E51GSCIo';
-        if (!activeClientId || isCancelled) return;
-
-        // Check if script already in DOM with matching clientId
-        const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]') as HTMLScriptElement | null;
-        if (existingScript && !existingScript.src.includes(activeClientId)) {
-          existingScript.remove();
-          delete (window as any).paypal;
-        }
-
-        if (typeof (window as any).paypal === 'undefined') {
-          await new Promise<void>((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = `https://www.paypal.com/sdk/js?client-id=${activeClientId}&currency=USD&components=buttons&intent=capture`;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('PayPal SDK script load error'));
-            document.body.appendChild(script);
-          });
-        }
-
-        if (isCancelled || typeof (window as any).paypal === 'undefined') return;
+        const paypal = await loadPayPalSDK();
+        if (isCancelled || !paypal || typeof paypal.Buttons !== 'function') return;
 
         const container = document.getElementById('paypal-button-container');
         if (!container) return;
         container.innerHTML = '';
 
-        (window as any).paypal.Buttons({
+        paypal.Buttons({
           createOrder: async () => {
             const curr = paypalStateRef.current;
             if (!curr.isPhoneValid || !curr.phoneValidation.e164) {
@@ -366,7 +340,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     const timer = setTimeout(() => {
       initPayPal();
-    }, 60);
+    }, 40);
 
     return () => {
       isCancelled = true;

@@ -56,7 +56,6 @@ export const validateAndApplyCouponAsync = async (inputCode: string, orderTotal:
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data.valid === 'boolean') {
-        fetchAndCacheCoupons().catch(() => {});
         return {
           valid: data.valid,
           message: data.message || (data.valid ? `Coupon '${cleanCode}' applied!` : `Coupon '${cleanCode}' is invalid.`),
@@ -69,8 +68,7 @@ export const validateAndApplyCouponAsync = async (inputCode: string, orderTotal:
     console.warn('Live coupon validation note:', err);
   }
 
-  // 2. Fetch fresh coupons list from server & fallback to local storage
-  await fetchAndCacheCoupons().catch(() => {});
+  // 2. Fallback to cached local coupons validation
   return validateAndApplyCoupon(cleanCode, orderTotal);
 };
 
