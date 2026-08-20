@@ -618,15 +618,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <span>BOOK REMOTE REPAIR (₹39)</span>
                 </button>
 
-                <a
-                  href="/support"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full sm:w-auto px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-mono font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all hover:scale-105"
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('support')}
+                  className="w-full sm:w-auto px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-mono font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all hover:scale-105 cursor-pointer"
                 >
                   <Coffee className="w-4 h-4 text-emerald-400" />
                   <span>☕ BUY ME A COFFEE</span>
-                </a>
+                </button>
               </div>
 
               {/* Trust Indicators */}

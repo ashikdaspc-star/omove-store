@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Coffee, ShieldCheck, Heart, ArrowLeft, ArrowRight, RefreshCw, AlertCircle, Sparkles, CheckCircle2, Lock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PaymentMethodCards } from '../components/PaymentMethodCards';
@@ -7,6 +8,7 @@ import { loadPayPalSDK } from '../utils/paypalLoader';
 const PRESET_AMOUNTS = [10, 25, 50, 100];
 
 export const SupportView: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedPreset, setSelectedPreset] = useState<number | 'custom'>(25);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [name, setName] = useState('');
@@ -385,13 +387,14 @@ export const SupportView: React.FC = () => {
       {/* Top Minimal Header */}
       <header className="relative z-10 p-4 sm:p-6 border-b border-slate-800/80 bg-slate-950/60 backdrop-blur-md">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <a
-            href="/"
-            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-xs font-mono tracking-wider font-semibold cursor-pointer"
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-xs font-mono tracking-wider font-semibold cursor-pointer bg-transparent border-0 p-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>BACK TO OMOVE STORE</span>
-          </a>
+          </button>
 
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-400" />
@@ -736,13 +739,14 @@ export const SupportView: React.FC = () => {
                 >
                   SEND ANOTHER COFFEE
                 </button>
-                <a
-                  href="/"
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
                   className="flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/20"
                 >
                   <span>RETURN TO STORE</span>
                   <ArrowRight className="w-4 h-4" />
-                </a>
+                </button>
               </div>
             </div>
           )}

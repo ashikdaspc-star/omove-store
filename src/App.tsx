@@ -45,11 +45,13 @@ export default function App() {
 
   // Real-time Traffic Tracking
   useEffect(() => {
+    const isSupport = location.pathname === '/support';
     const pageName = location.pathname.substring(1) || 'home';
     recordPageViewHit(pageName);
+    if (isSupport) return;
     const interval = setInterval(() => {
       sendVisitorHeartbeat();
-    }, 10000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [location.pathname]);
 
@@ -150,6 +152,8 @@ export default function App() {
     }
   }, []);
 
+  const hasInitializedStoreRef = React.useRef(false);
+
   // 1. Initial Load + Real-Time Sync (Polling + BroadcastChannel + Storage Event + SW Purge)
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -161,14 +165,22 @@ export default function App() {
       });
     }
 
-    loadLatestProductsFromServer();
-    fetchAndCacheCoupons().catch(() => {});
-
     // Google Analytics GA4 (G-ST07D2GYPK) Pageview Tracking
     if (typeof window !== 'undefined' && (window as any).gtag) {
       (window as any).gtag('config', 'G-ST07D2GYPK', {
         page_path: location.pathname + location.search
       });
+    }
+
+    // On standalone support page, avoid downloading store catalog & coupons
+    if (location.pathname === '/support') {
+      return;
+    }
+
+    if (!hasInitializedStoreRef.current) {
+      hasInitializedStoreRef.current = true;
+      loadLatestProductsFromServer();
+      fetchAndCacheCoupons().catch(() => {});
     }
 
     let bc: BroadcastChannel | null = null;
@@ -193,6 +205,11 @@ export default function App() {
     const pollInterval = setInterval(async () => {
       // Skip background polling if tab is minimized or hidden in background
       if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+
+      // Skip polling on support page
+      if (location.pathname === '/support') {
         return;
       }
 
@@ -237,7 +254,7 @@ export default function App() {
       clearInterval(pollInterval);
       if (bc) bc.close();
     };
-  }, [loadLatestProductsFromServer]);
+  }, [location.pathname, loadLatestProductsFromServer]);
 
   const [services, setServices] = useState<RemoteService[]>(() => {
     try {
@@ -393,48 +410,58 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const hasInitializedSecondaryDataRef = React.useRef(false);
+
   // Verify session and fetch fresh production data from Cloudflare edge on mount
   useEffect(() => {
-    fetch('/api/services?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setServices(data);
-          try { localStorage.setItem('omove_services', JSON.stringify(data)); } catch (e) {}
-        }
-      })
-      .catch(() => {});
+    if (location.pathname === '/support') {
+      return;
+    }
 
-    fetch('/api/blogs?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setBlogs(data);
-          try { localStorage.setItem('omove_blogs', JSON.stringify(data)); } catch (e) {}
-        }
-      })
-      .catch(() => {});
+    if (!hasInitializedSecondaryDataRef.current) {
+      hasInitializedSecondaryDataRef.current = true;
 
-    fetch('/api/account/orders?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setOrders(data);
-          try { localStorage.setItem('omove_orders', JSON.stringify(data)); } catch (e) {}
-        }
-      })
-      .catch(() => {});
+      fetch('/api/services?v=' + Date.now(), { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setServices(data);
+            try { localStorage.setItem('omove_services', JSON.stringify(data)); } catch (e) {}
+          }
+        })
+        .catch(() => {});
 
-    // Fetch Live Remote Support Queue Bookings from server
-    fetch('/api/bookings?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setBookings(data);
-          try { localStorage.setItem('omove_bookings', JSON.stringify(data)); } catch (e) {}
-        }
-      })
-      .catch(() => {});
+      fetch('/api/blogs?v=' + Date.now(), { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setBlogs(data);
+            try { localStorage.setItem('omove_blogs', JSON.stringify(data)); } catch (e) {}
+          }
+        })
+        .catch(() => {});
+
+      fetch('/api/account/orders?v=' + Date.now(), { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setOrders(data);
+            try { localStorage.setItem('omove_orders', JSON.stringify(data)); } catch (e) {}
+          }
+        })
+        .catch(() => {});
+
+      // Fetch Live Remote Support Queue Bookings from server
+      fetch('/api/bookings?v=' + Date.now(), { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setBookings(data);
+            try { localStorage.setItem('omove_bookings', JSON.stringify(data)); } catch (e) {}
+          }
+        })
+        .catch(() => {});
+    }
 
     let token = '';
     let localSession = null;
@@ -933,7 +960,15 @@ export default function App() {
     }
   };
 
-  const wishlistProducts = products.filter((p) => wishlist.includes(p.id));
+  const isSupportPage = location.pathname === '/support';
+
+  if (isSupportPage) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500 selection:text-white">
+        <SupportView />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white font-sans">
