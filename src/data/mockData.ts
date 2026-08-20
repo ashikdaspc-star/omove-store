@@ -1,12 +1,95 @@
 import { Product, RemoteService, BlogPost, Coupon, ProductCategory } from '../types';
-import initialProductsData from './products.json';
 
 export const CATEGORIES: { name: ProductCategory; icon: string; count: number; description: string }[] = [
   { name: 'Windows Tools', icon: 'Monitor', count: 6, description: 'Windows system tools, debloaters, activation & OS utilities' },
   { name: 'Software', icon: 'FileText', count: 4, description: 'Digital software applications, PC tools & productivity suites' }
 ];
 
-export const MOCK_PRODUCTS: Product[] = initialProductsData as Product[];
+export const MOCK_PRODUCTS: Product[] = [
+  {
+    id: 'prod-autocad',
+    name: 'AutoCAD 2010-2027',
+    slug: 'autocad-2010-2027',
+    productType: 'STORE',
+    category: 'Software',
+    tags: ['Software', 'Store Card'],
+    shortDescription: 'Instant digital product key and official package setup.',
+    fullDescription: 'Instant digital product key and official package setup.',
+    image: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+    screenshots: [],
+    requirements: ['Windows 10/11'],
+    versionHistory: [],
+    fileUrl: '/api/downloads/setup',
+    instantKeyAvailable: true,
+    price: 39,
+    originalPrice: 499,
+    discountPercent: 92,
+    licenseType: 'Instant Digital Key',
+    rating: 5,
+    reviewCount: 48,
+    salesCount: 120,
+    status: 'PUBLISHED',
+    features: ['Official Setup Package', 'Instant License Key', 'Lifetime Support'],
+    downloadSize: '2.5 GB',
+    version: '2026.1'
+  },
+  {
+    id: 'dig-win11-pro',
+    name: 'Windows 11 Pro Genuine Retail License',
+    slug: 'windows-11-pro-genuine-retail-license',
+    productType: 'DIGITAL',
+    category: 'Windows Tools',
+    subCategory: 'OS Licenses',
+    tags: ['Windows 11', 'Retail Key', 'Digital Key'],
+    shortDescription: '100% Genuine Lifetime Retail License Key for Windows 11 Pro.',
+    fullDescription: '100% Genuine Lifetime Retail License Key for Windows 11 Pro. Instant email delivery.',
+    image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80',
+    screenshots: [],
+    requirements: ['Windows 11 Compatible PC'],
+    versionHistory: [],
+    fileUrl: '/api/downloads/digital',
+    instantKeyAvailable: true,
+    price: 39,
+    originalPrice: 1999,
+    discountPercent: 98,
+    licenseType: 'Lifetime License',
+    rating: 4.9,
+    reviewCount: 142,
+    salesCount: 350,
+    status: 'PUBLISHED',
+    features: ['Official Microsoft Activation', 'Online One-Click Activation', 'Lifetime Validity'],
+    downloadSize: 'Instant Digital Key',
+    version: 'Retail 2026'
+  },
+  {
+    id: 'dig-office-2024',
+    name: 'Office Pro Plus 2024 Lifetime Key',
+    slug: 'office-pro-plus-2024-lifetime-key',
+    productType: 'DIGITAL',
+    category: 'Software',
+    subCategory: 'Office Suites',
+    tags: ['Office 2024', 'Word', 'Excel', 'Digital Key'],
+    shortDescription: 'Microsoft Office Professional Plus 2024 Lifetime Product Key.',
+    fullDescription: 'Microsoft Office Professional Plus 2024 Lifetime Product Key for 1 PC.',
+    image: 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=800&auto=format&fit=crop&q=80',
+    screenshots: [],
+    requirements: ['Windows 10/11'],
+    versionHistory: [],
+    fileUrl: '/api/downloads/digital',
+    instantKeyAvailable: true,
+    price: 39,
+    originalPrice: 1499,
+    discountPercent: 97,
+    licenseType: 'Lifetime License',
+    rating: 5,
+    reviewCount: 95,
+    salesCount: 210,
+    status: 'PUBLISHED',
+    features: ['Includes Word, Excel, PowerPoint, Outlook', 'Official Setup Download', 'Instant Delivery'],
+    downloadSize: 'Instant Digital Key',
+    version: 'Pro Plus 2024'
+  }
+];
 
 export const MOCK_SERVICES: RemoteService[] = [
   {

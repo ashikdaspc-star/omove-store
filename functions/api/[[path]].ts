@@ -686,6 +686,21 @@ function jsonResponse(data: any, status = 200, headersObj: Record<string, string
   });
 }
 
+// Helper: Cached Response Builder for Public Read-Only Catalog Endpoints
+function cachedJsonResponse(data: any, status = 200, maxAge = 60, sMaxAge = 300) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+      'Cache-Control': `public, max-age=${maxAge}, s-maxage=${sMaxAge}, stale-while-revalidate=600`,
+      'X-Engine-Version': 'v2026.8.10-production-sync-v1'
+    }
+  });
+}
+
 // GitHub REST API — Get file content + SHA
 async function getFileFromGitHub(filePath: string, env: Env): Promise<{ data: any; sha: string } | null> {
   const token = getGitHubToken(env);
@@ -1241,8 +1256,17 @@ function calculateUsdPrice(inrTotal: number): number {
   return Math.round(raw * 100) / 100;
 }
 
-// PayPal OAuth2: Get Access Token (server-side only)
+// PayPal OAuth2 In-Memory Token Cache (Worker Scope)
+let cachedPayPalToken: string | null = null;
+let cachedPayPalTokenExpiresAt = 0;
+
+// PayPal OAuth2: Get Access Token with In-Memory Token Caching
 async function getPayPalAccessToken(env: Env): Promise<{ token: string | null; error?: string; status?: number; details?: any }> {
+  // Return cached token if still valid (with 60-second safety window)
+  if (cachedPayPalToken && Date.now() < cachedPayPalTokenExpiresAt) {
+    return { token: cachedPayPalToken };
+  }
+
   const clientId = getPayPalClientId(env);
   const clientSecret = getPayPalClientSecret(env);
   if (!clientId || !clientSecret) {
@@ -1264,6 +1288,9 @@ async function getPayPalAccessToken(env: Env): Promise<{ token: string | null; e
 
     const data: any = await res.json().catch(() => ({}));
     if (res.ok && data.access_token) {
+      cachedPayPalToken = data.access_token;
+      const expiresInSec = typeof data.expires_in === 'number' ? data.expires_in : 3600;
+      cachedPayPalTokenExpiresAt = Date.now() + Math.max(60, expiresInSec - 60) * 1000;
       return { token: data.access_token };
     }
     console.warn(`[PayPal OAuth ERROR] Status: ${res.status}, error:`, data.error, data.error_description);
@@ -1729,7 +1756,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             filtered = filtered.filter((c: any) => c.active !== false);
           }
           filtered.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
-          return jsonResponse(filtered);
+          return isAdminPath ? jsonResponse(filtered) : cachedJsonResponse(filtered, 200, 60, 300);
         }
 
         if (method === 'POST') {
@@ -1838,6 +1865,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         if (!isAdminPath) {
           filtered = filtered.filter((p: any) => (p.status || 'PUBLISHED') === 'PUBLISHED');
           filtered = filtered.map(({ googleDriveUrl, ...rest }: any) => rest);
+          return cachedJsonResponse(filtered, 200, 60, 300);
         }
         return jsonResponse(filtered);
       }
@@ -1887,6 +1915,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         if (!isAdminPath) {
           filtered = filtered.filter(p => (p.status || 'PUBLISHED') === 'PUBLISHED');
           filtered = filtered.map(({ googleDriveUrl, fileUrl, ...rest }: any) => rest);
+          return cachedJsonResponse(filtered, 200, 60, 300);
         }
         return jsonResponse(filtered);
       }
@@ -2289,7 +2318,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (method === 'GET') {
         const list = await getWorkingData('src/data/services.json', env);
         dynamicServicesStore = list;
-        return jsonResponse(dynamicServicesStore);
+        return path.includes('/admin/') ? jsonResponse(dynamicServicesStore) : cachedJsonResponse(dynamicServicesStore, 200, 60, 300);
       }
 
       if (method === 'POST') {
@@ -2343,7 +2372,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (method === 'GET') {
         const list = await getWorkingData('src/data/blogs.json', env);
         dynamicBlogsStore = list;
-        return jsonResponse(dynamicBlogsStore);
+        return path.includes('/admin/') ? jsonResponse(dynamicBlogsStore) : cachedJsonResponse(dynamicBlogsStore, 200, 60, 300);
       }
 
       if (method === 'POST') {

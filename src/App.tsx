@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Product, CartItem, Order, RemoteBooking, RemoteService, BlogPost } from './types';
+import { Product, CartItem, Order, RemoteBooking, RemoteService, BlogPost, DigitalCategory } from './types';
 import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS } from './data/mockData';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
-import { InvoicePrintModal } from './components/InvoicePrintModal';
 import { LiveChatWidget } from './components/LiveChatWidget';
 import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
-import { AdminLoginPage } from './components/AdminLoginPage';
 
 import { ShieldCheck, Lock } from 'lucide-react';
 import { fetchAndCacheCoupons } from './utils/couponManager';
@@ -19,25 +17,27 @@ import { HomeView } from './views/HomeView';
 import { StoreView } from './views/StoreView';
 import { ServicesView } from './views/ServicesView';
 import { RemoteSupportBookingView } from './views/RemoteSupportBookingView';
-import { DashboardView } from './views/DashboardView';
-import { AdminView } from './views/AdminView';
-import { BlogView } from './views/BlogView';
-import { DownloadsView } from './views/DownloadsView';
-import { DigitalProductsView } from './views/DigitalProductsView';
 import { DigitalProductsRouteHandler } from './views/DigitalProductsRouteHandler';
-import { DigitalProductDetailView } from './views/DigitalProductDetailView';
-import { AboutContactView } from './views/AboutContactView';
-import { RefundPolicyView } from './views/RefundPolicyView';
-import { PrivacyPolicyView } from './views/PrivacyPolicyView';
-import { TermsView } from './views/TermsView';
-import { DeliveryPolicyView } from './views/DeliveryPolicyView';
-import { CookiePolicyView } from './views/CookiePolicyView';
-import { AboutView } from './views/AboutView';
 import { SupportView } from './views/SupportView';
-import { ResetPasswordView } from './pages/ResetPasswordView';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { OfflineBanner } from './components/OfflineBanner';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
+
+// Lazy-loaded Views & Modals (Code Splitting for Optimal Performance)
+const DashboardView = React.lazy(() => import('./views/DashboardView').then((m) => ({ default: m.DashboardView })));
+const AdminView = React.lazy(() => import('./views/AdminView').then((m) => ({ default: m.AdminView })));
+const AdminLoginPage = React.lazy(() => import('./components/AdminLoginPage').then((m) => ({ default: m.AdminLoginPage })));
+const BlogView = React.lazy(() => import('./views/BlogView').then((m) => ({ default: m.BlogView })));
+const DownloadsView = React.lazy(() => import('./views/DownloadsView').then((m) => ({ default: m.DownloadsView })));
+const AboutContactView = React.lazy(() => import('./views/AboutContactView').then((m) => ({ default: m.AboutContactView })));
+const AboutView = React.lazy(() => import('./views/AboutView').then((m) => ({ default: m.AboutView })));
+const RefundPolicyView = React.lazy(() => import('./views/RefundPolicyView').then((m) => ({ default: m.RefundPolicyView })));
+const PrivacyPolicyView = React.lazy(() => import('./views/PrivacyPolicyView').then((m) => ({ default: m.PrivacyPolicyView })));
+const TermsView = React.lazy(() => import('./views/TermsView').then((m) => ({ default: m.TermsView })));
+const DeliveryPolicyView = React.lazy(() => import('./views/DeliveryPolicyView').then((m) => ({ default: m.DeliveryPolicyView })));
+const CookiePolicyView = React.lazy(() => import('./views/CookiePolicyView').then((m) => ({ default: m.CookiePolicyView })));
+const ResetPasswordView = React.lazy(() => import('./pages/ResetPasswordView').then((m) => ({ default: m.ResetPasswordView })));
+const InvoicePrintModal = React.lazy(() => import('./components/InvoicePrintModal').then((m) => ({ default: m.InvoicePrintModal })));
 
 export default function App() {
   const location = useLocation();
@@ -278,6 +278,17 @@ export default function App() {
     return MOCK_BLOGS;
   });
 
+  const [digitalCategories, setDigitalCategories] = useState<DigitalCategory[]>(() => {
+    try {
+      const cached = localStorage.getItem('omove_digital_categories');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+
   // Customer Auth & Profile state - default to false for new visitors!
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     try {
@@ -458,6 +469,17 @@ export default function App() {
           if (Array.isArray(data) && data.length > 0) {
             setBookings(data);
             try { localStorage.setItem('omove_bookings', JSON.stringify(data)); } catch (e) {}
+          }
+        })
+        .catch(() => {});
+
+      // Fetch Digital Categories from server
+      fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setDigitalCategories(data);
+            try { localStorage.setItem('omove_digital_categories', JSON.stringify(data)); } catch (e) {}
           }
         })
         .catch(() => {});
@@ -960,6 +982,8 @@ export default function App() {
     }
   };
 
+  const wishlistProducts = products.filter((p) => wishlist.includes(p.id));
+
   const isSupportPage = location.pathname === '/support';
 
   if (isSupportPage) {
@@ -996,68 +1020,69 @@ export default function App() {
 
       {/* Main View Router */}
       <main className="flex-1">
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <HomeView
-                products={products}
-                services={services}
-                blogs={blogs}
-                onSelectProduct={setSelectedProductForDetail}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
-                wishlist={wishlist}
-                onToggleWishlist={handleToggleWishlist}
-                onBookingSuccess={handleBookingSuccess}
-                setCurrentView={handleNavigateView}
-                setSelectedCategory={setSelectedCategory}
-              />
-            }
-          />
+        <React.Suspense fallback={<div className="min-h-[60vh] flex items-center justify-center font-mono text-xs text-slate-400">Loading...</div>}>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <HomeView
+                  products={products}
+                  services={services}
+                  blogs={blogs}
+                  onSelectProduct={setSelectedProductForDetail}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                  onBookingSuccess={handleBookingSuccess}
+                  setCurrentView={handleNavigateView}
+                  setSelectedCategory={setSelectedCategory}
+                />
+              }
+            />
 
-          <Route
-            path="/digital-products"
-            element={
-              <DigitalProductsRouteHandler
-                products={products}
-                categories={[]}
-                onSelectProduct={setSelectedProductForDetail}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
-                wishlist={wishlist}
-                onToggleWishlist={handleToggleWishlist}
-              />
-            }
-          />
-          <Route
-            path="/digital-products/:categorySlug"
-            element={
-              <DigitalProductsRouteHandler
-                products={products}
-                categories={[]}
-                onSelectProduct={setSelectedProductForDetail}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
-                wishlist={wishlist}
-                onToggleWishlist={handleToggleWishlist}
-              />
-            }
-          />
-          <Route
-            path="/digital-products/:categorySlug/:subcategorySlug"
-            element={
-              <DigitalProductsRouteHandler
-                products={products}
-                categories={[]}
-                onSelectProduct={setSelectedProductForDetail}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
-                wishlist={wishlist}
-                onToggleWishlist={handleToggleWishlist}
-              />
-            }
-          />
+            <Route
+              path="/digital-products"
+              element={
+                <DigitalProductsRouteHandler
+                  products={products}
+                  categories={digitalCategories}
+                  onSelectProduct={setSelectedProductForDetail}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                />
+              }
+            />
+            <Route
+              path="/digital-products/:categorySlug"
+              element={
+                <DigitalProductsRouteHandler
+                  products={products}
+                  categories={digitalCategories}
+                  onSelectProduct={setSelectedProductForDetail}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                />
+              }
+            />
+            <Route
+              path="/digital-products/:categorySlug/:subcategorySlug"
+              element={
+                <DigitalProductsRouteHandler
+                  products={products}
+                  categories={digitalCategories}
+                  onSelectProduct={setSelectedProductForDetail}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                />
+              }
+            />
           <Route path="/digital-product-sell" element={<Navigate to="/digital-products" replace />} />
 
           <Route
@@ -1211,6 +1236,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </React.Suspense>
       </main>
 
       {/* Floating Widgets & Modals */}
@@ -1263,10 +1289,14 @@ export default function App() {
         }}
       />
 
-      <InvoicePrintModal
-        order={selectedInvoiceOrder}
-        onClose={() => setSelectedInvoiceOrder(null)}
-      />
+      {selectedInvoiceOrder && (
+        <React.Suspense fallback={null}>
+          <InvoicePrintModal
+            order={selectedInvoiceOrder}
+            onClose={() => setSelectedInvoiceOrder(null)}
+          />
+        </React.Suspense>
+      )}
 
       {/* Footer */}
       <Footer setCurrentView={handleNavigateView} setSelectedCategory={setSelectedCategory} />

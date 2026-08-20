@@ -14,12 +14,23 @@
 let paypalConfigPromise: Promise<string> | null = null;
 let paypalSdkPromise: Promise<any> | null = null;
 
+const DEFAULT_PAYPAL_CLIENT_ID = 'BAAq2PyxqOTR12C8YmU9N7Km0YSbwzwu4dOJHk4mmXV4GiCRQ1pS-IEROr24x4Tjej_Pzmnx24E51GSCIo';
+
 /**
- * Fetch and cache PayPal Client ID
+ * Fetch and cache PayPal Client ID with zero-latency fast-path
  */
 export async function getPayPalClientId(): Promise<string> {
+  const envId = (import.meta.env?.VITE_PAYPAL_CLIENT_ID as string) || (typeof window !== 'undefined' && (window as any).__PAYPAL_CLIENT_ID__);
+  if (envId) return envId;
+
   if (paypalConfigPromise) {
     return paypalConfigPromise;
+  }
+
+  // Fast path: use default client ID immediately without blocking network roundtrip
+  if (DEFAULT_PAYPAL_CLIENT_ID) {
+    paypalConfigPromise = Promise.resolve(DEFAULT_PAYPAL_CLIENT_ID);
+    return DEFAULT_PAYPAL_CLIENT_ID;
   }
 
   paypalConfigPromise = (async () => {
@@ -35,11 +46,7 @@ export async function getPayPalClientId(): Promise<string> {
       console.warn('[PayPal Loader] Config fetch note:', e);
     }
 
-    return (
-      import.meta.env.VITE_PAYPAL_CLIENT_ID ||
-      (window as any).__PAYPAL_CLIENT_ID__ ||
-      'BAAq2PyxqOTR12C8YmU9N7Km0YSbwzwu4dOJHk4mmXV4GiCRQ1pS-IEROr24x4Tjej_Pzmnx24E51GSCIo'
-    );
+    return DEFAULT_PAYPAL_CLIENT_ID;
   })();
 
   return paypalConfigPromise;
