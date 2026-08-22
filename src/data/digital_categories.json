@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": "cat-1787379532657_65pj",
+    "name": "Ebooks",
+    "slug": "ebooks",
+    "parentId": null,
+    "description": "",
+    "image": "",
+    "sortOrder": 1,
+    "active": true,
+    "createdAt": "2026-08-22T06:19:01.610Z",
+    "updatedAt": "2026-08-22T06:18:52.657Z"
+  }
+]
