@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Product, DigitalCategory } from '../../../types';
+import { isEbookCategory } from '../../../utils/categoryMatcher';
 import {
   X,
   Check,
@@ -28,7 +29,8 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
-  Plus
+  Plus,
+  BookOpen
 } from 'lucide-react';
 
 interface DigitalProductEditorModalProps {
@@ -63,6 +65,15 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
   const [tagInput, setTagInput] = useState('');
   const [descriptionMode, setDescriptionMode] = useState<'write' | 'preview'>('write');
 
+  // STEP 1 - eBook Specifications (Only applicable when Category is eBook)
+  const [ebookFileType, setEbookFileType] = useState('PDF / EPUB');
+  const [ebookFileSize, setEbookFileSize] = useState('8.5 MB');
+  const [ebookPages, setEbookPages] = useState('120 Pages');
+  const [ebookLanguage, setEbookLanguage] = useState('English');
+  const [ebookEdition, setEbookEdition] = useState('1st Edition');
+  const [ebookVersion, setEbookVersion] = useState('v1.0');
+  const [ebookInstantAccess, setEbookInstantAccess] = useState('Yes');
+
   // STEP 2: Media
   const [image, setImage] = useState('');
   const [screenshots, setScreenshots] = useState<string[]>([]);
@@ -71,6 +82,7 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
   const [uploadNotice, setUploadNotice] = useState('');
   const coverInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const ebookCoverInputRef = useRef<HTMLInputElement | null>(null);
 
   // STEP 3: Pricing
   const [originalPrice, setOriginalPrice] = useState<number>(499);
@@ -92,11 +104,21 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
         setSlug(product.slug || '');
         setShortDescription(product.shortDescription || '');
         setDescription(product.fullDescription || product.description || '');
-        setCategoryId(product.categoryId || product.category || '');
+        const prodCatId = product.categoryId || product.category || '';
+        setCategoryId(prodCatId);
         setTags(Array.isArray(product.tags) ? product.tags : ['Digital Product']);
-        setImage(product.image || '');
+        setImage(product.previewImage || product.image || '');
         setScreenshots(Array.isArray(product.screenshots) ? product.screenshots : []);
         
+        // eBook specs initialization
+        setEbookFileType(product.ebookSpecs?.fileType || product.fileType || 'PDF / EPUB');
+        setEbookFileSize(product.ebookSpecs?.fileSize || product.fileSize || product.downloadSize || '8.5 MB');
+        setEbookPages(product.ebookSpecs?.pages || product.pages || '120 Pages');
+        setEbookLanguage(product.ebookSpecs?.language || product.language || 'English');
+        setEbookEdition(product.ebookSpecs?.edition || product.edition || '1st Edition');
+        setEbookVersion(product.ebookSpecs?.version || product.version || 'v1.0');
+        setEbookInstantAccess(product.ebookSpecs?.instantAccess || product.instantAccess || 'Yes');
+
         const origPrice = Number(product.originalPrice ?? product.price ?? 499);
         const finalP = Number(product.price ?? 499);
         setOriginalPrice(origPrice);
@@ -116,7 +138,8 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
         setSlug('');
         setShortDescription('');
         setDescription('');
-        setCategoryId(categories.length > 0 ? categories[0].id : '');
+        const defaultCat = categories.length > 0 ? categories[0].id : '';
+        setCategoryId(defaultCat);
         setTags(['Digital Product']);
         setImage('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80');
         setScreenshots([]);
@@ -124,6 +147,13 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
         setDiscountPercent(20);
         setIsFree(false);
         setGoogleDriveUrl('');
+        setEbookFileType('PDF / EPUB');
+        setEbookFileSize('8.5 MB');
+        setEbookPages('120 Pages');
+        setEbookLanguage('English');
+        setEbookEdition('1st Edition');
+        setEbookVersion('v1.0');
+        setEbookInstantAccess('Yes');
       }
       setIsSubmitting(false);
     }
@@ -320,6 +350,7 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
 
     const generatedSlug = slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `digital-${Date.now()}`;
     const matchedCategory = categories.find((c) => c.id === categoryId || c.slug === categoryId);
+    const isSelectedEbook = isEbookCategory(categoryId, matchedCategory?.name, categories);
 
     const payload: Partial<Product> = {
       id: product?.id,
@@ -333,6 +364,7 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
       description: description.trim() || shortDescription.trim(),
       tags: tags.length > 0 ? tags : ['Digital Product'],
       image: image.trim() || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+      previewImage: image.trim() || undefined,
       screenshots: screenshots,
       originalPrice: isFree ? 0 : Number(originalPrice || 0),
       price: isFree ? 0 : Number(calculatedFinalPrice || 0),
@@ -340,8 +372,26 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
       googleDriveUrl: googleDriveUrl.trim(),
       fileUrl: googleDriveUrl.trim() || '/api/downloads/digital',
       licenseType: 'Instant Digital Download' as any,
-      version: product?.version || 'v1.0',
-      downloadSize: product?.downloadSize || 'Instant Access',
+      version: isSelectedEbook ? (ebookVersion.trim() || 'v1.0') : (product?.version || 'v1.0'),
+      downloadSize: isSelectedEbook ? (ebookFileSize.trim() || '8.5 MB') : (product?.downloadSize || 'Instant Access'),
+      fileSize: isSelectedEbook ? (ebookFileSize.trim() || '8.5 MB') : (product?.fileSize || product?.downloadSize || 'Instant Access'),
+      fileType: isSelectedEbook ? (ebookFileType.trim() || 'PDF / EPUB') : (product?.fileType || 'ZIP'),
+      ...(isSelectedEbook ? {
+        pages: ebookPages.trim() || '120 Pages',
+        language: ebookLanguage.trim() || 'English',
+        edition: ebookEdition.trim() || '1st Edition',
+        instantAccess: ebookInstantAccess.trim() || 'Yes',
+        ebookSpecs: {
+          fileType: ebookFileType.trim() || 'PDF / EPUB',
+          fileSize: ebookFileSize.trim() || '8.5 MB',
+          pages: ebookPages.trim() || '120 Pages',
+          language: ebookLanguage.trim() || 'English',
+          edition: ebookEdition.trim() || '1st Edition',
+          version: ebookVersion.trim() || 'v1.0',
+          instantAccess: ebookInstantAccess.trim() || 'Yes',
+          previewImage: image.trim() || undefined
+        }
+      } : {}),
       status: publishStatus,
       instantKeyAvailable: true,
       rating: product?.rating || 5.0,
@@ -490,6 +540,273 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
                       ))}
                     </select>
                   </div>
+                )}
+
+                {/* eBook Management - Rendered ONLY for eBook category */}
+                {isEbookCategory(categoryId, undefined, categories) && (
+                  <div className="space-y-4">
+                    {/* Dedicated eBook Preview Image Field */}
+                    <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200/90 space-y-4 font-sans animate-fade-in shadow-2xs">
+                      <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                            <ImageIcon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider font-mono">
+                              eBook Preview Image
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-sans">
+                              The main visual cover for this eBook displayed across storefront & product pages.
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                          Main Storefront Preview
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                        {/* Visual Preview Thumbnail */}
+                        <div className="md:col-span-4 flex flex-col items-center">
+                          {image && image.trim() ? (
+                            <div className="relative w-full aspect-[3/4] max-w-[200px] rounded-2xl overflow-hidden border-2 border-emerald-500/40 bg-slate-950 shadow-md group">
+                              <img
+                                src={image}
+                                alt="eBook Preview"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                onError={(e) => {
+                                  e.currentTarget.onerror = null;
+                                  e.currentTarget.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&auto=format&fit=crop&q=80';
+                                }}
+                              />
+                              <div className="absolute top-2 left-2 bg-slate-950/80 text-emerald-400 border border-emerald-500/30 text-[9px] font-mono font-bold px-2 py-0.5 rounded-md backdrop-blur-md">
+                                Active Preview
+                              </div>
+                              <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-2xs">
+                                <button
+                                  type="button"
+                                  onClick={() => ebookCoverInputRef.current?.click()}
+                                  className="p-2 rounded-xl bg-white text-slate-950 hover:bg-emerald-50 font-mono text-xs font-bold shadow-md transition-colors"
+                                  title="Replace Image"
+                                >
+                                  <UploadCloud className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setImage('')}
+                                  className="p-2 rounded-xl bg-rose-500 text-white hover:bg-rose-600 font-mono text-xs font-bold shadow-md transition-colors"
+                                  title="Remove Image"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => ebookCoverInputRef.current?.click()}
+                              className="w-full aspect-[3/4] max-w-[200px] rounded-2xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/30 transition-all flex flex-col items-center justify-center p-4 text-center cursor-pointer space-y-2 shadow-2xs"
+                            >
+                              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
+                                <BookOpen className="w-6 h-6" />
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-slate-700 block">No Preview Image</span>
+                                <span className="text-[10px] text-slate-400">Click to upload or enter URL</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Upload / URL Controls */}
+                        <div className="md:col-span-8 space-y-3.5">
+                          <div>
+                            <label className="block text-[11px] font-mono font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                              Upload Preview Image File
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                ref={ebookCoverInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleCoverUpload}
+                                className="hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => ebookCoverInputRef.current?.click()}
+                                disabled={isUploadingCover}
+                                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-xs transition-colors flex items-center gap-2"
+                              >
+                                {isUploadingCover ? (
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <UploadCloud className="w-3.5 h-3.5" />
+                                )}
+                                <span>{isUploadingCover ? 'Uploading...' : image ? 'Replace Preview Image' : 'Upload Preview Image'}</span>
+                              </button>
+                              {image && (
+                                <button
+                                  type="button"
+                                  onClick={() => setImage('')}
+                                  className="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-mono text-xs font-bold transition-colors"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                              PNG, JPG, WebP supported up to 12MB. Saved as clean static image.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-mono font-bold text-slate-700 uppercase tracking-wider">
+                              Or Enter Direct Image URL
+                            </label>
+                            <input
+                              type="url"
+                              placeholder="https://images.unsplash.com/... or /uploads/..."
+                              value={image}
+                              onChange={(e) => setImage(e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 font-sans focus:outline-none focus:border-emerald-500 shadow-2xs transition-colors"
+                            />
+                            <p className="text-[10px] text-slate-400 font-mono">
+                              Paste an image link to immediately update the visual preview above.
+                            </p>
+                          </div>
+
+                          {uploadNotice && (
+                            <p className="text-xs text-emerald-600 font-mono bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/60">
+                              {uploadNotice}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* eBook Specifications - 7 Fields */}
+                    <div className="p-5 rounded-3xl bg-emerald-50/50 border border-emerald-500/30 space-y-4 font-sans animate-fade-in shadow-2xs">
+                      <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                            <BookOpen className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-extrabold text-emerald-950 uppercase tracking-wider font-mono">
+                              eBook Specifications
+                            </h4>
+                            <p className="text-[11px] text-emerald-700 font-sans">
+                              Configure the 7 standard eBook specifications shown on the storefront.
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                          eBook Only
+                        </span>
+                      </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {/* 1. File Type */}
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-mono font-bold text-slate-700 uppercase tracking-wider">
+                          1. File Type
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. PDF / EPUB"
+                          value={ebookFileType}
+                          onChange={(e) => setEbookFileType(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 font-sans focus:outline-none focus:border-emerald-500 shadow-2xs transition-colors"
+                        />
+                      </div>
+
+                      {/* 2. File Size */}
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-mono font-bold text-slate-700 uppercase tracking-wider">
+                          2. File Size
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 8.5 MB"
+                          value={ebookFileSize}
+                          onChange={(e) => setEbookFileSize(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 font-sans focus:outline-none focus:border-emerald-500 shadow-2xs transition-colors"
+                        />
+                      </div>
+
+                      {/* 3. Pages */}
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-mono font-bold text-slate-700 uppercase tracking-wider">
+                          3. Pages
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 120 Pages"
+                          value={ebookPages}
+                          onChange={(e) => setEbookPages(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 font-sans focus:outline-none focus:border-emerald-500 shadow-2xs transition-colors"
+                        />
+                      </div>
+
+                      {/* 4. Language */}
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-mono font-bold text-slate-700 uppercase tracking-wider">
+                          4. Language
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. English"
+                          value={ebookLanguage}
+                          onChange={(e) => setEbookLanguage(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 font-sans focus:outline-none focus:border-emerald-500 shadow-2xs transition-colors"
+                        />
+                      </div>
+
+                      {/* 5. Edition */}
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-mono font-bold text-slate-700 uppercase tracking-wider">
+                          5. Edition
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 1st Edition"
+                          value={ebookEdition}
+                          onChange={(e) => setEbookEdition(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 font-sans focus:outline-none focus:border-emerald-500 shadow-2xs transition-colors"
+                        />
+                      </div>
+
+                      {/* 6. Version */}
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-mono font-bold text-slate-700 uppercase tracking-wider">
+                          6. Version
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. v1.0"
+                          value={ebookVersion}
+                          onChange={(e) => setEbookVersion(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 font-sans focus:outline-none focus:border-emerald-500 shadow-2xs transition-colors"
+                        />
+                      </div>
+
+                      {/* 7. Instant Access */}
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="block text-[11px] font-mono font-bold text-slate-700 uppercase tracking-wider">
+                          7. Instant Access
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Yes"
+                          value={ebookInstantAccess}
+                          onChange={(e) => setEbookInstantAccess(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 font-sans focus:outline-none focus:border-emerald-500 shadow-2xs transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 )}
 
                 {/* Short Description */}

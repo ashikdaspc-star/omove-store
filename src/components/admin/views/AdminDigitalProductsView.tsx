@@ -272,7 +272,7 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-3.5">
                         <img
-                          src={prod.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'}
+                          src={prod.previewImage || prod.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'}
                           alt={prod.name}
                           className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shrink-0 bg-slate-100"
                         />
@@ -393,7 +393,7 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
                   {/* Cover Image & Badges */}
                   <div className="relative rounded-2xl overflow-hidden aspect-video bg-slate-900 border border-slate-100">
                     <img
-                      src={prod.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'}
+                      src={prod.previewImage || prod.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'}
                       alt={prod.name}
                       className="w-full h-full object-cover"
                     />

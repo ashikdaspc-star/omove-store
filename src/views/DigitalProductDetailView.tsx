@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DigitalProduct, DigitalCategory, CartItem } from '../types';
 import { matchProductBySlugOrId } from '../utils/productMatcher';
+import { isEbookProduct } from '../utils/categoryMatcher';
 import {
   Sparkles,
   DownloadCloud,
@@ -19,7 +20,8 @@ import {
   Clock,
   Share2,
   Lock,
-  Loader2
+  Loader2,
+  BookOpen
 } from 'lucide-react';
 
 interface DigitalProductDetailViewProps {
@@ -114,6 +116,11 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
     }
   };
 
+  const isEbook = isEbookProduct(product, categories);
+  const mainProductImage = product.previewImage || product.image || (isEbook
+    ? 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&auto=format&fit=crop&q=80'
+    : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80');
+
   // Convert DigitalProduct to standard product wrapper for cart compatibility
   const cartProductPayload = {
     id: product.id,
@@ -131,8 +138,9 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
     licenseType: 'Digital File Download' as any,
     rating: 4.9,
     reviewCount: 24,
-    image: product.image,
-    screenshots: [product.image],
+    image: mainProductImage,
+    previewImage: product.previewImage || product.image,
+    screenshots: product.screenshots && product.screenshots.length > 0 ? product.screenshots : [mainProductImage],
     features: product.features,
     requirements: product.compatibility || [],
     versionHistory: [],
@@ -181,9 +189,15 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
           <div className="p-4 rounded-3xl bg-white border border-slate-200 shadow-xl space-y-4">
             <div className="relative rounded-2xl overflow-hidden aspect-video bg-slate-950 border border-slate-800 group">
               <img
-                src={product.image}
+                src={mainProductImage}
                 alt={product.name}
                 className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = isEbook
+                    ? 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&auto=format&fit=crop&q=80'
+                    : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
+                }}
               />
               <div className="absolute top-3 left-3 flex items-center gap-2">
                 <span className="px-3 py-1 rounded-full bg-emerald-950/90 text-emerald-300 text-xs font-mono font-bold border border-emerald-400/40 backdrop-blur-md">
@@ -323,37 +337,99 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
               <span>File Specifications</span>
             </h3>
 
-            <div className="space-y-3">
-              <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-500">File Type Format</span>
-                <span className="font-bold text-slate-900">{product.fileType || 'ZIP'}</span>
-              </div>
+            {isEbookProduct(product, categories) ? (
+              /* eBook Specifications: EXACTLY the 7 required fields ONLY */
+              <div className="space-y-3">
+                {/* 1. File Type */}
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">File Type</span>
+                  <span className="font-bold text-slate-900">
+                    {product.ebookSpecs?.fileType || product.fileType || 'PDF / EPUB'}
+                  </span>
+                </div>
 
-              <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-500">File Download Size</span>
-                <span className="font-bold text-slate-900">{product.fileSize || 'N/A'}</span>
-              </div>
+                {/* 2. File Size */}
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">File Size</span>
+                  <span className="font-bold text-slate-900">
+                    {product.ebookSpecs?.fileSize || product.fileSize || (product as any).downloadSize || 'N/A'}
+                  </span>
+                </div>
 
-              {product.version && (
+                {/* 3. Pages */}
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Pages</span>
+                  <span className="font-bold text-slate-900">
+                    {product.ebookSpecs?.pages || product.pages || 'N/A'}
+                  </span>
+                </div>
+
+                {/* 4. Language */}
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Language</span>
+                  <span className="font-bold text-slate-900">
+                    {product.ebookSpecs?.language || product.language || 'English'}
+                  </span>
+                </div>
+
+                {/* 5. Edition */}
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Edition</span>
+                  <span className="font-bold text-slate-900">
+                    {product.ebookSpecs?.edition || product.edition || '1st Edition'}
+                  </span>
+                </div>
+
+                {/* 6. Version */}
                 <div className="flex justify-between items-center py-1 border-b border-slate-100">
                   <span className="text-slate-500">Version</span>
-                  <span className="font-bold text-emerald-700">{product.version}</span>
+                  <span className="font-bold text-emerald-700">
+                    {product.ebookSpecs?.version || product.version || 'v1.0'}
+                  </span>
                 </div>
-              )}
 
-              {product.compatibility && product.compatibility.length > 0 && (
-                <div className="py-1 space-y-1.5">
-                  <span className="text-slate-500 block">Compatibility</span>
-                  <div className="flex flex-wrap gap-1">
-                    {product.compatibility.map((c, i) => (
-                      <span key={i} className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[10px] font-bold border border-slate-200">
-                        {c}
-                      </span>
-                    ))}
-                  </div>
+                {/* 7. Instant Access */}
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Instant Access</span>
+                  <span className="font-bold text-emerald-700">
+                    {product.ebookSpecs?.instantAccess || product.instantAccess || 'Yes'}
+                  </span>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              /* Non-eBook Standard Specifications */
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">File Type Format</span>
+                  <span className="font-bold text-slate-900">{product.fileType || 'ZIP'}</span>
+                </div>
+
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">File Download Size</span>
+                  <span className="font-bold text-slate-900">{product.fileSize || 'N/A'}</span>
+                </div>
+
+                {product.version && (
+                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                    <span className="text-slate-500">Version</span>
+                    <span className="font-bold text-emerald-700">{product.version}</span>
+                  </div>
+                )}
+
+                {product.compatibility && product.compatibility.length > 0 && (
+                  <div className="py-1 space-y-1.5">
+                    <span className="text-slate-500 block">Compatibility</span>
+                    <div className="flex flex-wrap gap-1">
+                      {product.compatibility.map((c, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[10px] font-bold border border-slate-200">
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

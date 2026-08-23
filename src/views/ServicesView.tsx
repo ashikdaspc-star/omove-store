@@ -561,11 +561,10 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
           {services.map((srv) => (
             <div
               key={srv.id}
-              className={`rounded-3xl p-6 flex flex-col justify-between transition-all border-2 ${
-                srv.popular
+              className={`rounded-3xl p-6 flex flex-col justify-between transition-all border-2 ${srv.popular
                   ? 'bg-white border-emerald-500 shadow-xl shadow-emerald-500/10'
                   : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
-              }`}
+                }`}
             >
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-2">
@@ -598,11 +597,10 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
 
                 <button
                   onClick={() => handleStartBooking(srv)}
-                  className={`w-full py-3.5 rounded-xl font-mono text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    srv.popular
+                  className={`w-full py-3.5 rounded-xl font-mono text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${srv.popular
                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/25'
                       : 'bg-slate-900 hover:bg-slate-800 text-white'
-                  }`}
+                    }`}
                 >
                   <Zap className="w-4 h-4" />
                   <span>BOOK REPAIR NOW</span>
@@ -914,11 +912,10 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
                       <button
                         type="submit"
                         disabled={isSubmitting || !isOnline || (phoneTouched && !phoneValidation.isValid)}
-                        className={`w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                          !isOnline || (phoneTouched && !phoneValidation.isValid)
+                        className={`w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer ${!isOnline || (phoneTouched && !phoneValidation.isValid)
                             ? 'bg-slate-300 text-slate-500 border border-slate-300 cursor-not-allowed shadow-none'
                             : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                        }`}
+                          }`}
                       >
                         {!isOnline ? (
                           <>

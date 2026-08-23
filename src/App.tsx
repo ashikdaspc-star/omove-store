@@ -389,7 +389,7 @@ export default function App() {
         navigate('/store');
         break;
       case 'services':
-        navigate('/services');
+        navigate('/remote-support');
         break;
       case 'remote-support':
         navigate('/remote-support');
@@ -1103,16 +1103,7 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/services"
-            element={
-              <ServicesView
-                services={services}
-                onBookingSuccess={handleBookingSuccess}
-                setCurrentView={handleNavigateView}
-              />
-            }
-          />
+          <Route path="/services" element={<Navigate to="/remote-support" replace />} />
 
           <Route
             path="/remote-support"

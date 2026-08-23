@@ -28,7 +28,7 @@ export const DigitalProductCard: React.FC<DigitalProductCardProps> = ({
         {/* Thumbnail & Digital Badge */}
         <div className="relative aspect-video w-full overflow-hidden bg-slate-100 cursor-pointer" onClick={() => onSelect(product)}>
           <img
-            src={product.image}
+            src={product.previewImage || product.image}
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             loading="lazy"

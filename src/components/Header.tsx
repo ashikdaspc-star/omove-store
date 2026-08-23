@@ -70,7 +70,6 @@ export const Header: React.FC<HeaderProps> = ({
     { path: '/', label: 'Home', icon: Monitor },
     { path: '/digital-products', label: 'Digital Product', icon: Sparkles },
     { path: '/store', label: 'Store', icon: ShoppingBag },
-    { path: '/services', label: 'Services', icon: Zap },
     { path: '/remote-support', label: 'Remote Support', icon: Headphones, badge: 'Live' },
     { path: '/downloads', label: 'Downloads', icon: Download },
     { path: '/blog', label: 'Blog', icon: BookOpen },
@@ -328,7 +327,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }}
                 className="text-emerald-700 hover:underline font-bold"
               >
-                Browse All Services →
+                Browse Store →
               </button>
             </div>
           </div>

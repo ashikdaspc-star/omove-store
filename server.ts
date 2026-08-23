@@ -371,7 +371,6 @@ app.get('/sitemap.xml', (_req: Request, res: Response) => {
     { url: '/', priority: '1.0', changefreq: 'daily' },
     { url: '/digital-products', priority: '0.9', changefreq: 'daily' },
     { url: '/store', priority: '0.9', changefreq: 'daily' },
-    { url: '/services', priority: '0.9', changefreq: 'weekly' },
     { url: '/remote-support', priority: '0.8', changefreq: 'weekly' },
     { url: '/downloads', priority: '0.7', changefreq: 'weekly' },
     { url: '/blog', priority: '0.8', changefreq: 'weekly' },
@@ -1360,6 +1359,44 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
+  // Admin Media Upload API (Saves to public/uploads/ for clean persistent URLs)
+  app.post('/api/admin/upload-media', (req: Request, res: Response) => {
+    try {
+      const { fileName, fileData } = req.body || {};
+      if (!fileData) {
+        return res.status(400).json({ success: false, error: 'No file data provided' });
+      }
+
+      const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const extMatch = (fileName || '').match(/\.([a-zA-Z0-9]+)$/);
+      const ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '.png';
+      const baseName = (fileName || 'image')
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[^a-zA-Z0-9_-]/g, '_');
+      const uniqueFileName = `${Date.now()}_${baseName}${ext}`;
+      const filePath = path.join(uploadsDir, uniqueFileName);
+
+      const base64Match = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (base64Match) {
+        const buffer = Buffer.from(base64Match[2], 'base64');
+        fs.writeFileSync(filePath, buffer);
+      } else {
+        fs.writeFileSync(filePath, fileData);
+      }
+
+      const publicUrl = `/uploads/${uniqueFileName}`;
+      console.log(`[MEDIA UPLOAD] Saved file to ${filePath} -> URL: ${publicUrl}`);
+      return res.json({ success: true, url: publicUrl, fileName: uniqueFileName });
+    } catch (err: any) {
+      console.error('Failed to upload media:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // Isolated Digital Products API
   app.get('/api/digital-products', (req: Request, res: Response) => {
     try {
@@ -1413,6 +1450,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         originalPrice: Number(body.originalPrice ?? body.price ?? 0),
         discountPercent: Number(body.discountPercent ?? 0),
         image: body.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+        previewImage: body.previewImage || body.image || undefined,
         screenshots: Array.isArray(body.screenshots) ? body.screenshots : [],
         tags: Array.isArray(body.tags) && body.tags.length > 0 ? body.tags : ['Digital Product'],
         googleDriveUrl: body.googleDriveUrl || body.fileUrl || '',
@@ -1420,6 +1458,11 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         fileSize: body.fileSize || body.downloadSize || 'Instant Access',
         downloadSize: body.downloadSize || body.fileSize || 'Instant Access',
         fileType: body.fileType || 'ZIP',
+        pages: body.pages || body.ebookSpecs?.pages || undefined,
+        language: body.language || body.ebookSpecs?.language || undefined,
+        edition: body.edition || body.ebookSpecs?.edition || undefined,
+        instantAccess: body.instantAccess || body.ebookSpecs?.instantAccess || undefined,
+        ebookSpecs: body.ebookSpecs || undefined,
         licenseType: body.licenseType || 'Instant Digital Download',
         version: body.version || 'v1.0',
         compatibility: Array.isArray(body.compatibility) ? body.compatibility : ['Windows 11', 'Windows 10'],

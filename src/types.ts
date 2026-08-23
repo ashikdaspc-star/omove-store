@@ -21,6 +21,17 @@ export interface DigitalCategory {
   updatedAt: string;
 }
 
+export interface EbookSpecs {
+  fileType?: string;
+  fileSize?: string;
+  pages?: string;
+  language?: string;
+  edition?: string;
+  version?: string;
+  instantAccess?: string;
+  previewImage?: string;
+}
+
 export interface DigitalProduct {
   id: string;
   name: string;
@@ -30,12 +41,18 @@ export interface DigitalProduct {
   price: number;
   originalPrice: number;
   image: string;
+  previewImage?: string;
   categoryId: string;
   subcategoryId?: string;
   googleDriveUrl: string;
   fileSize: string;
   fileType: string;
   version?: string;
+  pages?: string;
+  language?: string;
+  edition?: string;
+  instantAccess?: string;
+  ebookSpecs?: EbookSpecs;
   compatibility?: string[];
   features: string[];
   status: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
@@ -61,9 +78,17 @@ export interface Product {
   downloadSize: string;
   version: string;
   licenseType: LicenseType;
+  fileType?: string;
+  fileSize?: string;
+  pages?: string;
+  language?: string;
+  edition?: string;
+  instantAccess?: string;
+  ebookSpecs?: EbookSpecs;
   rating: number;
   reviewCount: number;
   image: string;
+  previewImage?: string;
   screenshots: string[];
   features: string[];
   requirements: string[];

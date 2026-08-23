@@ -132,11 +132,6 @@ export const Footer: React.FC<FooterProps> = () => {
                   </Link>
                 </li>
                 <li>
-                  <Link to="/services" className="hover:text-emerald-400 transition-colors duration-200 block">
-                    Services
-                  </Link>
-                </li>
-                <li>
                   <Link to="/remote-support" className="hover:text-emerald-400 transition-colors duration-200 block">
                     Remote Support
                   </Link>
@@ -165,8 +160,8 @@ export const Footer: React.FC<FooterProps> = () => {
             {openSections.support && (
               <ul className="space-y-3 text-sm font-sans text-slate-300">
                 <li>
-                  <Link to="/services" className="hover:text-emerald-400 transition-colors duration-200 block">
-                    Help Center
+                  <Link to="/remote-support" className="hover:text-emerald-400 transition-colors duration-200 block">
+                    Remote Support
                   </Link>
                 </li>
                 <li>

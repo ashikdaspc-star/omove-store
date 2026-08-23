@@ -32,7 +32,6 @@ import {
   Tag,
   WifiOff,
   AlertTriangle,
-  Coffee,
   Heart,
   ShoppingBag
 } from 'lucide-react';
@@ -575,10 +574,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <section className="relative overflow-hidden bg-gradient-to-br from-[#064E3B] via-[#04392b] to-[#0f172a] text-white pt-8 sm:pt-16 pb-12 sm:pb-24 border-b border-emerald-500/20">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-            
+
             {/* LEFT SIDE - HERO TEXT */}
             <div className="lg:col-span-6 space-y-4 sm:space-y-6 text-center lg:text-left">
-              
+
               <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[10px] sm:text-xs font-mono font-bold tracking-wider shadow-sm max-w-full">
                 <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-300 animate-pulse shrink-0" />
                 <span className="truncate">CERTIFIED REMOTE REPAIR & SOFTWARE SOLUTIONS</span>
@@ -617,15 +616,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <Headphones className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span>BOOK REMOTE REPAIR (₹39)</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCurrentView('support')}
-                  className="w-full sm:w-auto px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-mono font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all hover:scale-105 cursor-pointer"
-                >
-                  <Coffee className="w-4 h-4 text-emerald-400" />
-                  <span>☕ BUY ME A COFFEE</span>
-                </button>
               </div>
 
               {/* Trust Indicators */}
@@ -663,7 +653,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                 {/* Floating Card Wrapper */}
                 <div className="relative bg-white p-5 sm:p-8 rounded-2xl sm:rounded-[32px] border-2 border-emerald-500/50 shadow-2xl space-y-4 sm:space-y-6 text-slate-900 transition-all duration-500 hover:border-emerald-500 hover:shadow-emerald-500/20 hover:scale-[1.01] animate-float">
-                  
+
                   {/* Header Badges with Live Ping */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] sm:text-xs font-mono font-bold shadow-xs">
@@ -850,11 +840,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           e.stopPropagation();
                           onToggleWishlist(product.id);
                         }}
-                        className={`absolute top-3 right-3 p-2 rounded-xl backdrop-blur-md border transition-all z-10 ${
-                          isWishlisted
+                        className={`absolute top-3 right-3 p-2 rounded-xl backdrop-blur-md border transition-all z-10 ${isWishlisted
                             ? 'bg-rose-500 text-white border-rose-400'
                             : 'bg-white/80 text-slate-700 border-slate-200 hover:text-slate-950 hover:bg-white'
-                        }`}
+                          }`}
                         title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
                       >
                         <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
@@ -1261,11 +1250,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       <button
                         type="submit"
                         disabled={isSubmitting || !isOnline || (phoneTouched && !phoneValidation.isValid)}
-                        className={`w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                          !isOnline || (phoneTouched && !phoneValidation.isValid)
+                        className={`w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer ${!isOnline || (phoneTouched && !phoneValidation.isValid)
                             ? 'bg-slate-300 text-slate-500 border border-slate-300 cursor-not-allowed shadow-none'
                             : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                        }`}
+                          }`}
                       >
                         {!isOnline ? (
                           <>
