@@ -7,7 +7,7 @@ import { Footer } from './components/Footer';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
-import { LiveChatWidget } from './components/LiveChatWidget';
+import { FloatingWhatsAppButton } from './components/FloatingWhatsAppButton';
 import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 
@@ -22,6 +22,7 @@ import { SupportView } from './views/SupportView';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { OfflineBanner } from './components/OfflineBanner';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
+import { useGlobalScrollReveal } from './utils/useGlobalScrollReveal';
 
 // Lazy-loaded Views & Modals (Code Splitting for Optimal Performance)
 const DashboardView = React.lazy(() => import('./views/DashboardView').then((m) => ({ default: m.DashboardView })));
@@ -42,6 +43,9 @@ const InvoicePrintModal = React.lazy(() => import('./components/InvoicePrintModa
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Global Scroll Reveal for all public website pages and sections
+  useGlobalScrollReveal();
 
   // Real-time Traffic Tracking
   useEffect(() => {
@@ -1231,7 +1235,7 @@ export default function App() {
       </main>
 
       {/* Floating Widgets & Modals */}
-      <LiveChatWidget />
+      <FloatingWhatsAppButton />
 
       <CartDrawer
         isOpen={isCartOpen}

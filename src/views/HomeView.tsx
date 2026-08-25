@@ -1,39 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { Product, RemoteService, RemoteBooking, BlogPost } from '../types';
 import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCoupon } from '../utils/couponManager';
 import { useOnlineStatus } from '../components/OfflineBanner';
-import { CATEGORIES, MOCK_PRODUCTS } from '../data/mockData';
-import { ProductCard } from '../components/ProductCard';
+import { MOCK_PRODUCTS } from '../data/mockData';
 import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
+import { PAYPAL_CHECKOUT_ENABLED } from '../config/paymentConfig';
 import { loadPayPalSDK } from '../utils/paypalLoader';
 import { InternationalPhoneInput } from '../components/InternationalPhoneInput';
 import { PaymentMethodCards } from '../components/PaymentMethodCards';
 import {
-  ShieldCheck,
-  Headphones,
-  Download,
-  CheckCircle2,
+  Sparkles,
   ArrowRight,
   Star,
-  Clock,
-  ChevronRight,
-  Laptop,
-  Wrench,
-  Check,
-  Lock,
-  X,
+  Download,
+  CheckCircle2,
+  ShieldCheck,
+  Heart,
+  ShoppingBag,
   Zap,
-  Monitor,
-  DownloadCloud,
+  Lock,
+  Tag,
+  AlertTriangle,
+  WifiOff,
   ExternalLink,
   MessageSquare,
-  Tag,
-  WifiOff,
-  AlertTriangle,
-  Heart,
-  ShoppingBag
+  X,
+  Package,
+  Layers,
+  ChevronRight,
+  Check,
+  TrendingUp,
+  FileCheck,
+  CreditCard
 } from 'lucide-react';
 
 interface HomeViewProps {
@@ -51,22 +52,25 @@ interface HomeViewProps {
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
-  products,
-  services,
-  blogs,
+  products = [],
+  services = [],
+  blogs = [],
   onSelectProduct,
   onAddToCart,
   onBuyNow,
-  wishlist,
+  wishlist = [],
   onToggleWishlist,
   onBookingSuccess,
   setCurrentView,
   setSelectedCategory
 }) => {
+  const navigate = useNavigate();
   const isOnline = useOnlineStatus();
-  const [diagnosticIssue, setDiagnosticIssue] = useState<string>('bsod');
 
-  // Booking Modal State directly on Home Page
+  // Active Category Filter for Products
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+
+  // Booking Modal State directly on Home Page (Preserved for compatibility)
   const [activeBookingService, setActiveBookingService] = useState<RemoteService | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [email, setEmail] = useState('');
@@ -90,12 +94,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [confirmedBooking, setConfirmedBooking] = useState<RemoteBooking | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Payment Method State: 'razorpay' | 'paypal'
+  // Payment Method: Razorpay default (PayPal disabled globally)
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'paypal'>('razorpay');
   const [paypalReady, setPaypalReady] = useState(false);
   const [paypalLoading, setPaypalLoading] = useState(false);
 
-  // Coupon state for booking form
+  // Coupon state for booking
   const [couponInput, setCouponInput] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
@@ -140,9 +144,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     };
   }, [activeBookingService, customerName, email, phoneValidation, problemDescription, finalPrice, couponInput]);
 
-  // PayPal SDK Auto-Loader for Home Booking Modal
+  // PayPal SDK Auto-Loader for Home Booking Modal (Respects PAYPAL_CHECKOUT_ENABLED)
   useEffect(() => {
-    if (!activeBookingService || paymentMethod !== 'paypal' || confirmedBooking) {
+    if (!PAYPAL_CHECKOUT_ENABLED || !activeBookingService || paymentMethod !== 'paypal' || confirmedBooking) {
       setPaypalReady(false);
       return;
     }
@@ -315,37 +319,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
     };
   }, [activeBookingService, paymentMethod, confirmedBooking]);
 
-  const displayFeaturedProducts = React.useMemo(() => {
-    const sourceList = products || [];
-    const pool = sourceList.filter(
-      (p) => (p.status || 'PUBLISHED') === 'PUBLISHED'
-    );
-
-    const getPriorityScore = (p: Product) => {
-      let score = 0;
-      if (p.isFeatured) score += 100;
-      if (p.isBestSeller) score += 50;
-      if (p.salesCount && p.salesCount > 0) score += 20;
-      if (p.discountPercent > 0 || (p.originalPrice && p.originalPrice > p.price)) score += 10;
-      if (p.isNew) score += 5;
-      return score;
-    };
-
-    const sorted = [...pool].sort((a, b) => {
-      const scoreDiff = getPriorityScore(b) - getPriorityScore(a);
-      if (scoreDiff !== 0) return scoreDiff;
-      return (b.rating || 0) - (a.rating || 0);
-    });
-
-    return sorted.slice(0, 4);
-  }, [products]);
-
-  const handleCategoryClick = (catName: string) => {
-    setSelectedCategory(catName);
-    setCurrentView('store');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   const handleStartBooking = (srv: RemoteService) => {
     setActiveBookingService(srv);
     setConfirmedBooking(null);
@@ -374,11 +347,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
     setErrorMessage('');
 
     if (paymentMethod === 'paypal') {
-      return; // Handled by PayPal Smart Buttons
+      return;
     }
 
     if (!isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-      alert("You’re offline. Please reconnect to the internet to purchase this product.");
+      alert("You're offline. Please reconnect to the internet to purchase this product.");
       return;
     }
 
@@ -422,7 +395,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       amount: finalPrice,
       paymentStatus: 'Paid',
       status: 'Technician Assigned',
-      technicianName: 'David Chen (Cert #8821)',
+      technicianName: 'Certified Technician',
       createdAt: new Date().toISOString()
     };
 
@@ -486,9 +459,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
           key: razorpayKey,
           amount: Math.round(finalPrice * 100),
           currency: 'INR',
-          name: 'OMOVE TECH Engine',
-          description: `PC Service: ${activeBookingService.title}`,
-          image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200&auto=format&fit=crop&q=80',
+          name: 'Omovo Store',
+          description: `Service: ${activeBookingService.title}`,
+          image: '/logo.png',
           prefill: {
             name: customerName,
             email: email,
@@ -568,186 +541,351 @@ export const HomeView: React.FC<HomeViewProps> = ({
     }, 1000);
   };
 
+  // Authoritative Digital Products Catalog from Database / API
+  const allDigitalProducts = useMemo(() => {
+    const rawList = products && products.length > 0 ? products : MOCK_PRODUCTS;
+    return rawList.filter(
+      (p) => (p.status || 'PUBLISHED') === 'PUBLISHED'
+    );
+  }, [products]);
+
+  // Real Available Categories derived dynamically from catalog products
+  const availableCategories = useMemo(() => {
+    const categoriesSet = new Set<string>();
+    allDigitalProducts.forEach((p) => {
+      if (p.category && p.category.trim()) {
+        categoriesSet.add(p.category.trim());
+      }
+    });
+
+    const categoryList = Array.from(categoriesSet).map((cat) => ({
+      id: cat.toLowerCase(),
+      name: cat
+    }));
+
+    return [{ id: 'all', name: 'All Digital Products' }, ...categoryList];
+  }, [allDigitalProducts]);
+
+  // 1. Featured / Top Selling Product for Hero Showcase
+  const featuredProduct = useMemo(() => {
+    const explicitFeatured = allDigitalProducts.find((p) => p.isFeatured || p.isBestSeller);
+    if (explicitFeatured) return explicitFeatured;
+
+    const sortedBySales = [...allDigitalProducts].sort((a, b) => {
+      const aSales = a.salesCount || 0;
+      const bSales = b.salesCount || 0;
+      if (bSales !== aSales) return bSales - aSales;
+      return (b.rating || 0) - (a.rating || 0);
+    });
+
+    return sortedBySales[0] || MOCK_PRODUCTS[0];
+  }, [allDigitalProducts]);
+
+  // 2. Supporting Product 1
+  const supportingProduct1 = useMemo(() => {
+    const candidate = allDigitalProducts.find((p) => p.id !== featuredProduct.id && (p.rating >= 4.8 || p.isNew));
+    return candidate || allDigitalProducts[1] || MOCK_PRODUCTS[1] || featuredProduct;
+  }, [allDigitalProducts, featuredProduct]);
+
+  // 3. Supporting Product 2
+  const supportingProduct2 = useMemo(() => {
+    const candidate = allDigitalProducts.find(
+      (p) => p.id !== featuredProduct.id && p.id !== supportingProduct1.id
+    );
+    return candidate || allDigitalProducts[2] || MOCK_PRODUCTS[2] || featuredProduct;
+  }, [allDigitalProducts, featuredProduct, supportingProduct1]);
+
+  // Top Selling Products List for Section
+  const topSellingProducts = useMemo(() => {
+    let pool = [...allDigitalProducts];
+
+    if (selectedCategoryFilter !== 'all') {
+      pool = pool.filter((p) => (p.category || '').toLowerCase() === selectedCategoryFilter);
+    }
+
+    const sorted = pool.sort((a, b) => {
+      let aScore = (a.isBestSeller ? 50 : 0) + (a.isFeatured ? 30 : 0) + (a.salesCount || 0);
+      let bScore = (b.isBestSeller ? 50 : 0) + (b.isFeatured ? 30 : 0) + (b.salesCount || 0);
+      return bScore - aScore;
+    });
+
+    return sorted.slice(0, 8);
+  }, [allDigitalProducts, selectedCategoryFilter]);
+
+  // Fresh / New Products List
+  const freshProducts = useMemo(() => {
+    const pool = [...allDigitalProducts];
+    return pool.reverse().slice(0, 4);
+  }, [allDigitalProducts]);
+
+  const scrollToTopSelling = () => {
+    const el = document.getElementById('top-selling-products');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      navigate('/digital-products');
+    }
+  };
+
   return (
-    <div className="space-y-8 sm:space-y-16 pb-12 sm:pb-16">
-      {/* 1. HERO SECTION */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#064E3B] via-[#04392b] to-[#0f172a] text-white pt-8 sm:pt-16 pb-12 sm:pb-24 border-b border-emerald-500/20">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 relative z-10">
+    <div className="min-h-screen bg-slate-50/50 text-slate-900 selection:bg-emerald-100 selection:text-emerald-900 pb-16 font-sans">
+      
+      {/* 1. HERO SECTION: PREMIUM DIGITAL MARKETPLACE HERO */}
+      <section className="relative bg-white border-b border-slate-200/90 pt-8 sm:pt-12 lg:pt-16 pb-12 sm:pb-16 overflow-hidden">
+        
+        {/* Subtle Ambient Background Accents */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-50/50 rounded-full blur-3xl pointer-events-none -mr-32 -mt-20" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-slate-100/60 rounded-full blur-3xl pointer-events-none -ml-32 -mb-20" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
 
-            {/* LEFT SIDE - HERO TEXT */}
-            <div className="lg:col-span-6 space-y-4 sm:space-y-6 text-center lg:text-left">
-
-              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[10px] sm:text-xs font-mono font-bold tracking-wider shadow-sm max-w-full">
-                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-300 animate-pulse shrink-0" />
-                <span className="truncate">CERTIFIED REMOTE REPAIR & SOFTWARE SOLUTIONS</span>
+            {/* LEFT COLUMN: HEADLINE, DESCRIPTION, CTAS & TRUST STRIP (7 cols on lg) */}
+            <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
+              
+              {/* Category/Brand Eyebrow */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold tracking-wide shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>DIGITAL PRODUCTS • DISCOVER • DOWNLOAD • CREATE</span>
               </div>
 
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-snug sm:leading-tight">
-                Instant PC Repair <br className="hidden sm:block" />
-                <span className="text-emerald-400">Direct Remote Support</span>
+              {/* Main Headline */}
+              <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black text-slate-900 tracking-tight leading-[1.12]">
+                Digital Products <br className="hidden sm:block" />
+                <span className="text-emerald-600">Made to Get Things Done.</span>
               </h1>
 
-              <p className="text-xs sm:text-base text-emerald-100/90 max-w-xl mx-auto lg:mx-0 leading-relaxed font-sans">
-                Fix Blue Screen crashes, driver failures, Windows activation, and malware remotely via AnyDesk. Plus digital software tools delivered instantly.
+              {/* Supporting Description */}
+              <p className="text-slate-600 text-base sm:text-lg leading-relaxed max-w-xl mx-auto lg:mx-0">
+                Discover useful digital products, resources and tools — delivered instantly and ready to use.
               </p>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 sm:gap-4">
+              {/* Primary & Secondary Action CTAs */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5">
                 <button
                   type="button"
                   onClick={() => {
-                    const targetService = services.find((s) => s.id === 'srv-001') || services[0] || {
-                      id: 'srv-001',
-                      title: 'Remote PC Support',
-                      description: 'Get secure remote support from certified technicians.',
-                      price: 39,
-                      originalPrice: 499,
-                      category: 'Windows Fix',
-                      estimatedTime: '15 Mins',
-                      iconName: 'Search',
-                      popular: true,
-                      features: ['Direct Expert Support', 'PC & Software Solutions', 'Secure Remote Repair', 'WhatsApp Support']
-                    };
-                    handleStartBooking(targetService as RemoteService);
+                    navigate('/digital-products');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-mono font-extrabold text-xs sm:text-sm tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all hover:scale-105"
+                  className="w-full sm:w-auto px-7 py-3.5 sm:py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm tracking-wide shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer"
                 >
-                  <Headphones className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span>BOOK REMOTE REPAIR (₹39)</span>
+                  <Package className="w-4 h-4" />
+                  <span>EXPLORE DIGITAL PRODUCTS</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={scrollToTopSelling}
+                  className="w-full sm:w-auto px-6 py-3.5 sm:py-4 rounded-xl bg-slate-100 hover:bg-slate-200/90 text-slate-800 border border-slate-300/80 font-bold text-sm tracking-wide shadow-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                >
+                  <span>TOP SELLING PRODUCTS</span>
+                  <ArrowRight className="w-4 h-4 text-slate-600" />
                 </button>
               </div>
 
-              {/* Trust Indicators */}
-              <div className="pt-6 sm:pt-8 border-t border-emerald-800/60 flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-8 text-[11px] sm:text-sm font-mono text-emerald-100/80">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <div className="flex text-amber-300">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-amber-300 text-amber-300" />
-                    ))}
-                  </div>
-                  <span className="font-bold text-white">4.6 Rating</span>
+              {/* Hero Horizontal Trust Strip */}
+              <div className="pt-6 border-t border-slate-200/80 flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-6 text-xs sm:text-sm font-medium text-slate-600">
+                <div className="flex items-center gap-1.5 text-slate-700">
+                  <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+                  <span>Instant Digital Delivery</span>
                 </div>
 
-                <div className="h-4 w-[1px] bg-emerald-700/60 hidden sm:block" />
-
-                <div>
-                  <span className="font-bold text-white">1,000+</span> Happy Customers
+                <div className="flex items-center gap-1.5 text-slate-700">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+                  <span>Secure Checkout</span>
                 </div>
 
-                <div className="h-4 w-[1px] bg-emerald-700/60 hidden sm:block" />
+                <div className="flex items-center gap-1.5 text-slate-700">
+                  <Download className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+                  <span>Easy Downloads</span>
+                </div>
 
-                <div className="flex items-center gap-1.5 text-emerald-300">
-                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="font-bold">&lt;15 Mins</span> Response
+                <div className="flex items-center gap-1.5 text-slate-700">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+                  <span>Trusted Digital Products</span>
                 </div>
               </div>
 
             </div>
 
-            {/* RIGHT SIDE - ANIMATED REMOTE PC SUPPORT SERVICE CARD */}
-            <div className="lg:col-span-6 relative mt-4 lg:mt-0">
-              <div className="relative mx-auto max-w-xl lg:max-w-none">
-                {/* Glowing Pulsing Aura */}
-                <div className="absolute -inset-2 sm:-inset-3 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500 rounded-[32px] sm:rounded-[44px] blur-xl sm:blur-2xl opacity-35 animate-pulse-glow pointer-events-none" />
-
-                {/* Floating Card Wrapper */}
-                <div className="relative bg-white p-5 sm:p-8 rounded-2xl sm:rounded-[32px] border-2 border-emerald-500/50 shadow-2xl space-y-4 sm:space-y-6 text-slate-900 transition-all duration-500 hover:border-emerald-500 hover:shadow-emerald-500/20 hover:scale-[1.01] animate-float">
-
-                  {/* Header Badges with Live Ping */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] sm:text-xs font-mono font-bold shadow-xs">
-                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
-                      <span>Windows Fix</span>
-                    </div>
-                    <span className="text-[10px] sm:text-xs text-emerald-700 font-mono font-bold flex items-center gap-1 sm:gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 shadow-xs">
-                      <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                      15 Mins Response
-                    </span>
-                  </div>
-
-                  {/* Title & Description */}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl sm:text-3xl font-extrabold text-slate-900 leading-snug">Remote PC Support</h3>
-                      <span className="px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-black bg-amber-400 text-slate-950 uppercase tracking-wider animate-bounce">
-                        POPULAR
-                      </span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-slate-600 mt-2 sm:mt-2.5 leading-relaxed">
-                      Get secure remote support from certified technicians. We connect to your PC using AnyDesk and stay in touch through WhatsApp to diagnose, troubleshoot, and resolve your Windows or software issues quickly and safely.
-                    </p>
-                  </div>
-
-                  {/* Feature List */}
-                  <div className="space-y-3 pt-3 border-t border-slate-100">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 font-mono block">
-                      Included Service Features:
-                    </span>
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 text-xs text-slate-800 font-medium">
-                      {['Direct Expert Support', 'PC & Software Solutions', 'Secure Remote Repair', 'WhatsApp Support'].map((feat, idx) => (
-                        <li key={idx} className="flex items-center gap-2 group">
-                          <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          </div>
-                          <span>{feat}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {/* Refund Guarantee Badge */}
-                    <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-300 text-xs text-emerald-950 shadow-xs space-y-1 mt-4 transition-all hover:bg-emerald-100/60">
-                      <div className="flex items-center gap-2 text-emerald-800 font-bold font-mono">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span className="uppercase text-[10px] sm:text-[11px] tracking-wider">100% Refund Guarantee</span>
+            {/* RIGHT COLUMN: MODERN COMMERCIAL PRODUCT SHOWCASE (5 cols on lg) */}
+            <div className="lg:col-span-5 relative mt-4 lg:mt-0">
+              
+              <div className="relative mx-auto max-w-md lg:max-w-none space-y-4">
+                
+                {/* 1. MAIN FEATURED PRODUCT SHOWCASE CARD */}
+                {featuredProduct && (
+                  <div 
+                    onClick={() => onSelectProduct(featuredProduct)}
+                    className="featured-product-float relative bg-white rounded-2xl p-5 border border-slate-200/90 hover:border-emerald-500/50 cursor-pointer group"
+                  >
+                    {/* Top Header Strip */}
+                    <div className="flex items-center justify-between mb-3.5">
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold tracking-wide uppercase shadow-xs">
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        <span>{featuredProduct.isBestSeller ? 'TOP SELLING' : 'FEATURED PRODUCT'}</span>
                       </div>
-                      <p className="text-[10px] sm:text-[11px] text-emerald-900 leading-relaxed font-sans">
-                        If we're unable to resolve your issue, your payment will be automatically refunded within 2–3 business days.
+                      
+                      {featuredProduct.rating ? (
+                        <div className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200/80">
+                          <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                          <span>{featuredProduct.rating}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-lg">
+                          Instant Access
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Main Product Image */}
+                    <div className="relative aspect-[16/10] w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200/80">
+                      <img 
+                        src={featuredProduct.image || featuredProduct.previewImage || '/logo.png'} 
+                        alt={featuredProduct.name}
+                        loading="eager"
+                        decoding="async"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = '/logo.png';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent opacity-40" />
+                      
+                      <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between text-[11px] font-medium text-white">
+                        <span className="bg-slate-900/80 backdrop-blur-sm px-2.5 py-0.5 rounded-md border border-white/10">
+                          {featuredProduct.category || 'Digital Resource'}
+                        </span>
+                        <span className="bg-emerald-600 px-2.5 py-0.5 rounded-md font-bold shadow-xs">
+                          Ready to Download
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Product Details & Pricing */}
+                    <div className="mt-4 space-y-1.5">
+                      <h3 className="text-lg font-bold text-slate-900 group-hover:text-emerald-600 transition-colors line-clamp-1">
+                        {featuredProduct.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                        {featuredProduct.shortDescription || 'High-quality digital product delivered immediately with complete lifetime access.'}
                       </p>
                     </div>
-                  </div>
 
-                  {/* Pricing CTA Box - Direct Order Trigger */}
-                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 text-white space-y-3 sm:space-y-4 shadow-xl relative overflow-hidden group">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-[9px] sm:text-[10px] text-slate-400 block font-mono uppercase tracking-wider">Special Inspection Fee</span>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">₹39</span>
-                          <span className="text-xs text-slate-500 line-through font-mono">₹499</span>
-                        </div>
+                    <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-extrabold text-slate-900">₹{featuredProduct.price}</span>
+                        {featuredProduct.originalPrice > featuredProduct.price && (
+                          <span className="text-xs text-slate-400 line-through">₹{featuredProduct.originalPrice}</span>
+                        )}
+                        {featuredProduct.originalPrice > featuredProduct.price && (
+                          <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            {Math.round(((featuredProduct.originalPrice - featuredProduct.price) / featuredProduct.originalPrice) * 100)}% OFF
+                          </span>
+                        )}
                       </div>
 
-                      <span className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-emerald-500 text-slate-950 text-[10px] sm:text-xs font-mono font-black shadow-md animate-pulse">
-                        SAVE 92% TODAY
-                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectProduct(featuredProduct);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                      >
+                        <span>View Product</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const targetService = services.find((s) => s.id === 'srv-001') || services[0] || {
-                          id: 'srv-001',
-                          title: 'Remote PC Support',
-                          description: 'Get secure remote support from certified technicians.',
-                          price: 39,
-                          originalPrice: 499,
-                          category: 'Windows Fix',
-                          estimatedTime: '15 Mins',
-                          iconName: 'Search',
-                          popular: true,
-                          features: ['Direct Expert Support', 'PC & Software Solutions', 'Secure Remote Repair', 'WhatsApp Support']
-                        };
-                        handleStartBooking(targetService as RemoteService);
-                      }}
-                      className="w-full py-3.5 sm:py-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm font-mono tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
-                    >
-                      <Lock className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-                      <span>PAY ₹39 & GET INSTANT REPAIR</span>
-                    </button>
                   </div>
+                )}
+
+                {/* 2. SUPPORTING SECONDARY PRODUCTS ROW */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  
+                  {supportingProduct1 && (
+                    <div
+                      onClick={() => onSelectProduct(supportingProduct1)}
+                      style={{ transitionDelay: '140ms' }}
+                      className="scroll-reveal p-3 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-emerald-500/50 transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                          <img
+                            src={supportingProduct1.image || supportingProduct1.previewImage || '/logo.png'}
+                            alt={supportingProduct1.name}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = '/logo.png';
+                            }}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold text-emerald-700 uppercase block truncate">
+                            {supportingProduct1.isBestSeller ? 'TOP SELLER' : (supportingProduct1.category || 'POPULAR')}
+                          </span>
+                          <p className="text-xs font-bold text-slate-900 truncate group-hover:text-emerald-600 transition-colors">
+                            {supportingProduct1.name}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold">
+                        <span className="text-slate-900">₹{supportingProduct1.price}</span>
+                        <span className="text-emerald-600 text-[11px] flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                          <span>View</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {supportingProduct2 && (
+                    <div
+                      onClick={() => onSelectProduct(supportingProduct2)}
+                      style={{ transitionDelay: '280ms' }}
+                      className="scroll-reveal p-3 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-emerald-500/50 transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                          <img
+                            src={supportingProduct2.image || supportingProduct2.previewImage || '/logo.png'}
+                            alt={supportingProduct2.name}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = '/logo.png';
+                            }}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold text-amber-700 uppercase block truncate">
+                            {supportingProduct2.isNew ? 'NEW RELEASE' : (supportingProduct2.category || 'FEATURED')}
+                          </span>
+                          <p className="text-xs font-bold text-slate-900 truncate group-hover:text-emerald-600 transition-colors">
+                            {supportingProduct2.name}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold">
+                        <span className="text-slate-900">₹{supportingProduct2.price}</span>
+                        <span className="text-emerald-600 text-[11px] flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                          <span>View</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                 </div>
+
               </div>
             </div>
 
@@ -756,141 +894,187 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
 
-      {/* 3. FEATURED PRODUCTS SECTION */}
-      <section className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 space-y-6 sm:space-y-8 my-8 sm:my-12">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200/80 pb-4">
+      {/* 2. CATEGORY NAVIGATION STRIP */}
+      {availableCategories.length > 1 && (
+        <section className="border-b border-slate-200/80 bg-white py-3.5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto scrollbar-none py-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0 flex items-center gap-1.5 pr-2.5 border-r border-slate-200">
+                <Layers className="w-4 h-4 text-emerald-600" />
+                <span>CATEGORIES:</span>
+              </span>
+
+              {availableCategories.map((cat) => {
+                const isSelected = selectedCategoryFilter === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategoryFilter(cat.id);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80'
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+
+      {/* 3. TOP SELLING PRODUCTS SECTION */}
+      <section id="top-selling-products" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 space-y-6">
+        
+        {/* Section Header */}
+        <div className="scroll-reveal flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-slate-200/80 pb-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-mono font-bold mb-2">
-              <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
-              <span>OFFICIAL CATALOG</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-50 text-emerald-800 text-xs font-bold mb-2 border border-emerald-200">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+              <span>POPULAR SELECTIONS</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Featured Products
+              Top Selling Products
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Explore our popular digital products, software and PC solutions.
+            <p className="text-sm text-slate-500 mt-1">
+              Popular digital products customers are downloading right now.
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => {
-              setCurrentView('store');
+              navigate('/digital-products');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className="text-xs sm:text-sm font-mono font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 self-start sm:self-auto group transition-colors"
+            className="text-sm font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5 self-start sm:self-auto group transition-colors cursor-pointer"
           >
-            <span>View All Products</span>
+            <span>Explore All Digital Products</span>
             <ArrowRight className="w-4 h-4 text-emerald-600 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
 
-        {displayFeaturedProducts.length === 0 ? (
-          <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 font-mono text-xs">
-            No products available at the moment.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {displayFeaturedProducts.map((product) => {
-              const categoryLabel = product.productType === 'DIGITAL'
-                ? 'DIGITAL PRODUCT'
-                : (product.productType === 'STORE' ? 'STORE' : (product.category ? product.category.toUpperCase() : 'STORE'));
-              const isWishlisted = wishlist.includes(product.id);
-              const showPopular = Boolean(product.isFeatured || product.isBestSeller);
-              const hasDiscount = product.discountPercent > 0 || (product.originalPrice && product.originalPrice > product.price);
-              const calcDiscount = product.discountPercent || (product.originalPrice ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) : 0);
+        {/* Product Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
+          {topSellingProducts.map((product, idx) => {
+            const isWishlisted = wishlist.includes(product.id);
+            const hasDiscount = product.discountPercent > 0 || (product.originalPrice && product.originalPrice > product.price);
+            const calcDiscount = product.discountPercent || (product.originalPrice ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) : 0);
 
-              return (
-                <div
-                  key={product.id}
-                  onClick={() => onSelectProduct(product)}
-                  className="group bg-white rounded-2xl overflow-hidden border border-slate-200/90 hover:border-emerald-500/60 transition-all duration-300 hover:-translate-y-1.5 shadow-xs hover:shadow-xl hover:shadow-emerald-500/10 flex flex-col justify-between cursor-pointer"
-                >
-                  <div>
-                    {/* Thumbnail & Badges */}
-                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.onerror = null;
-                          e.currentTarget.src = 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80';
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent opacity-40" />
+            return (
+              <div
+                key={product.id}
+                onClick={() => onSelectProduct(product)}
+                style={{ transitionDelay: `${(idx % 4) * 140}ms` }}
+                className="scroll-reveal group bg-white rounded-xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-md hover:border-emerald-500/60 transition-all duration-200 flex flex-col justify-between cursor-pointer"
+              >
+                <div>
+                  {/* Product Image */}
+                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
+                    <img
+                      src={product.image || product.previewImage || '/logo.png'}
+                      alt={product.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/logo.png';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent opacity-30" />
 
-                      {/* Top Category & Popular Badges */}
-                      <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5 z-10">
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
-                          {categoryLabel}
+                    {/* Top Badges */}
+                    <div className="absolute top-2.5 left-2.5 flex flex-wrap items-center gap-1.5 z-10">
+                      {product.isBestSeller && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-emerald-600 text-white shadow-xs">
+                          TOP SELLER
                         </span>
-                        {showPopular && (
-                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase tracking-wider bg-amber-400 text-slate-950 shadow-xs">
-                            POPULAR
-                          </span>
+                      )}
+                      {hasDiscount && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-400 text-slate-950 shadow-xs">
+                          {calcDiscount}% OFF
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Wishlist Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleWishlist(product.id);
+                      }}
+                      className={`absolute top-2.5 right-2.5 p-1.5 rounded-lg backdrop-blur-md border transition-all z-10 ${
+                        isWishlisted
+                          ? 'bg-rose-500 text-white border-rose-400'
+                          : 'bg-white/80 text-slate-700 border-slate-200 hover:text-slate-950 hover:bg-white'
+                      }`}
+                      title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
+                    >
+                      <Heart className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-current' : ''}`} />
+                    </button>
+
+                    {/* Instant Download Tag */}
+                    <div className="absolute bottom-2 left-2.5 text-[10px] font-medium text-white bg-slate-900/80 backdrop-blur-sm px-2 py-0.5 rounded">
+                      Instant Delivery
+                    </div>
+                  </div>
+
+                  {/* Metadata */}
+                  <div className="p-4 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 truncate max-w-[140px]">
+                        {product.category || 'Digital Product'}
+                      </span>
+                      {product.rating ? (
+                        <div className="flex items-center gap-1 text-amber-500 text-xs font-semibold">
+                          <Star className="w-3.5 h-3.5 fill-current" />
+                          <span>{product.rating}</span>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 transition-colors line-clamp-1 leading-snug">
+                      {product.name}
+                    </h3>
+
+                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                      {product.shortDescription || 'Useful digital product delivered immediately with complete lifetime access.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pricing & CTA */}
+                <div className="p-4 pt-0 mt-auto">
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div className="flex flex-col">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-lg font-extrabold text-slate-900">₹{product.price}</span>
+                        {product.originalPrice > product.price && (
+                          <span className="text-xs text-slate-400 line-through">₹{product.originalPrice}</span>
                         )}
                       </div>
+                    </div>
 
-                      {/* Wishlist Heart Button */}
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onToggleWishlist(product.id);
+                          onAddToCart(product);
                         }}
-                        className={`absolute top-3 right-3 p-2 rounded-xl backdrop-blur-md border transition-all z-10 ${isWishlisted
-                            ? 'bg-rose-500 text-white border-rose-400'
-                            : 'bg-white/80 text-slate-700 border-slate-200 hover:text-slate-950 hover:bg-white'
-                          }`}
-                        title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
+                        className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                        title="Add to Cart"
                       >
-                        <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
+                        <ShoppingBag className="w-4 h-4" />
                       </button>
-                    </div>
-
-                    {/* Card Content Body */}
-                    <div className="p-5 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1 text-amber-500 text-xs font-semibold">
-                          <Star className="w-3.5 h-3.5 fill-current" />
-                          <span>{product.rating || 5.0}</span>
-                          <span className="text-slate-400">({product.reviewCount || 12})</span>
-                        </div>
-                        {product.licenseType && (
-                          <span className="text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 truncate max-w-[120px]">
-                            {product.licenseType}
-                          </span>
-                        )}
-                      </div>
-
-                      <h3 className="font-extrabold text-base text-slate-900 group-hover:text-emerald-600 transition-colors line-clamp-1">
-                        {product.name}
-                      </h3>
-
-                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                        {product.shortDescription}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Pricing & CTA */}
-                  <div className="p-5 pt-0 mt-auto">
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                      <div className="flex flex-col">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-lg font-black font-mono text-slate-900">₹{product.price}</span>
-                          {product.originalPrice > product.price && (
-                            <span className="text-xs text-slate-400 line-through font-mono">₹{product.originalPrice}</span>
-                          )}
-                        </div>
-                        {hasDiscount && calcDiscount > 0 && (
-                          <span className="text-[10px] font-bold font-mono text-emerald-600">
-                            SAVE {calcDiscount}%
-                          </span>
-                        )}
-                      </div>
 
                       <button
                         type="button"
@@ -898,7 +1082,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           e.stopPropagation();
                           onSelectProduct(product);
                         }}
-                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 group-hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap"
+                        className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs transition-all active:scale-95 whitespace-nowrap cursor-pointer"
                       >
                         <span>View Product</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -906,108 +1090,249 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            );
+          })}
+        </div>
       </section>
 
-      {/* 4. RECENT KNOWLEDGE BASE GUIDES */}
-      <section className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 space-y-8">
-        <div className="flex items-center justify-between">
+
+      {/* 4. FRESH DIGITAL FINDS (NEW RELEASES) */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 sm:pt-18 space-y-6">
+        
+        <div className="scroll-reveal flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-slate-200/80 pb-4">
           <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-amber-50 text-amber-900 text-xs font-bold mb-2 border border-amber-200">
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span>NEW ADDITIONS</span>
+            </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Latest Technical Guides & Solutions
+              Fresh Digital Finds
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">Expert repair guides written by certified engineers</p>
+            <p className="text-sm text-slate-500 mt-1">
+              New resources, tools and downloads worth checking out.
+            </p>
           </div>
 
           <button
+            type="button"
             onClick={() => {
-              setCurrentView('blog');
+              navigate('/digital-products');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className="text-xs sm:text-sm font-mono font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5"
+            className="text-sm font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5 self-start sm:self-auto group transition-colors cursor-pointer"
           >
-            <span>Explore Knowledge Base ({blogs.length})</span>
-            <ArrowRight className="w-4 h-4" />
+            <span>View All New Finds</span>
+            <ArrowRight className="w-4 h-4 text-emerald-600 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {blogs.slice(0, 2).map((b) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {freshProducts.map((product, idx) => (
             <div
-              key={b.id}
-              onClick={() => {
-                setCurrentView('blog');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="p-6 rounded-3xl bg-white border border-slate-200 shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between space-y-4 group"
+              key={product.id}
+              onClick={() => onSelectProduct(product)}
+              style={{ transitionDelay: `${idx * 140}ms` }}
+              className="scroll-reveal group bg-white rounded-xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-md hover:border-emerald-500/60 transition-all duration-200 flex flex-col justify-between cursor-pointer"
             >
-              <div className="space-y-3">
-                <div className="relative h-48 rounded-2xl overflow-hidden bg-slate-100">
-                  <img src={b.image} alt={b.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <span className="absolute top-3 left-3 px-3 py-1 rounded-xl bg-slate-900/80 backdrop-blur-md text-white text-xs font-mono font-bold">
-                    {b.category}
-                  </span>
+              <div>
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
+                  <img
+                    src={product.image || product.previewImage || '/logo.png'}
+                    alt={product.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = '/logo.png';
+                    }}
+                  />
+                  <div className="absolute top-2.5 left-2.5">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-white uppercase shadow-xs">
+                      NEW
+                    </span>
+                  </div>
                 </div>
 
-                <div>
-                  <span className="text-xs text-slate-400 font-mono block mb-1">{b.publishedAt} • By {b.author}</span>
-                  <h3 className="font-extrabold text-xl text-slate-900 group-hover:text-emerald-700 transition-colors leading-snug">{b.title}</h3>
-                  <p className="text-xs text-slate-600 mt-2 line-clamp-2 leading-relaxed">{b.excerpt}</p>
+                <div className="p-4 space-y-1.5">
+                  <span className="text-[11px] font-semibold text-emerald-700">
+                    {product.category || 'Digital Product'}
+                  </span>
+                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition-colors line-clamp-1">
+                    {product.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                    {product.shortDescription || 'Ready-to-use digital resource with instant delivery.'}
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs font-mono">
-                <span className="text-emerald-700 font-bold">{b.readTime} read</span>
-                <span className="text-slate-900 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                  <span>Read Article</span>
-                  <ArrowRight className="w-4 h-4 text-emerald-600" />
-                </span>
+              <div className="p-4 pt-0 mt-auto">
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-base font-extrabold text-slate-900">₹{product.price}</span>
+                  <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                    <span>View</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* SELF-CONTAINED BOOKING & PAYMENT MODAL DIRECTLY ON HOME PAGE */}
+
+      {/* 5. VALUE & TRUST SECTION — WHY BUY FROM OMOVO */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 sm:pt-18">
+        <div className="bg-white rounded-2xl p-8 sm:p-12 border border-slate-200 shadow-xs space-y-8">
+          
+          <div className="scroll-reveal text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">
+              TRUSTED DIGITAL MARKETPLACE
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Why Buy From Omovo Store
+            </h2>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              We provide dependable digital products, tools and guides built to help you get things done faster.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {/* Benefit 1: Instant Access */}
+            <div style={{ transitionDelay: '0ms' }} className="scroll-reveal p-5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5 group hover:border-emerald-500 transition-colors">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <Download className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Instant Access
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Get your digital product immediately after purchase with direct high-speed download access.
+              </p>
+            </div>
+
+            {/* Benefit 2: Secure Checkout */}
+            <div style={{ transitionDelay: '130ms' }} className="scroll-reveal p-5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5 group hover:border-emerald-500 transition-colors">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Secure Checkout
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Protected and reliable payment processing powered by verified security encryption.
+              </p>
+            </div>
+
+            {/* Benefit 3: Easy Downloads */}
+            <div style={{ transitionDelay: '260ms' }} className="scroll-reveal p-5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5 group hover:border-emerald-500 transition-colors">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Easy Downloads
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Access your purchased files and download links whenever you need them from your account.
+              </p>
+            </div>
+
+            {/* Benefit 4: Practical Products */}
+            <div style={{ transitionDelay: '390ms' }} className="scroll-reveal p-5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5 group hover:border-emerald-500 transition-colors">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Practical Products
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Useful digital resources and guides designed specifically for real-world application.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+
+      {/* 6. FINAL CTA SECTION */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 sm:pt-18">
+        <div className="scroll-reveal rounded-2xl bg-white border border-slate-200 p-8 sm:p-12 text-center shadow-xs space-y-5 max-w-3xl mx-auto">
+          <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-xs">
+            <Package className="w-6 h-6" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Find Your Next Digital Product.
+            </h2>
+            <p className="text-sm sm:text-base text-slate-600 max-w-lg mx-auto leading-relaxed">
+              Explore useful resources, tools and downloads made to help you create, learn and get things done.
+            </p>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                navigate('/digital-products');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm tracking-wide shadow-md shadow-emerald-600/20 inline-flex items-center justify-center gap-2 transition-all hover:scale-105 cursor-pointer"
+            >
+              <Package className="w-4 h-4" />
+              <span>EXPLORE DIGITAL PRODUCTS</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="pt-3 text-xs text-slate-400">
+            <span>Instant delivery • Lifetime access • Secure Checkout</span>
+          </div>
+        </div>
+      </section>
+
+
+      {/* 8. REMOTE SUPPORT BOOKING MODAL (PRESERVED FOR COMPATIBILITY) */}
       {activeBookingService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-md overflow-y-auto">
-          <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-8 text-slate-900">
+          <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden my-8 text-slate-900">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 bg-emerald-950 text-white border-b border-emerald-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
-                  <Zap className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
+                  <Zap className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-white font-mono">
-                    {confirmedBooking ? 'BOOKING VERIFIED' : 'PC INSPECTION BOOKING'}
+                  <h3 className="font-bold text-sm text-white">
+                    {confirmedBooking ? 'BOOKING VERIFIED' : 'REMOTE SUPPORT BOOKING'}
                   </h3>
-                  <p className="text-[11px] text-emerald-300 font-mono">{activeBookingService.title} (₹{activeBookingService.price})</p>
+                  <p className="text-[11px] text-emerald-300">{activeBookingService.title} (₹{activeBookingService.price})</p>
                 </div>
               </div>
-              <button onClick={handleCloseModal} className="p-2 rounded-xl bg-emerald-900 text-emerald-300 hover:text-white">
+              <button onClick={handleCloseModal} className="p-2 rounded-lg bg-emerald-900 text-emerald-300 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* View 1: Confirmed & Post-Purchase WhatsApp Button */}
             {confirmedBooking ? (
-              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-                <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
-                  <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                    <CheckCircle2 className="w-8 h-8" />
+              <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+                <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-2.5">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                    <CheckCircle2 className="w-7 h-7" />
                   </div>
-                  <h3 className="text-xl font-extrabold text-slate-900">Payment Successful & Booking Confirmed!</h3>
+                  <h3 className="text-lg font-extrabold text-slate-900">Payment Successful & Booking Confirmed!</h3>
                   <p className="text-xs text-slate-600">
                     Booking ID: <strong className="font-mono text-emerald-700">{confirmedBooking.bookingNumber}</strong>
                   </p>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
-                  <span className="text-xs text-emerald-800 font-mono font-bold block uppercase tracking-wider">
+                <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
+                  <span className="text-xs text-emerald-800 font-bold block uppercase tracking-wider">
                     ✅ TECHNICIAN ONLINE & ASSIGNED
                   </span>
                   <p className="text-xs text-slate-600">
@@ -1019,49 +1344,45 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-sm font-extrabold inline-flex items-center justify-center gap-2.5 shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
+                    className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold inline-flex items-center justify-center gap-2.5 shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
                   >
-                    <MessageSquare className="w-5 h-5" />
+                    <MessageSquare className="w-4 h-4" />
                     <span>CONNECT WITH TECHNICIAN ON WHATSAPP NOW</span>
-                    <ExternalLink className="w-4 h-4 opacity-80" />
+                    <ExternalLink className="w-3.5 h-3.5 opacity-80" />
                   </a>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-mono font-bold"
+                  className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
                 >
                   CLOSE WINDOW
                 </button>
               </div>
             ) : showTestGateway ? (
               /* View 2: Razorpay Test Gateway */
-              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-                <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
+              <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-1 rounded-md bg-emerald-600 text-white font-mono text-[10px] font-bold uppercase">
+                    <span className="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold uppercase">
                       RAZORPAY TEST GATEWAY
                     </span>
-                    <span className="text-xl font-mono font-extrabold text-slate-900">₹{activeBookingService.price}</span>
+                    <span className="text-lg font-bold text-slate-900">₹{activeBookingService.price}</span>
                   </div>
                   <p className="text-xs text-slate-600">
                     Simulating secure payment gateway transaction. Click below to verify payment and connect with your technician.
                   </p>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 font-mono text-xs">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>Customer</span>
                     <span className="text-slate-900 font-bold">{customerName}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
-                    <span>Remote Tool</span>
-                    <span className="text-emerald-700 font-bold">AnyDesk (WhatsApp Connected)</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
                     <span>Service</span>
-                    <span className="text-slate-900">{activeBookingService.title}</span>
+                    <span className="text-slate-900 font-bold">{activeBookingService.title}</span>
                   </div>
                 </div>
 
@@ -1069,7 +1390,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   type="button"
                   onClick={handleConfirmTestPayment}
                   disabled={isSubmitting}
-                  className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm font-mono tracking-wider shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2"
+                  className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm tracking-wide shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
@@ -1088,7 +1409,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               /* View 3: Customer Form */
               <form onSubmit={handleProceedToPayment} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto text-xs">
                 {errorMessage && (
-                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-mono flex items-center gap-2 animate-fadeIn">
+                  <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 animate-fadeIn">
                     <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
                     <span>{errorMessage}</span>
                   </div>
@@ -1096,7 +1417,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                 <div className="space-y-3">
                   <div>
-                    <label className="text-slate-700 font-bold block mb-1 font-mono text-xs">
+                    <label className="text-slate-700 font-bold block mb-1 text-xs">
                       YOUR FULL NAME <span className="text-emerald-600">*</span>
                     </label>
                     <input
@@ -1105,12 +1426,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       placeholder="e.g. Rahul Sharma"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20 transition-all font-sans text-xs"
+                      className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all text-xs"
                     />
                   </div>
 
                   <div>
-                    <label className="text-slate-700 font-bold block mb-1 font-mono text-xs">
+                    <label className="text-slate-700 font-bold block mb-1 text-xs">
                       EMAIL ADDRESS <span className="text-emerald-600">*</span>
                     </label>
                     <input
@@ -1119,11 +1440,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       placeholder="e.g. rahul@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20 transition-all font-sans text-xs"
+                      className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all text-xs"
                     />
                   </div>
 
-                  {/* International WhatsApp Phone Input with Searchable Country Picker */}
+                  {/* International WhatsApp Phone Input */}
                   <InternationalPhoneInput
                     value={phone}
                     onChange={(val, valRes) => {
@@ -1136,32 +1457,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     variant="light"
                   />
 
-                  {/* AnyDesk Official Download Card */}
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-0.5 font-sans">
-                      <div className="flex items-center gap-1.5 text-slate-900 font-mono font-bold text-xs">
-                        <Monitor className="w-4 h-4 text-emerald-600" />
-                        <span>AnyDesk Remote Software</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600">
-                        Download free AnyDesk so our expert can inspect your PC live.
-                      </p>
-                    </div>
-                    <a
-                      href="https://anydesk.com/en/downloads"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap transition-all"
-                    >
-                      <DownloadCloud className="w-4 h-4" />
-                      <span>Download AnyDesk</span>
-                      <ExternalLink className="w-3 h-3 opacity-80" />
-                    </a>
-                  </div>
-
                   {/* Promo Coupon Code Box */}
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                    <label className="text-slate-700 font-bold flex items-center justify-between text-xs font-mono">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <label className="text-slate-700 font-bold flex items-center justify-between text-xs">
                       <span className="flex items-center gap-1.5">
                         <Tag className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Have a Discount Coupon?</span>
@@ -1175,19 +1473,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         placeholder="ENTER COUPON CODE"
                         value={couponInput}
                         onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                        className="flex-1 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 uppercase focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                        className="flex-1 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-900 uppercase focus:outline-none focus:border-emerald-600"
                       />
                       <button
                         type="button"
                         onClick={handleApplyBookingCoupon}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold transition-all cursor-pointer"
+                        className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer"
                       >
                         APPLY
                       </button>
                     </div>
 
                     {couponMessage && (
-                      <p className={`text-[11px] font-mono font-bold ${appliedDiscount > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                      <p className={`text-[11px] font-bold ${appliedDiscount > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                         {couponMessage}
                       </p>
                     )}
@@ -1196,7 +1494,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                 {/* Payment Method Selector & CTA Buttons */}
                 {finalPrice > 0 ? (
-                  <div className="pt-2 space-y-3.5">
+                  <div className="pt-2 space-y-3">
                     <PaymentMethodCards
                       paymentMethod={paymentMethod}
                       onSelectMethod={(m) => {
@@ -1215,45 +1513,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       variant="light"
                     />
 
-                    {/* PayPal Conversion Breakdown */}
-                    {paymentMethod === 'paypal' && (
-                      <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs font-mono space-y-1.5 animate-fadeIn text-slate-800">
-                        <div className="flex justify-between items-center text-[11px]">
-                          <span className="text-slate-600">Service Fee:</span>
-                          <span className="text-slate-900 font-bold">₹{finalPrice} INR</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[11px]">
-                          <span className="text-slate-600">Rate:</span>
-                          <span className="text-slate-700">₹95 = $1.00 USD</span>
-                        </div>
-                        <div className="pt-1.5 border-t border-blue-200 flex justify-between items-center font-bold">
-                          <span className="text-blue-900">PayPal Total:</span>
-                          <span className="text-sm text-blue-700 font-black">${previewUsdDisplay} USD</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* PayPal Button Container */}
-                    {paymentMethod === 'paypal' && (
-                      <div className="p-3.5 rounded-2xl bg-slate-50 border border-blue-200 shadow-sm space-y-2 animate-fadeIn">
-                        <div className="text-center mb-1">
-                          <span className="text-[11px] text-blue-800 font-mono font-bold">
-                            {paypalLoading ? 'Loading PayPal Gateway...' : `Complete Payment • $${previewUsdDisplay} USD`}
-                          </span>
-                        </div>
-                        <div id="paypal-home-booking-button-container" className="min-h-[44px] w-full" />
-                      </div>
-                    )}
-
                     {/* Razorpay Submit CTA Button */}
-                    {paymentMethod === 'razorpay' && (
+                    {(!PAYPAL_CHECKOUT_ENABLED || paymentMethod === 'razorpay') && (
                       <button
                         type="submit"
                         disabled={isSubmitting || !isOnline || (phoneTouched && !phoneValidation.isValid)}
-                        className={`w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer ${!isOnline || (phoneTouched && !phoneValidation.isValid)
+                        className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                          !isOnline || (phoneTouched && !phoneValidation.isValid)
                             ? 'bg-slate-300 text-slate-500 border border-slate-300 cursor-not-allowed shadow-none'
                             : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                          }`}
+                        }`}
                       >
                         {!isOnline ? (
                           <>
@@ -1268,7 +1537,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         ) : (
                           <>
                             <Lock className="w-4 h-4" />
-                            <span>PAY ₹{finalPrice} & GET INSTANT REPAIR</span>
+                            <span>CONFIRM & PAY ₹{finalPrice}</span>
                           </>
                         )}
                       </button>
@@ -1280,10 +1549,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <button
                       type="submit"
                       disabled={isSubmitting || !isOnline}
-                      className="w-full py-4 rounded-2xl font-extrabold text-sm font-mono tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      className="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
                     >
                       <Lock className="w-4 h-4" />
-                      <span>CONFIRM FREE INSPECTION (₹0)</span>
+                      <span>CONFIRM FREE BOOKING (₹0)</span>
                     </button>
                   </div>
                 )}
@@ -1292,6 +1561,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
       )}
+
     </div>
   );
 };

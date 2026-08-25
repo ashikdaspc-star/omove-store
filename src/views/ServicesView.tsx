@@ -507,33 +507,32 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
   };
 
   return (
-    <div className="space-y-12 pb-16">
+    <div className="space-y-10 pb-16 font-sans">
       {/* Top Banner */}
-      <section className="relative overflow-hidden rounded-3xl bg-slate-900 text-white p-8 md:p-12 border border-slate-800">
-        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent"></div>
+      <section className="scroll-reveal relative overflow-hidden rounded-2xl bg-white text-slate-900 p-6 md:p-10 border border-slate-200/90 shadow-xs">
         <div className="relative z-10 max-w-3xl space-y-4">
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-            <Zap className="w-3.5 h-3.5" />
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <Zap className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
             <span>CERTIFIED REMOTE REPAIR SERVICE</span>
           </span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
             Fix Any PC Problem Live On Screen
           </h1>
-          <p className="text-sm md:text-base text-slate-300">
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
             Watch our certified Microsoft & hardware engineers diagnose and resolve your crashes, software corruptions, and optimization requests via secure AnyDesk connection.
           </p>
 
-          <div className="pt-2 flex flex-wrap gap-4 text-xs font-mono text-slate-300">
+          <div className="pt-2 flex flex-wrap gap-4 text-xs text-slate-600 font-medium">
             <span className="flex items-center gap-1.5">
-              <Check className="w-4 h-4 text-emerald-400" />
+              <Check className="w-4 h-4 text-emerald-600" />
               100% Satisfaction Guarantee
             </span>
             <span className="flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-emerald-400" />
+              <Clock className="w-4 h-4 text-emerald-600" />
               Fast Turnaround (~20-40 mins)
             </span>
             <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
               Verified Encrypted Session
             </span>
           </div>
@@ -542,7 +541,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
 
       {/* Services Grid */}
       <section className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="scroll-reveal flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-extrabold text-slate-900">Available Support Packages</h2>
             <p className="text-xs text-slate-500 mt-0.5">Select a diagnostics package to initiate a remote connection.</p>
@@ -558,10 +557,11 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {services.map((srv) => (
+          {services.map((srv, idx) => (
             <div
               key={srv.id}
-              className={`rounded-3xl p-6 flex flex-col justify-between transition-all border-2 ${srv.popular
+              style={{ '--reveal-delay': `${(idx % 3) * 140}ms` } as React.CSSProperties}
+              className={`scroll-reveal rounded-3xl p-6 flex flex-col justify-between transition-all border-2 ${srv.popular
                   ? 'bg-white border-emerald-500 shadow-xl shadow-emerald-500/10'
                   : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
                 }`}
@@ -612,7 +612,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
       </section>
 
       {/* Support Instructions */}
-      <section className="p-6 md:p-8 rounded-3xl bg-slate-50 border border-slate-200 space-y-4 text-xs text-slate-700">
+      <section className="scroll-reveal p-6 md:p-8 rounded-3xl bg-slate-50 border border-slate-200 space-y-4 text-xs text-slate-700">
         <h3 className="font-bold text-sm text-slate-900 font-mono flex items-center gap-2">
           <Headphones className="w-4 h-4 text-emerald-600" />
           <span>How It Works</span>

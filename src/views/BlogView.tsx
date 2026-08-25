@@ -17,9 +17,9 @@ export const BlogView: React.FC<BlogViewProps> = ({ blogs }) => {
   );
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-8 font-sans">
       {/* Blog Header */}
-      <div className="p-8 sm:p-12 rounded-3xl bg-white border border-slate-200/90 shadow-sm text-center space-y-4">
+      <div className="scroll-reveal p-8 sm:p-12 rounded-3xl bg-white border border-slate-200/90 shadow-sm text-center space-y-4">
         <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-700">
           PC Expert & Repair Insights
         </span>
@@ -45,11 +45,12 @@ export const BlogView: React.FC<BlogViewProps> = ({ blogs }) => {
 
       {/* Blog Grid */}
       <div className="grid md:grid-cols-2 gap-8">
-        {filteredBlogs.map((post) => (
+        {filteredBlogs.map((post, idx) => (
           <div
             key={post.id}
             onClick={() => setSelectedPost(post)}
-            className="p-6 rounded-3xl bg-white border border-slate-200/90 hover:border-emerald-500/40 cursor-pointer transition-all space-y-4 hover:shadow-md"
+            style={{ '--reveal-delay': `${(idx % 2) * 140}ms` } as React.CSSProperties}
+            className="scroll-reveal p-6 rounded-3xl bg-white border border-slate-200/90 hover:border-emerald-500/40 cursor-pointer transition-all space-y-4 hover:shadow-md"
           >
             <div className="aspect-video rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
               <img src={post.image} alt={post.title} className="w-full h-full object-cover" />

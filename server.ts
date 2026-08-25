@@ -268,7 +268,7 @@ const sampleOrder: Order = {
   id: 'ord-1001',
   orderNumber: 'OMV-ORD-2026-9812',
   customerName: 'Ashik Das',
-  customerEmail: 'ashikdaspc@gmail.com',
+  customerEmail: 'omovetech@gmail.com',
   customerPhone: '+91 9876543210',
   items: [
     {
@@ -297,7 +297,7 @@ const sampleBooking: RemoteBooking = {
   id: 'bk-5001',
   bookingNumber: 'OMV-BOOK-4421',
   customerName: 'Ashik Das',
-  email: 'ashikdaspc@gmail.com',
+  email: 'omovetech@gmail.com',
   phone: '+91 9876543210',
   serviceId: 'srv-001',
   serviceTitle: 'Complete Windows OS Installation & Activation',

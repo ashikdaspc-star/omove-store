@@ -11,6 +11,8 @@
  * 6. Never deletes or removes window.paypal across React re-renders or route changes.
  */
 
+import { PAYPAL_CHECKOUT_ENABLED } from '../config/paymentConfig';
+
 let paypalConfigPromise: Promise<string> | null = null;
 let paypalSdkPromise: Promise<any> | null = null;
 
@@ -20,6 +22,10 @@ const DEFAULT_PAYPAL_CLIENT_ID = 'BAAq2PyxqOTR12C8YmU9N7Km0YSbwzwu4dOJHk4mmXV4Gi
  * Fetch and cache PayPal Client ID with zero-latency fast-path
  */
 export async function getPayPalClientId(): Promise<string> {
+  if (!PAYPAL_CHECKOUT_ENABLED) {
+    return '';
+  }
+
   const envId = (import.meta.env?.VITE_PAYPAL_CLIENT_ID as string) || (typeof window !== 'undefined' && (window as any).__PAYPAL_CLIENT_ID__);
   if (envId) return envId;
 
@@ -56,6 +62,10 @@ export async function getPayPalClientId(): Promise<string> {
  * Load PayPal JavaScript SDK with singleton Promise deduplication
  */
 export function loadPayPalSDK(): Promise<any> {
+  if (!PAYPAL_CHECKOUT_ENABLED) {
+    return Promise.resolve(null);
+  }
+
   // If window.paypal is already loaded and ready in memory, resolve immediately
   if (typeof (window as any).paypal !== 'undefined' && typeof (window as any).paypal.Buttons === 'function') {
     return Promise.resolve((window as any).paypal);

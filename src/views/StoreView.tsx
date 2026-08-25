@@ -89,26 +89,26 @@ export const StoreView: React.FC<StoreViewProps> = ({
   }, [storeProductsOnly]);
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-8 font-sans">
       {/* Store Header */}
-      <div className="p-8 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
+      <div className="scroll-reveal p-8 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-700">
               Digital Software & Products Store
             </span>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-              Browse Software Catalog
+              Genuine Software Licenses & Driver Packages
             </h1>
-          </div>
-          <div>
-            <span className="px-3.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-mono text-xs font-bold border border-emerald-200/80">
-              {filteredProducts.length} Items Found
-            </span>
+            <p className="text-xs text-slate-500 max-w-2xl mt-1">
+              High-performance system repair tools, certified offline ISO repositories, and developer utilities with instant delivery.
+            </p>
           </div>
         </div>
+      </div>
 
-        {/* Category Filter Pills Bar */}
+      {/* Control Bar: Categories & Search */}
+      <div className="scroll-reveal p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-2 scrollbar-none">
           <button
             onClick={() => setSelectedCategory('All')}
@@ -227,10 +227,11 @@ export const StoreView: React.FC<StoreViewProps> = ({
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProducts.map((product) => (
+          {filteredProducts.map((product, idx) => (
             <ProductCard
               key={product.id}
               product={product}
+              staggerIndex={idx}
               onSelect={onSelectProduct}
               onAddToCart={onAddToCart}
               onBuyNow={onBuyNow}

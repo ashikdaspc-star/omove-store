@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: Arial, Helvetica, sans-serif;
+}
+
 @layer base {
   :root {
     --bg-main: #f8fafc;
@@ -14,16 +19,74 @@
     --error: #ef4444;
   }
 
+  *, ::before, ::after {
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  html {
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
   body {
     background-color: #f8fafc;
     color: #0f172a;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Geist', 'Inter', sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
     overflow-x: hidden;
     scroll-behavior: smooth;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1 {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  h2 {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  h3 {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  h4 {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  h5, h6 {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 600;
+  }
+
+  p {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  span, a, label, li, td, th {
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  input, button, select, textarea, optgroup {
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  button {
+    font-weight: 600;
   }
 }
 
-/* Crisp Clean Light Glassmorphism / Card Styles */
+/* Crisp Clean Light Card Styles */
 .glass-panel {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
@@ -50,7 +113,7 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 }
 
-/* Glowing Mesh Effects */
+/* Glow Utilities */
 .glow-primary {
   box-shadow: 0 10px 40px -10px rgba(16, 185, 129, 0.2);
 }
@@ -62,12 +125,14 @@
 .gradient-text {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #059669 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .gradient-text-accent {
   background: linear-gradient(135deg, #059669 0%, #0d9488 50%, #0284c7 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -116,4 +181,81 @@
 .animate-pulse-glow {
   animation: pulseGlow 4s ease-in-out infinite;
 }
+
+/* ========================================================================= */
+/* Global Scroll Reveal Animations (Reversible & Premium Timing via IntersectionObserver) */
+/* ========================================================================= */
+.scroll-reveal,
+[data-scroll-reveal] {
+  opacity: 0;
+  transform: translateY(45px);
+  transition-property: opacity, transform;
+  transition-duration: 1000ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: 0ms;
+  will-change: opacity, transform;
+}
+
+@media (max-width: 640px) {
+  .scroll-reveal:not(.is-revealed),
+  [data-scroll-reveal]:not(.is-revealed) {
+    transform: translateY(25px);
+  }
+}
+
+.scroll-reveal.is-revealed,
+[data-scroll-reveal].is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+  transition-duration: 1100ms;
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal,
+  [data-scroll-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* ========================================================================= */
+/* Subtle Premium Floating Animation for Featured Product Card               */
+/* ========================================================================= */
+@keyframes featuredProductFloat {
+  0% {
+    transform: translateY(0px);
+    box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.03);
+  }
+  50% {
+    transform: translateY(-8px);
+    box-shadow: 0 22px 34px -8px rgba(15, 23, 42, 0.13), 0 12px 18px -4px rgba(15, 23, 42, 0.06);
+  }
+  100% {
+    transform: translateY(0px);
+    box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.03);
+  }
+}
+
+.featured-product-float {
+  animation: featuredProductFloat 5.5s ease-in-out infinite;
+  will-change: transform, box-shadow;
+  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+.featured-product-float:hover {
+  animation-play-state: paused;
+  transform: translateY(-10px);
+  box-shadow: 0 24px 38px -8px rgba(5, 150, 105, 0.16), 0 12px 20px -4px rgba(15, 23, 42, 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .featured-product-float {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+
 

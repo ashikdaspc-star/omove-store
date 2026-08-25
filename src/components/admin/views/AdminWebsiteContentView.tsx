@@ -5,7 +5,7 @@ export const AdminWebsiteContentView: React.FC = () => {
   const [heroHeading, setHeroHeading] = useState('Official Software & Digital Products');
   const [heroSubheading, setHeroSubheading] = useState('Instant Digital Product Delivery & Certified Remote Computer Repairs');
   const [whatsappNumber, setWhatsappNumber] = useState('+91 8345968169');
-  const [supportEmail, setSupportEmail] = useState('ashikdaspc@gmail.com');
+  const [supportEmail, setSupportEmail] = useState('omovetech@gmail.com');
   const [savedNotice, setSavedNotice] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {

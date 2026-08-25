@@ -6,6 +6,7 @@ import { sendAdminOrderNotificationEmail } from '../utils/emailNotifier';
 import { validateAndApplyCouponAsync, fetchAndCacheCoupons } from '../utils/couponManager';
 import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
 import { loadPayPalSDK } from '../utils/paypalLoader';
+import { PAYPAL_CHECKOUT_ENABLED } from '../config/paymentConfig';
 import { InternationalPhoneInput } from './InternationalPhoneInput';
 import { PaymentMethodCards } from './PaymentMethodCards';
 import {
@@ -197,7 +198,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   // PayPal SDK Auto-Loader & Smart Button Renderer
   useEffect(() => {
-    if (!isOpen || paymentMethod !== 'paypal') {
+    if (!PAYPAL_CHECKOUT_ENABLED || !isOpen || paymentMethod !== 'paypal') {
       setPaypalReady(false);
       return;
     }
@@ -394,7 +395,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
 
     // ── Razorpay Flow (unchanged) ──
-    if (paymentMethod === 'paypal') {
+    if (PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal') {
       // If PayPal is selected, PayPal smart buttons handle click directly
       return;
     }
@@ -608,19 +609,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-fadeIn font-sans">
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden text-slate-100 flex flex-col my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fadeIn font-sans">
+      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden text-slate-900 flex flex-col my-8">
         {/* Modal Header */}
-        <div className="px-6 py-4.5 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/60">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200">
               <Lock className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-extrabold text-sm text-white">
+              <h2 className="font-extrabold text-sm text-slate-900">
                 {createdOrder ? 'Order Completed' : 'Express Checkout'}
               </h2>
-              <span className="text-[10px] text-slate-400 font-mono">
+              <span className="text-xs text-slate-500">
                 {createdOrder ? `Order #${createdOrder.orderNumber || createdOrder.id}` : '100% Encrypted & Verified'}
               </span>
             </div>
@@ -628,7 +629,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           <button
             onClick={onClose}
             aria-label="Close checkout modal"
-            className="p-1.5 rounded-xl bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+            className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -636,14 +637,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
         {createdOrder ? (
           /* Final Delivery / Output Page View */
-          <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
-            <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-2">
-              <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+          <div className="p-5 sm:p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+            <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
+              <div className="w-12 h-12 mx-auto rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
                 <CheckCircle2 className="w-7 h-7" />
               </div>
-              <h3 className="text-lg font-extrabold text-white">Payment Successful!</h3>
-              <p className="text-xs text-slate-300">
-                Order <strong className="font-mono text-cyan-400">#{createdOrder.orderNumber}</strong> processed successfully.{' '}
+              <h3 className="text-lg font-extrabold text-slate-900">Payment Successful!</h3>
+              <p className="text-xs text-slate-600">
+                Order <strong className="text-emerald-700 font-bold">#{createdOrder.orderNumber}</strong> processed successfully.{' '}
                 {hasStoreItems && !hasDigitalItems
                   ? 'Your payment has been received. Contact us on WhatsApp to continue with your order setup.'
                   : hasDigitalItems && !hasStoreItems
@@ -654,7 +655,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             {/* Products & Next Steps Box */}
             <div className="space-y-3">
-              <h4 className="font-bold text-[11px] uppercase tracking-wider text-slate-400 font-mono">
+              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500">
                 Purchased Product{createdOrder.items.length > 1 ? 's' : ''} & Next Steps
               </h4>
 
@@ -665,10 +666,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 )}`;
 
                 return (
-                  <div key={idx} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
+                  <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
                     <div className="min-w-0 pr-2">
-                      <h5 className="font-bold text-xs text-white truncate">{item.productName}</h5>
-                      <span className="text-[10px] text-slate-400 font-mono">
+                      <h5 className="font-bold text-xs text-slate-900 truncate">{item.productName}</h5>
+                      <span className="text-xs text-slate-500">
                         {isDigitalItem
                           ? `Digital Product • ${item.fileSize || 'Instant Access'}`
                           : `Store Product • ₹${item.price.toFixed(2)}`}
@@ -679,7 +680,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleTriggerDownload(item.googleDriveUrl, item.fileUrl, item.productName, item.productId)}
-                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-emerald-600/20 shrink-0"
+                        className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>Download</span>
@@ -689,7 +690,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         href={itemWhatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-emerald-600/20 shrink-0 transition-transform hover:scale-105"
+                        className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0 transition-transform hover:scale-105"
                       >
                         <MessageSquare className="w-3.5 h-3.5 fill-white" />
                         <span>Contact on WhatsApp</span>
@@ -702,13 +703,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             {/* General Post-Payment WhatsApp Contact Banner for Store Items */}
             {hasStoreItems && (
-              <div className="p-4 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 space-y-2.5">
-                <div className="flex items-center gap-2 text-emerald-400 font-mono font-bold text-xs">
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2.5">
+                <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
                   <MessageSquare className="w-4 h-4" />
                   <span>NEXT STEP: CONNECT ON WHATSAPP</span>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Your payment has been received. Contact us on WhatsApp with your Order ID (<strong className="text-cyan-400 font-mono">#{createdOrder.orderNumber || createdOrder.id}</strong>) to proceed with your setup.
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Your payment has been received. Contact us on WhatsApp with your Order ID (<strong className="text-emerald-700">#{createdOrder.orderNumber || createdOrder.id}</strong>) to proceed with your setup.
                 </p>
                 <a
                   href={`https://wa.me/918345968169?text=${encodeURIComponent(
@@ -716,7 +717,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.01]"
+                  className="w-full py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
                 >
                   <MessageSquare className="w-4 h-4 fill-white" />
                   <span>CONTACT ON WHATSAPP</span>
@@ -729,9 +730,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenInvoiceModal(createdOrder)}
-                className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold font-mono flex items-center gap-2 border border-slate-700"
+                className="px-3.5 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-2 border border-slate-200 cursor-pointer"
               >
-                <Printer className="w-3.5 h-3.5 text-cyan-400" />
+                <Printer className="w-3.5 h-3.5 text-emerald-600" />
                 <span>PRINT INVOICE</span>
               </button>
 
@@ -739,7 +740,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <button
                   type="button"
                   onClick={handleGoToMyOrders}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
+                  className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
                 >
                   <Package className="w-3.5 h-3.5" />
                   <span>My Orders</span>
@@ -748,7 +749,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold font-mono"
+                  className="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer"
                 >
                   CLOSE
                 </button>
@@ -760,26 +761,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           <form onSubmit={handleProcessPayment} className="p-6 sm:p-7 space-y-5 max-h-[82vh] overflow-y-auto">
             
             {!isOnline && (
-              <div className="p-3 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-center gap-2 shadow-lg">
-                <WifiOff className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <WifiOff className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>You are offline. Reconnect to complete purchase.</span>
               </div>
             )}
 
             {paymentFailedNotice && (
-              <div className="p-3 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-mono flex items-center gap-2 shadow-lg">
-                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{paymentFailedNotice}</span>
               </div>
             )}
 
             {/* Product & Order Summary Section (Compact) */}
-            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2.5">
-              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-mono font-bold">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="text-xs uppercase tracking-wider text-slate-500 font-bold">
                   Order Summary
                 </span>
-                <span className="text-[11px] text-slate-400 font-mono">
+                <span className="text-xs text-slate-500">
                   {cart.length} {cart.length === 1 ? 'item' : 'items'}
                 </span>
               </div>
@@ -787,25 +788,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {cart.map((item) => (
                 <div key={item.product.id} className="flex items-center justify-between text-xs">
                   <div className="min-w-0 pr-3">
-                    <p className="font-bold text-slate-200 truncate">{item.product.name}</p>
-                    <p className="text-[10px] text-slate-400 font-mono">Qty: {item.quantity}</p>
+                    <p className="font-bold text-slate-900 truncate">{item.product.name}</p>
+                    <p className="text-[11px] text-slate-500">Qty: {item.quantity}</p>
                   </div>
-                  <span className="font-mono text-slate-300 shrink-0 font-bold">
+                  <span className="text-slate-900 shrink-0 font-bold">
                     ₹{(item.product.price * item.quantity).toFixed(2)}
                   </span>
                 </div>
               ))}
 
               {appliedDiscount > 0 && (
-                <div className="flex justify-between text-xs text-emerald-400 font-mono font-bold pt-1 border-t border-slate-800/60">
+                <div className="flex justify-between text-xs text-emerald-700 font-bold pt-1 border-t border-slate-200">
                   <span>Discount ({appliedCode || 'PROMO'})</span>
                   <span>-₹{appliedDiscount.toFixed(2)}</span>
                 </div>
               )}
 
-              <div className="flex justify-between items-center text-sm font-bold text-white pt-2 border-t border-slate-800">
-                <span className="text-xs text-slate-300">Total Payable</span>
-                <span className="font-mono text-cyan-400 text-base font-extrabold">
+              <div className="flex justify-between items-center text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
+                <span className="text-xs text-slate-600">Total Payable</span>
+                <span className="text-emerald-700 text-base font-extrabold">
                   ₹{finalTotal.toFixed(2)}
                 </span>
               </div>
@@ -819,7 +820,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               onBlur={() => setPhoneTouched(true)}
               errorMessage={phoneErrorMessage}
               disabled={isProcessing}
-              variant="dark"
+              variant="light"
             />
 
             {/* Expandable Promo Coupon Section */}
@@ -828,23 +829,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCouponInput(true)}
-                  className="text-xs font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold transition-colors cursor-pointer"
+                  className="text-xs text-emerald-700 hover:text-emerald-800 flex items-center gap-1 font-bold transition-colors cursor-pointer"
                 >
-                  <Tag className="w-3.5 h-3.5 text-amber-400" />
+                  <Tag className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Have a coupon code?</span>
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
               ) : (
-                <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2.5 animate-fadeIn">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5 animate-fadeIn">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-300 font-mono flex items-center gap-1">
-                      <Tag className="w-3 h-3 text-amber-400" />
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-emerald-600" />
                       <span>Apply Promo Coupon</span>
                     </span>
                     <button
                       type="button"
                       onClick={() => setShowCouponInput(false)}
-                      className="text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                      className="text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
                     >
                       <ChevronUp className="w-3.5 h-3.5" />
                     </button>
@@ -856,12 +857,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       placeholder="Enter coupon code"
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                      className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white uppercase font-mono placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                      className="flex-1 px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs text-slate-900 uppercase placeholder-slate-400 focus:outline-none focus:border-emerald-600"
                     />
                     <button
                       type="button"
                       onClick={() => handleApplyCouponCode()}
-                      className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold font-mono text-xs transition-all active:scale-95 cursor-pointer"
+                      className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition-colors cursor-pointer"
                     >
                       APPLY
                     </button>
@@ -869,7 +870,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <button
                         type="button"
                         onClick={handleRemoveCouponCode}
-                        className="px-2.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-mono font-bold cursor-pointer"
+                        className="px-2.5 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer"
                       >
                         REMOVE
                       </button>
@@ -877,8 +878,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
 
                   {couponStatus && (
-                    <div className={`p-2 rounded-xl border text-[11px] font-mono ${
-                      couponStatus.valid ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40' : 'bg-rose-950/70 text-rose-300 border-rose-500/40'
+                    <div className={`p-2 rounded-lg border text-xs ${
+                      couponStatus.valid ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
                     }`}>
                       {couponStatus.message}
                     </div>
@@ -904,56 +905,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   paypalTitle="PAYPAL"
                   paypalSubtitle="International Checkout"
                   paypalTagline="Pay in USD • Not Refundable"
-                  themeAccent="cyan"
-                  variant="dark"
+                  themeAccent="emerald"
+                  variant="light"
                 />
-
-                {/* PayPal Conversion Info Card (shown when PayPal is selected) */}
-                {paymentMethod === 'paypal' && (
-                  <div className="p-3.5 rounded-2xl bg-blue-950/40 border border-blue-500/30 text-xs font-mono space-y-2 animate-fadeIn">
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="text-slate-400">Product Price (Authoritative):</span>
-                      <span className="text-white font-bold">₹{finalTotal.toFixed(2)} INR</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="text-slate-400">Conversion Rate:</span>
-                      <span className="text-slate-300">₹95 = $1.00 USD</span>
-                    </div>
-                    <div className="pt-2 border-t border-blue-500/30 flex justify-between items-center font-bold">
-                      <span className="text-blue-300">PayPal Total (USD):</span>
-                      <span className="text-base text-blue-400">${previewUsdDisplay} USD</span>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
-            {/* PayPal Buttons Container (shown when PayPal is selected) */}
-            {paymentMethod === 'paypal' && (
-              <div className="p-3.5 rounded-2xl bg-slate-950 border border-blue-500/40 shadow-xl shadow-blue-500/10 space-y-2 animate-fadeIn">
-                <div className="text-center">
-                  <span className="text-[11px] text-blue-400 font-mono font-bold">
-                    {paypalLoading ? 'Loading PayPal Secure Gateway...' : `Pay via PayPal • $${previewUsdDisplay} USD`}
-                  </span>
-                </div>
-                <div id="paypal-button-container" className="min-h-[44px] w-full" />
-              </div>
-            )}
-
-            {/* Razorpay Submit CTA (rendered when Razorpay is active) */}
-            {paymentMethod === 'razorpay' && (
+            {/* Razorpay Submit CTA */}
+            {(!PAYPAL_CHECKOUT_ENABLED || paymentMethod === 'razorpay') && (
               <button
                 type="submit"
                 disabled={isProcessing || !isOnline || (!isPhoneValid && phoneTouched)}
-                className={`w-full py-3.5 rounded-2xl font-extrabold text-xs font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                className={`w-full py-3.5 rounded-xl font-bold text-xs tracking-wider shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer active:scale-98 ${
                   !isOnline || (!isPhoneValid && phoneTouched)
-                    ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed shadow-none'
-                    : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-cyan-500/25 hover:scale-[1.01] active:scale-95'
+                    ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
                 }`}
               >
                 {!isOnline ? (
                   <>
-                    <WifiOff className="w-4 h-4 text-rose-400" />
+                    <WifiOff className="w-4 h-4 text-rose-600" />
                     <span>YOU ARE OFFLINE</span>
                   </>
                 ) : isProcessing ? (
@@ -963,7 +934,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </>
                 ) : (
                   <>
-                    <Lock className="w-3.5 h-3.5 text-cyan-200" />
+                    <Lock className="w-3.5 h-3.5 text-emerald-200" />
                     <span>
                       {finalTotal <= 0
                         ? 'GET INSTANT ACCESS'
@@ -974,9 +945,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </button>
             )}
 
-            <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400 font-mono pt-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{paymentMethod === 'paypal' ? 'PayPal Buyer Protection • Secure Checkout' : 'Razorpay 256-Bit SSL Encrypted Payment'}</span>
+            <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 pt-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Razorpay 256-Bit SSL Encrypted Payment</span>
             </div>
 
           </form>

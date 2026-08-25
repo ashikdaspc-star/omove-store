@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Mail, MessageSquare, MapPin, Send, CheckCircle2, Lock, Zap } from 'lucide-react';
+import { ShieldCheck, Mail, MessageSquare, MapPin, Send, CheckCircle2, Lock } from 'lucide-react';
 import { sendContactInquiryEmail } from '../utils/emailNotifier';
 
 export const AboutContactView: React.FC = () => {
@@ -25,139 +25,220 @@ export const AboutContactView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-5 md:px-6 lg:px-8 py-8 space-y-12">
-      {/* Hero */}
-      <div className="p-8 sm:p-12 rounded-3xl bg-white border border-slate-200/90 shadow-sm text-center space-y-4">
-        <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-700">
-          About OMOVE TECH Inc.
-        </span>
-        <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight">
-          Enterprise Digital Marketplace & Remote Technical Support
-        </h1>
-        <p className="text-sm sm:text-base text-slate-600 max-w-3xl mx-auto leading-relaxed">
-          Founded in 2026, Omove Store empowers individuals, IT admins, and remote workers with genuine software, instant driver packages, and 24/7 live computer repair expertise.
-        </p>
-      </div>
-
-      {/* Grid: Credentials & Contact Form */}
-      <div className="grid lg:grid-cols-12 gap-8">
-        {/* Left Info Column */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
-            <h3 className="font-bold text-lg text-slate-900 font-mono">Our Trust Commitments</h3>
-            <div className="space-y-4 text-xs text-slate-600">
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 font-sans">Genuine Software Guarantees</h4>
-                  <p className="text-slate-500 mt-0.5">All digital files are verified with instant Google Drive fulfillment.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900">Encrypted AnyDesk Sessions</h4>
-                  <p className="text-slate-500 mt-0.5">Remote repairs utilize TLS 1.3 encryption. You retain complete screen control.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
-                  <Zap className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900">30-Day Money Back Guarantee</h4>
-                  <p className="text-slate-500 mt-0.5">If software or remote support fails to fix your issue, receive a 100% full refund.</p>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#FAFAF8] text-slate-900 font-sans py-10 sm:py-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+        
+        {/* ========================================================================= */}
+        {/* HERO / PAGE INTRO */}
+        {/* ========================================================================= */}
+        <div className="scroll-reveal max-w-3xl space-y-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold uppercase tracking-wider">
+            <span>CONTACT OMOVE STORE</span>
           </div>
-
-          <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3 text-xs text-slate-700 font-mono">
-            <div className="flex items-center gap-3">
-              <Mail className="w-4 h-4 text-emerald-600" />
-              <span>omovetech@gmail.com</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <MessageSquare className="w-4 h-4 text-emerald-600" />
-              <span>WhatsApp Only: +91 8345968169</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <MapPin className="w-4 h-4 text-emerald-600" />
-              <span>Kolkata, West Bengal, India</span>
-            </div>
-          </div>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+            Let's Talk. We're Here to Help.
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">
+            Have a question about a digital product, an order, or remote technical support? Send us a message and our team will get back to you.
+          </p>
         </div>
 
-        {/* Right Contact Form */}
-        <div className="lg:col-span-7 p-8 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-6">
-          <div>
-            <h3 className="font-bold text-xl text-slate-900 font-mono">Send Us a Direct Message</h3>
-            <p className="text-xs text-slate-500 mt-1">Fill out your inquiry details and our technical support team will contact you within 15 minutes.</p>
-          </div>
-
-          {submitted ? (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-3 text-xs font-mono">
-              <CheckCircle2 className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+        {/* ========================================================================= */}
+        {/* TWO-COLUMN CONTACT & FORM SECTION */}
+        {/* ========================================================================= */}
+        <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+          
+          {/* LEFT COLUMN: Contact Information & Trust Commitments */}
+          <div className="scroll-reveal lg:col-span-5 space-y-8">
+            
+            {/* Get in Touch Section */}
+            <div className="bg-white border border-[#E6E8E5] rounded-2xl p-6 sm:p-7 shadow-xs space-y-6">
               <div>
-                <strong>Message Sent!</strong> Our technical support team will respond within 15 minutes.
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                  Get in Touch
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Reach out directly via email, WhatsApp, or visit our office.
+                </p>
+              </div>
+
+              <div className="space-y-4 text-sm">
+                {/* Email */}
+                <a
+                  href="mailto:omovetech@gmail.com"
+                  className="group flex items-start gap-3.5 p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors"
+                >
+                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 shrink-0 group-hover:bg-emerald-100 transition-colors">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                      Email
+                    </span>
+                    <span className="text-slate-900 font-semibold group-hover:text-emerald-700 transition-colors">
+                      omovetech@gmail.com
+                    </span>
+                  </div>
+                </a>
+
+                {/* WhatsApp */}
+                <a
+                  href="https://wa.me/918345968169"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-start gap-3.5 p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors"
+                >
+                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 shrink-0 group-hover:bg-emerald-100 transition-colors">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                      WhatsApp
+                    </span>
+                    <span className="text-slate-900 font-semibold group-hover:text-emerald-700 transition-colors">
+                      +91 8345986169
+                    </span>
+                  </div>
+                </a>
+
+                {/* Location */}
+                <div className="flex items-start gap-3.5 p-3 rounded-xl">
+                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 shrink-0">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                      Location
+                    </span>
+                    <span className="text-slate-900 font-semibold">
+                      Kolkata, West Bengal, India
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4 text-xs font-sans">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-slate-700 font-semibold block mb-1">Your Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Rahul Sharma"
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                  />
+
+            {/* Compact Trust Commitments */}
+            <div className="bg-white border border-[#E6E8E5] rounded-2xl p-6 sm:p-7 shadow-xs space-y-4">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Our Trust Commitments
+              </h3>
+
+              <div className="space-y-3.5 text-xs">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-900 block">Genuine Software</span>
+                    <span className="text-slate-500 leading-relaxed">Verified digital files and secure delivery.</span>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-slate-700 font-semibold block mb-1">Your Email Address *</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. rahul@example.com"
-                    value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                  />
+
+                <div className="flex items-start gap-3">
+                  <Lock className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-900 block">Secure Remote Sessions</span>
+                    <span className="text-slate-500 leading-relaxed">Encrypted remote support sessions.</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-900 block">30-Day Money Back</span>
+                    <span className="text-slate-500 leading-relaxed">Clear refund policy for eligible services.</span>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label className="text-slate-700 font-semibold block mb-1">Message / Inquiry Details *</label>
-                <textarea
-                  rows={4}
-                  required
-                  placeholder="Tell us how we can help..."
-                  value={contactMsg}
-                  onChange={(e) => setContactMsg(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                />
+          </div>
+
+          {/* RIGHT COLUMN: Contact Form */}
+          <div className="scroll-reveal lg:col-span-7 bg-white border border-[#E6E8E5] rounded-2xl p-6 sm:p-8 md:p-10 shadow-xs space-y-6" style={{ '--reveal-delay': '140ms' } as React.CSSProperties}>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                Send Us a Message
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+                Tell us what you need help with and our team will get back to you.
+              </p>
+            </div>
+
+            {submitted ? (
+              <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-3.5 text-xs animate-fadeIn">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <strong className="block text-sm font-bold text-emerald-900">Message Sent Successfully!</strong>
+                  <p className="text-emerald-700 leading-relaxed">
+                    Thank you for reaching out. Our support team will review your inquiry and get back to you shortly.
+                  </p>
+                </div>
               </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-5 text-xs">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {/* Name Field */}
+                  <div className="space-y-1.5">
+                    <label className="text-slate-700 font-bold block text-xs">
+                      Your Name <span className="text-emerald-600">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Rahul Sharma"
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                      className="w-full px-3.5 py-3 rounded-xl bg-white border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-colors text-xs"
+                    />
+                  </div>
 
-              <button
-                type="submit"
-                className="px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
-              >
-                <Send className="w-4 h-4" />
-                <span>SEND DIRECT MESSAGE</span>
-              </button>
-            </form>
-          )}
+                  {/* Email Field */}
+                  <div className="space-y-1.5">
+                    <label className="text-slate-700 font-bold block text-xs">
+                      Your Email Address <span className="text-emerald-600">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. rahul@example.com"
+                      value={contactEmail}
+                      onChange={(e) => setContactEmail(e.target.value)}
+                      className="w-full px-3.5 py-3 rounded-xl bg-white border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-colors text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Message Field */}
+                <div className="space-y-1.5">
+                  <label className="text-slate-700 font-bold block text-xs">
+                    Message / Inquiry Details <span className="text-emerald-600">*</span>
+                  </label>
+                  <textarea
+                    rows={5}
+                    required
+                    placeholder="Describe your inquiry, order details, or support request..."
+                    value={contactMsg}
+                    onChange={(e) => setContactMsg(e.target.value)}
+                    className="w-full px-3.5 py-3 rounded-xl bg-white border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-colors text-xs leading-relaxed"
+                  />
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold tracking-wide shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
+                >
+                  <span>SEND MESSAGE</span>
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            )}
+          </div>
+
         </div>
+
       </div>
     </div>
   );
 };
+

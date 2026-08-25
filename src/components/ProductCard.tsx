@@ -11,6 +11,7 @@ interface ProductCardProps {
   onBuyNow: (product: Product) => void;
   isWishlisted: boolean;
   onToggleWishlist: (productId: string) => void;
+  staggerIndex?: number;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -19,12 +20,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onAddToCart,
   onBuyNow,
   isWishlisted,
-  onToggleWishlist
+  onToggleWishlist,
+  staggerIndex
 }) => {
   const isOnline = useOnlineStatus();
+  const delay = typeof staggerIndex === 'number' && staggerIndex > 0 ? `${(staggerIndex % 4) * 140}ms` : undefined;
 
   return (
-    <div className="group bg-white rounded-2xl overflow-hidden border border-slate-200/90 hover:border-emerald-500/40 transition-all duration-300 shadow-xs hover:shadow-xl hover:shadow-emerald-500/5 flex flex-col justify-between">
+    <div
+      data-scroll-reveal="card"
+      style={delay ? ({ '--reveal-delay': delay } as React.CSSProperties) : undefined}
+      className="scroll-reveal group bg-white rounded-2xl overflow-hidden border border-slate-200/90 hover:border-emerald-500/40 transition-all duration-300 shadow-xs hover:shadow-xl hover:shadow-emerald-500/5 flex flex-col justify-between"
+    >
       <div>
         {/* Thumbnail & Badges */}
         <div className="relative aspect-video w-full overflow-hidden bg-slate-100 cursor-pointer" onClick={() => onSelect(product)}>

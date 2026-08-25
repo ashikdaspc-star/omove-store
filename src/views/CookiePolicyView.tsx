@@ -5,22 +5,22 @@ export const CookiePolicyView: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8 font-sans text-slate-800">
       {/* Header Banner */}
-      <div className="p-8 rounded-3xl bg-slate-900 text-white space-y-3 border border-slate-800 shadow-xl">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-mono font-bold uppercase">
-          <Cookie className="w-3.5 h-3.5 text-emerald-400" />
+      <div className="scroll-reveal p-8 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold uppercase">
+          <Cookie className="w-3.5 h-3.5 text-emerald-600" />
           <span>STORAGE & COOKIES</span>
         </div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-white font-sans">
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 font-sans">
           Cookie Policy
         </h1>
-        <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+        <p className="text-xs sm:text-sm text-slate-600 max-w-2xl leading-relaxed">
           Understanding how Omove Store uses browser cookies and local storage technology to deliver a secure, reliable e-commerce experience.
         </p>
-        <span className="text-[11px] text-slate-400 font-mono block pt-1">Last Updated: August 2026</span>
+        <span className="text-xs text-slate-400 block pt-1">Last Updated: August 2026</span>
       </div>
 
       {/* Main Content */}
-      <div className="p-8 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-8 leading-relaxed text-sm">
+      <div className="scroll-reveal p-8 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-8 leading-relaxed text-sm">
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-slate-900 font-sans border-b border-slate-100 pb-2">
             1. What Are Cookies and Browser LocalStorage?

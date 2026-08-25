@@ -10,6 +10,7 @@ interface DigitalProductCardProps {
   onBuyNow: (product: Product) => void;
   isWishlisted: boolean;
   onToggleWishlist: (productId: string) => void;
+  staggerIndex?: number;
 }
 
 export const DigitalProductCard: React.FC<DigitalProductCardProps> = ({
@@ -18,12 +19,18 @@ export const DigitalProductCard: React.FC<DigitalProductCardProps> = ({
   onAddToCart,
   onBuyNow,
   isWishlisted,
-  onToggleWishlist
+  onToggleWishlist,
+  staggerIndex
 }) => {
   const isOnline = useOnlineStatus();
+  const delay = typeof staggerIndex === 'number' && staggerIndex > 0 ? `${(staggerIndex % 4) * 140}ms` : undefined;
 
   return (
-    <div className="group bg-white rounded-2xl overflow-hidden border border-slate-200/90 hover:border-emerald-500/40 transition-all duration-300 shadow-xs hover:shadow-lg flex flex-col justify-between">
+    <div
+      data-scroll-reveal="card"
+      style={delay ? ({ '--reveal-delay': delay } as React.CSSProperties) : undefined}
+      className="scroll-reveal group bg-white rounded-2xl overflow-hidden border border-slate-200/90 hover:border-emerald-500/40 transition-all duration-300 shadow-xs hover:shadow-lg flex flex-col justify-between"
+    >
       <div>
         {/* Thumbnail & Digital Badge */}
         <div className="relative aspect-video w-full overflow-hidden bg-slate-100 cursor-pointer" onClick={() => onSelect(product)}>
@@ -42,16 +49,16 @@ export const DigitalProductCard: React.FC<DigitalProductCardProps> = ({
 
           {/* Digital & SubCategory Badge */}
           <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5 z-10">
-            <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
               DIGITAL PRODUCT
             </span>
             {product.subCategory && (
-              <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-slate-950/80 backdrop-blur-md text-cyan-300 border border-cyan-500/30">
+              <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-white/95 text-slate-800 border border-slate-200 shadow-xs">
                 {product.subCategory}
               </span>
             )}
             {product.discountPercent > 0 && (
-              <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider bg-slate-900 text-emerald-300 border border-emerald-500/30">
+              <span className="px-2 py-1 rounded-md text-[10px] font-bold tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
                 -{product.discountPercent}%
               </span>
             )}
@@ -66,21 +73,25 @@ export const DigitalProductCard: React.FC<DigitalProductCardProps> = ({
             className={`absolute top-3 right-3 p-2 rounded-xl backdrop-blur-md border transition-all z-10 ${
               isWishlisted
                 ? 'bg-rose-500 text-white border-rose-400'
-                : 'bg-white/80 text-slate-700 border-slate-200 hover:text-slate-950 hover:bg-white'
+                : 'bg-white/90 text-slate-700 border-slate-200 hover:text-slate-950 hover:bg-white shadow-xs'
             }`}
           >
             <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
           </button>
 
           {/* Version / Download Info Overlay */}
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] font-mono text-white z-10">
-            <span className="px-2 py-0.5 rounded bg-slate-950/70 backdrop-blur-sm">
-              {product.version}
-            </span>
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-950/70 backdrop-blur-sm">
-              <Download className="w-3 h-3 text-emerald-400" />
-              {product.downloadSize}
-            </span>
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-slate-700 z-10">
+            {product.version && (
+              <span className="px-2 py-0.5 rounded bg-white/90 backdrop-blur-sm border border-slate-200 shadow-xs font-medium">
+                {product.version}
+              </span>
+            )}
+            {product.downloadSize && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/90 backdrop-blur-sm border border-slate-200 shadow-xs ml-auto font-medium">
+                <Download className="w-3 h-3 text-emerald-600" />
+                {product.downloadSize}
+              </span>
+            )}
           </div>
         </div>
 

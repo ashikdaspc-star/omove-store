@@ -6,6 +6,7 @@ import { validateAndApplyCoupon } from '../utils/couponManager';
 import { useOnlineStatus } from '../components/OfflineBanner';
 import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
 import { loadPayPalSDK } from '../utils/paypalLoader';
+import { PAYPAL_CHECKOUT_ENABLED } from '../config/paymentConfig';
 import { InternationalPhoneInput } from '../components/InternationalPhoneInput';
 import { PaymentMethodCards } from '../components/PaymentMethodCards';
 import {
@@ -122,7 +123,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
 
   // PayPal SDK Auto-Loader & Smart Button Renderer
   useEffect(() => {
-    if (paymentMethod !== 'paypal' || confirmedBooking) {
+    if (!PAYPAL_CHECKOUT_ENABLED || paymentMethod !== 'paypal' || confirmedBooking) {
       setPaypalReady(false);
       return;
     }
@@ -308,7 +309,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
     setPhoneTouched(true);
     setErrorMessage('');
 
-    if (paymentMethod === 'paypal') {
+    if (PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal') {
       return;
     }
 
@@ -786,7 +787,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                   />
 
                   {/* PayPal Conversion Info Card */}
-                  {paymentMethod === 'paypal' && (
+                  {PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal' && (
                     <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs font-mono space-y-2 animate-fadeIn text-slate-800">
                       <div className="flex justify-between items-center text-[11px]">
                         <span className="text-slate-600">Service Fee:</span>
@@ -808,7 +809,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                   )}
 
                   {/* PayPal Button Container */}
-                  {paymentMethod === 'paypal' && (
+                  {PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal' && (
                     <div className="p-4 rounded-2xl bg-slate-50 border border-blue-200 shadow-sm space-y-2 animate-fadeIn">
                       <div className="text-center mb-1">
                         <span className="text-[11px] text-blue-800 font-mono font-bold">
@@ -820,7 +821,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                   )}
 
                   {/* Razorpay Submit CTA Button */}
-                  {paymentMethod === 'razorpay' && (
+                  {(!PAYPAL_CHECKOUT_ENABLED || paymentMethod === 'razorpay') && (
                     <button
                       type="submit"
                       disabled={isSubmitting || !isOnline || (phoneTouched && !phoneValidation.isValid)}
@@ -864,7 +865,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
               <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 font-mono">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>
-                  {paymentMethod === 'paypal'
+                  {PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal'
                     ? 'PayPal Buyer Protection • 256-Bit SSL Encrypted Connection'
                     : 'Razorpay 256-Bit SSL Encrypted Connection • 100% Satisfaction Guarantee'}
                 </span>
@@ -903,7 +904,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                     <span className="text-2xl font-black text-emerald-700 font-mono">
                       ₹{finalPrice}
                     </span>
-                    {finalPrice > 0 && (
+                    {PAYPAL_CHECKOUT_ENABLED && finalPrice > 0 && (
                       <span className="text-[11px] text-blue-700 font-mono font-bold block">
                         ≈ ${previewUsdDisplay} USD
                       </span>

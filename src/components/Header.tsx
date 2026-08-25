@@ -68,7 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const navItems = [
     { path: '/', label: 'Home', icon: Monitor },
-    { path: '/digital-products', label: 'Digital Product', icon: Sparkles },
+    { path: '/digital-products', label: 'Digital Products', icon: Sparkles },
     { path: '/store', label: 'Store', icon: ShoppingBag },
     { path: '/remote-support', label: 'Remote Support', icon: Headphones, badge: 'Live' },
     { path: '/downloads', label: 'Downloads', icon: Download },
@@ -103,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+    <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
       <div className="w-full xl:w-fit max-w-full mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between xl:justify-center gap-3 lg:gap-4 xl:gap-5">
         {/* Left: Brand Logo & Title */}
         <Link
@@ -310,7 +310,7 @@ export const Header: React.FC<HeaderProps> = ({
               <input
                 type="text"
                 autoFocus
-                placeholder="Search software, remote repairs, drivers..."
+                placeholder="Search digital products..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all font-sans min-h-[44px]"

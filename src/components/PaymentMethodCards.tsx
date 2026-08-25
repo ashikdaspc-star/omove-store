@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ShieldCheck, AlertCircle } from 'lucide-react';
+import { PAYPAL_CHECKOUT_ENABLED } from '../config/paymentConfig';
 
 // Authentic Official Razorpay SVG Logo / Brand Icon
 export const RazorpayIcon: React.FC<{ className?: string }> = ({ className = 'w-6 h-6' }) => (
@@ -82,6 +83,13 @@ export const PaymentMethodCards: React.FC<PaymentMethodCardsProps> = ({
   const isDark = variant === 'dark';
   const isStack = layout === 'stack';
 
+  // Ensure Razorpay is automatically selected if PayPal is globally disabled
+  useEffect(() => {
+    if (!PAYPAL_CHECKOUT_ENABLED && paymentMethod !== 'razorpay') {
+      onSelectMethod('razorpay');
+    }
+  }, [paymentMethod, onSelectMethod]);
+
   // --- DARK VARIANT STYLES ---
   const darkRzpSelected = isEmerald
     ? 'border-emerald-400 bg-gradient-to-br from-emerald-950/70 via-slate-900 to-slate-950 shadow-xl shadow-emerald-500/25 ring-2 ring-emerald-400/70 text-white scale-[1.01]'
@@ -104,7 +112,7 @@ export const PaymentMethodCards: React.FC<PaymentMethodCardsProps> = ({
     <div className="space-y-3 font-sans">
       <div className="flex items-center justify-between">
         <span className={`text-xs uppercase tracking-wider font-mono font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-          SELECT PAYMENT METHOD
+          {PAYPAL_CHECKOUT_ENABLED ? 'SELECT PAYMENT METHOD' : 'PAYMENT METHOD'}
         </span>
         <span className={`text-[11px] font-mono flex items-center gap-1.5 font-bold ${isEmerald ? (isDark ? 'text-emerald-400' : 'text-emerald-700') : (isDark ? 'text-cyan-400' : 'text-cyan-700')}`}>
           <ShieldCheck className="w-4 h-4" />
@@ -112,7 +120,7 @@ export const PaymentMethodCards: React.FC<PaymentMethodCardsProps> = ({
         </span>
       </div>
 
-      <div className={isStack ? 'flex flex-col gap-3' : 'grid grid-cols-1 sm:grid-cols-2 gap-3.5'}>
+      <div className={isStack || !PAYPAL_CHECKOUT_ENABLED ? 'flex flex-col gap-3' : 'grid grid-cols-1 sm:grid-cols-2 gap-3.5'}>
         {/* RAZORPAY CARD */}
         <button
           type="button"
@@ -176,62 +184,64 @@ export const PaymentMethodCards: React.FC<PaymentMethodCardsProps> = ({
         </button>
 
         {/* PAYPAL CARD */}
-        <button
-          type="button"
-          onClick={() => onSelectMethod('paypal')}
-          className={`relative p-4 sm:p-5 rounded-2xl border-2 text-left flex flex-col justify-between transition-all duration-200 cursor-pointer select-none group ${
-            isDark
-              ? (paymentMethod === 'paypal' ? darkPaypalSelected : darkPaypalUnselected)
-              : (paymentMethod === 'paypal' ? lightPaypalSelected : lightPaypalUnselected)
-          }`}
-        >
-          <div className="flex items-start justify-between gap-2.5">
-            <div className="flex items-center gap-3.5">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-transform group-hover:scale-105 ${
-                paymentMethod === 'paypal'
-                  ? (isDark ? 'bg-blue-500/20 border-blue-500/50 text-blue-400 shadow-md shadow-blue-500/20' : 'bg-blue-100/90 border-blue-300 text-blue-700 shadow-md shadow-blue-500/10')
-                  : (isDark ? 'bg-slate-900 border-slate-700/80 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600')
-              }`}>
-                <PaypalIcon className="w-7 h-7" />
-              </div>
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className={`font-black text-sm sm:text-base tracking-wider font-mono ${isDark ? 'text-white' : 'text-slate-950'}`}>
-                    {paypalTitle}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-500/15 text-rose-600 border border-rose-500/30 font-mono tracking-wider">
-                    NOT REFUNDABLE
+        {PAYPAL_CHECKOUT_ENABLED && (
+          <button
+            type="button"
+            onClick={() => onSelectMethod('paypal')}
+            className={`relative p-4 sm:p-5 rounded-2xl border-2 text-left flex flex-col justify-between transition-all duration-200 cursor-pointer select-none group ${
+              isDark
+                ? (paymentMethod === 'paypal' ? darkPaypalSelected : darkPaypalUnselected)
+                : (paymentMethod === 'paypal' ? lightPaypalSelected : lightPaypalUnselected)
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2.5">
+              <div className="flex items-center gap-3.5">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-transform group-hover:scale-105 ${
+                  paymentMethod === 'paypal'
+                    ? (isDark ? 'bg-blue-500/20 border-blue-500/50 text-blue-400 shadow-md shadow-blue-500/20' : 'bg-blue-100/90 border-blue-300 text-blue-700 shadow-md shadow-blue-500/10')
+                    : (isDark ? 'bg-slate-900 border-slate-700/80 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600')
+                }`}>
+                  <PaypalIcon className="w-7 h-7" />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-black text-sm sm:text-base tracking-wider font-mono ${isDark ? 'text-white' : 'text-slate-950'}`}>
+                      {paypalTitle}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-500/15 text-rose-600 border border-rose-500/30 font-mono tracking-wider">
+                      NOT REFUNDABLE
+                    </span>
+                  </div>
+                  <span className={`text-xs font-mono font-bold block ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
+                    {paypalSubtitle}
                   </span>
                 </div>
-                <span className={`text-xs font-mono font-bold block ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
-                  {paypalSubtitle}
+              </div>
+
+              {/* Radio Indicator */}
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                paymentMethod === 'paypal'
+                  ? (isDark ? 'border-blue-400 bg-blue-950' : 'border-blue-600 bg-blue-50')
+                  : (isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white')
+              }`}>
+                {paymentMethod === 'paypal' && (
+                  <div className={`w-2.5 h-2.5 rounded-full ${isDark ? 'bg-blue-400 shadow-sm shadow-blue-400' : 'bg-blue-600'}`} />
+                )}
+              </div>
+            </div>
+
+            <div className={`mt-3.5 pt-3 border-t flex items-end justify-between ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+              <div className={`text-[11px] font-mono leading-tight pr-2 font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                <span>{paypalTagline}</span>
+              </div>
+              <div className="text-right shrink-0">
+                <span className={`font-mono text-base font-black ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
+                  ${usdAmountDisplay} USD
                 </span>
               </div>
             </div>
-
-            {/* Radio Indicator */}
-            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-              paymentMethod === 'paypal'
-                ? (isDark ? 'border-blue-400 bg-blue-950' : 'border-blue-600 bg-blue-50')
-                : (isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white')
-            }`}>
-              {paymentMethod === 'paypal' && (
-                <div className={`w-2.5 h-2.5 rounded-full ${isDark ? 'bg-blue-400 shadow-sm shadow-blue-400' : 'bg-blue-600'}`} />
-              )}
-            </div>
-          </div>
-
-          <div className={`mt-3.5 pt-3 border-t flex items-end justify-between ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-            <div className={`text-[11px] font-mono leading-tight pr-2 font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              <span>{paypalTagline}</span>
-            </div>
-            <div className="text-right shrink-0">
-              <span className={`font-mono text-base font-black ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
-                ${usdAmountDisplay} USD
-              </span>
-            </div>
-          </div>
-        </button>
+          </button>
+        )}
       </div>
     </div>
   );
