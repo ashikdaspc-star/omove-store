@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 import { useOnlineStatus } from './OfflineBanner';
+import { ProductImageGallery } from './ProductImageGallery';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -35,7 +36,6 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 }) => {
   const isOnline = useOnlineStatus();
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'history' | 'reviews'>('overview');
-  const [selectedImage, setSelectedImage] = useState<string>('');
   const [newReviewAuthor, setNewReviewAuthor] = useState('');
   const [newReviewRating, setNewReviewRating] = useState(5);
   const [newReviewComment, setNewReviewComment] = useState('');
@@ -44,7 +44,6 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   useEffect(() => {
     if (product) {
-      setSelectedImage(product.image || '');
       setActiveTab('overview');
       setReviews([
         {
@@ -141,37 +140,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           <div className="grid md:grid-cols-2 gap-4 sm:gap-8">
             {/* Gallery Column */}
             <div className="space-y-4">
-              <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
-                <img
-                  src={selectedImage}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80';
-                  }}
-                />
-                <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-white/90 backdrop-blur-md text-xs font-semibold text-slate-800 border border-slate-200 shadow-xs">
-                  {product.licenseType}
-                </div>
-              </div>
-
-              {/* Thumbnails */}
-              {images.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                  {images.map((img, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedImage(img)}
-                      className={`relative w-20 h-14 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all cursor-pointer ${
-                        selectedImage === img ? 'border-emerald-600 scale-105' : 'border-slate-200 opacity-60 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={img} alt="preview" className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
+              <ProductImageGallery
+                images={images.filter(Boolean) as string[]}
+                productName={product.name}
+              />
 
               {/* Specs Card */}
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">

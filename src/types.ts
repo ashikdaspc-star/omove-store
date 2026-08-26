@@ -305,6 +305,11 @@ export interface ReviewSummary {
 
 export interface ReviewEligibility {
   eligible: boolean;
+  authenticated?: boolean;
+  isGuest?: boolean;
+  userName?: string;
+  userEmail?: string;
+  userId?: string;
   verifiedPurchase: boolean;
   existingReview: boolean;
   reason?: string;

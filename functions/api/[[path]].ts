@@ -565,11 +565,9 @@ async function ensureD1ReviewTables(env: Env): Promise<void> {
     try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating)`).run(); } catch(e){}
     try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at)`).run(); } catch(e){}
     try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_review_helpful_votes_review ON review_helpful_votes(review_id)`).run(); } catch(e){}
-    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_review_reports_review ON review_reports(review_id)`).run(); } catch(e){}
-
-    // Auto-seed initial reviews if database table is empty
-    const countCheck = await env.DB.prepare(`SELECT COUNT(*) as count FROM reviews`).first();
-    if (countCheck && Number(countCheck.count) === 0 && Array.isArray(reviewsData) && reviewsData.length > 0) {
+    // Auto-seed initial reviews if not present in database
+    if (Array.isArray(reviewsData) && reviewsData.length > 0) {
+      const distinctProductIds = new Set<string>();
       for (const rev of reviewsData) {
         try {
           await env.DB.prepare(`
@@ -598,15 +596,28 @@ async function ensureD1ReviewTables(env: Env): Promise<void> {
             rev.updatedAt || new Date().toISOString(),
             rev.publishedAt || rev.createdAt || new Date().toISOString()
           ).run();
+          if (rev.productId) distinctProductIds.add(rev.productId);
         } catch (err: any) {
           console.warn(`[D1 SEED REVIEW ERROR] ${err.message}`);
         }
       }
-      await recomputeProductReviewStats(env, 'dig-1787382882901');
+      for (const pid of distinctProductIds) {
+        await recomputeProductReviewStats(env, pid);
+      }
     }
   } catch (e: any) {
     console.warn(`[D1 ENSURE REVIEW TABLES ERROR] ${e.message}`);
   }
+}
+
+function resolveProductId(productId: string): string {
+  const clean = (productId || '').trim();
+  if (!clean) return '';
+  if (clean === 'the-ai-productivity-playbook' || clean === 'the-ai-productivity-playbook-2026') return 'dig-1787752756703';
+  if (clean === 'graphic-bundle') return 'dig-1787382882901';
+  if (clean === 'ai-thumbnail-prompts') return 'dig-1786719424523';
+  if (clean === 'sfx-pack') return 'dig-1786716184411';
+  return clean;
 }
 
 function maskCustomerDisplayName(name?: string, email?: string): string {
@@ -692,7 +703,7 @@ async function checkVerifiedPurchase(
 }
 
 async function recomputeProductReviewStats(env: Env, productId: string): Promise<any> {
-  const cleanProdId = (productId || '').trim();
+  const cleanProdId = resolveProductId(productId);
   if (!cleanProdId) return null;
 
   if (env.DB) {
@@ -795,7 +806,7 @@ async function recomputeProductReviewStats(env: Env, productId: string): Promise
 }
 
 async function getD1ReviewStats(env: Env, productId: string): Promise<any> {
-  const cleanProdId = (productId || '').trim();
+  const cleanProdId = resolveProductId(productId);
   if (!cleanProdId) return null;
 
   if (env.DB) {
@@ -3841,7 +3852,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     // 1. GET /api/reviews/summary?productId=...
     if (path === '/api/reviews/summary' && method === 'GET') {
-      const productId = (url.searchParams.get('productId') || url.searchParams.get('id') || '').trim();
+      const productId = resolveProductId(url.searchParams.get('productId') || url.searchParams.get('id') || '');
       if (!productId) {
         return jsonResponse({ success: false, error: 'Product ID required' }, 400);
       }
@@ -3851,7 +3862,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     // 2. GET /api/reviews/eligibility?productId=...
     if (path === '/api/reviews/eligibility' && method === 'GET') {
-      const productId = (url.searchParams.get('productId') || url.searchParams.get('id') || '').trim();
+      const productId = resolveProductId(url.searchParams.get('productId') || url.searchParams.get('id') || '');
       const productName = (url.searchParams.get('productName') || '').trim();
       if (!productId) {
         return jsonResponse({ success: false, error: 'Product ID required' }, 400);
@@ -3862,10 +3873,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return jsonResponse({
           success: true,
           authenticated: false,
-          eligible: false,
+          isGuest: true,
+          eligible: true,
           verifiedPurchase: false,
           existingReview: false,
-          reason: 'Please sign in to write a review.'
+          reason: null
         });
       }
 
@@ -3875,14 +3887,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         try {
           await ensureD1ReviewTables(env);
           existingReview = await env.DB.prepare(
-            `SELECT * FROM reviews WHERE user_id = ? AND product_id = ?`
-          ).bind(sess.userId, productId).first();
+            `SELECT * FROM reviews WHERE (user_id = ? OR (user_email IS NOT NULL AND LOWER(TRIM(user_email)) = ?)) AND product_id = ?`
+          ).bind(sess.userId, sess.userEmail.toLowerCase().trim(), productId).first();
         } catch (e: any) {
           console.warn(`[D1 ELIGIBILITY CHECK ERROR] ${e.message}`);
         }
       } else {
         existingReview = Array.from(reviewsStore.values()).find(
-          (r: any) => r.userId === sess.userId && r.productId === productId
+          (r: any) => (r.userId === sess.userId || (r.userEmail && r.userEmail.toLowerCase() === sess.userEmail.toLowerCase())) && r.productId === productId
         );
       }
 
@@ -3905,8 +3917,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return jsonResponse({
           success: true,
           authenticated: true,
+          userName: (sess as any).userName || (sess.userEmail.split('@')[0]),
+          userEmail: sess.userEmail,
+          userId: sess.userId,
           eligible: false,
-          verifiedPurchase: true,
+          verifiedPurchase: formatted.verifiedPurchase,
           existingReview: true,
           review: formatted,
           reason: 'You have already reviewed this product.'
@@ -3915,22 +3930,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // Check verified purchase from orders
       const purchaseVerification = await checkVerifiedPurchase(env, sess.userEmail, productId, productName);
-      if (!purchaseVerification.isVerified) {
-        return jsonResponse({
-          success: true,
-          authenticated: true,
-          eligible: false,
-          verifiedPurchase: false,
-          existingReview: false,
-          reason: 'Purchase this product to share your verified customer experience.'
-        });
-      }
 
       return jsonResponse({
         success: true,
         authenticated: true,
+        userName: (sess as any).userName || (sess.userEmail.split('@')[0]),
+        userEmail: sess.userEmail,
+        userId: sess.userId,
         eligible: true,
-        verifiedPurchase: true,
+        verifiedPurchase: purchaseVerification.isVerified,
         existingReview: false,
         orderId: purchaseVerification.orderId,
         orderItemId: purchaseVerification.orderItemId
@@ -4346,7 +4354,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!subParam) {
         // GET /api/reviews?productId=...&sort=...&rating=...&page=...&limit=...
         if (method === 'GET') {
-          const productId = (url.searchParams.get('productId') || url.searchParams.get('id') || '').trim();
+          const productId = resolveProductId(url.searchParams.get('productId') || url.searchParams.get('id') || '');
           if (!productId) {
             return jsonResponse({ success: false, error: 'Product ID required' }, 400);
           }
@@ -4480,19 +4488,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           });
         }
 
-        // POST /api/reviews (Create new review)
+        // POST /api/reviews (Create new review - Guest & Authenticated)
         if (method === 'POST') {
-          const sess = getSessionFromRequest(request);
-          if (!sess) {
-            return jsonResponse({ success: false, error: 'UNAUTHENTICATED', message: 'Please sign in to write a review' }, 401);
-          }
-
           const body: any = await request.json().catch(() => ({}));
-          const productId = (body.productId || body.id || '').trim();
+          const productId = resolveProductId(body.productId || body.id || '');
           const productName = (body.productName || '').trim();
           const rating = Number(body.rating);
-          const title = (body.title || '').trim().substring(0, 120);
-          const reviewBody = (body.body || '').trim().substring(0, 3000);
+          const rawTitle = (body.title || '').trim().replace(/<[^>]*>?/gm, '');
+          const rawBody = (body.body || '').trim().replace(/<[^>]*>?/gm, '');
+          const title = rawTitle.substring(0, 120) || `${rating} Star Review`;
+          const reviewBody = rawBody.substring(0, 3000);
 
           if (!productId) {
             return jsonResponse({ success: false, error: 'Product ID is required' }, 400);
@@ -4500,21 +4505,31 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           if (!rating || rating < 1 || rating > 5 || !Number.isInteger(rating)) {
             return jsonResponse({ success: false, error: 'Rating must be an integer between 1 and 5' }, 400);
           }
-          if (!title) {
-            return jsonResponse({ success: false, error: 'Review headline is required' }, 400);
-          }
           if (!reviewBody || reviewBody.length < 10) {
             return jsonResponse({ success: false, error: 'Review text must be at least 10 characters long' }, 400);
           }
 
-          // Strict Server-Side Verified Purchase Check
-          const verification = await checkVerifiedPurchase(env, sess.userEmail, productId, productName);
-          if (!verification.isVerified) {
-            return jsonResponse({
-              success: false,
-              error: 'ACCESS_DENIED',
-              message: 'Verified purchase required. You can review this product only after completing your purchase.'
-            }, 403);
+          const sess = getSessionFromRequest(request);
+          let userId = '';
+          let userName = '';
+          let userEmail = '';
+
+          if (sess) {
+            userId = sess.userId;
+            userEmail = sess.userEmail.toLowerCase().trim();
+            const userRec = usersStore.get(userEmail);
+            userName = (body.name || '').trim().replace(/<[^>]*>?/gm, '') || (userRec ? userRec.name : (sess.userEmail.split('@')[0] || 'Customer'));
+          } else {
+            userName = (body.name || '').trim().replace(/<[^>]*>?/gm, '');
+            userEmail = (body.email || '').trim().toLowerCase();
+
+            if (!userName || userName.length < 2) {
+              return jsonResponse({ success: false, error: 'Please enter your name (at least 2 characters)' }, 400);
+            }
+            if (!userEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
+              return jsonResponse({ success: false, error: 'Please enter a valid email address' }, 400);
+            }
+            userId = 'guest_' + userEmail.replace(/[^a-z0-9]/gi, '_');
           }
 
           // Check if already reviewed (One review per customer per product)
@@ -4522,13 +4537,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             try {
               await ensureD1ReviewTables(env);
               const duplicate = await env.DB.prepare(
-                `SELECT id FROM reviews WHERE user_id = ? AND product_id = ?`
-              ).bind(sess.userId, productId).first();
+                `SELECT id FROM reviews WHERE (user_id = ? OR (user_email IS NOT NULL AND LOWER(TRIM(user_email)) = ?)) AND product_id = ?`
+              ).bind(userId, userEmail, productId).first();
               if (duplicate) {
                 return jsonResponse({
                   success: false,
                   error: 'DUPLICATE_REVIEW',
-                  message: 'You have already submitted a review for this product. You can edit your existing review instead.'
+                  message: 'You have already submitted a review for this product.'
                 }, 400);
               }
             } catch (e: any) {
@@ -4536,7 +4551,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             }
           } else {
             const duplicate = Array.from(reviewsStore.values()).find(
-              (r: any) => r.userId === sess.userId && r.productId === productId
+              (r: any) => (r.userId === userId || (r.userEmail && r.userEmail.toLowerCase() === userEmail)) && r.productId === productId
             );
             if (duplicate) {
               return jsonResponse({
@@ -4547,9 +4562,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             }
           }
 
-          // Get user details for safe display name
-          const userRec = usersStore.get(sess.userEmail.toLowerCase());
-          const userName = userRec ? userRec.name : (sess.userEmail.split('@')[0] || 'Customer');
+          // Check verified purchase from orders
+          const verification = await checkVerifiedPurchase(env, userEmail, productId, productName);
 
           const reviewId = `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
           const now = new Date().toISOString();
@@ -4557,21 +4571,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           const newReview = {
             id: reviewId,
             productId,
-            userId: sess.userId,
+            userId,
             userName,
-            userEmail: sess.userEmail,
+            userEmail,
             orderId: verification.orderId || null,
             orderItemId: verification.orderItemId || null,
             rating,
             title,
             body: reviewBody,
-            status: 'pending',
-            verifiedPurchase: true,
+            status: 'published',
+            verifiedPurchase: verification.isVerified,
             helpfulCount: 0,
             reportCount: 0,
             createdAt: now,
             updatedAt: now,
-            publishedAt: null
+            publishedAt: now
           };
 
           if (env.DB) {
@@ -4582,8 +4596,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                   id, product_id, user_id, user_name, user_email,
                   order_id, order_item_id, rating, title, body,
                   status, verified_purchase, helpful_count, report_count,
-                  created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  created_at, updated_at, published_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
                 newReview.id,
                 newReview.productId,
@@ -4595,27 +4609,40 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                 newReview.rating,
                 newReview.title,
                 newReview.body,
-                'pending',
-                1,
+                'published',
+                newReview.verifiedPurchase ? 1 : 0,
                 0,
                 0,
                 newReview.createdAt,
-                newReview.updatedAt
+                newReview.updatedAt,
+                newReview.publishedAt
               ).run();
+              await recomputeProductReviewStats(env, productId);
             } catch (e: any) {
               console.warn(`[D1 INSERT REVIEW ERROR] ${e.message}`);
               return jsonResponse({ success: false, error: 'Database error saving review: ' + e.message }, 500);
             }
           } else {
             reviewsStore.set(reviewId, newReview);
+            await recomputeProductReviewStats(env, productId);
           }
 
           return jsonResponse({
             success: true,
-            message: 'Thank you for sharing your experience! Your review has been submitted and is awaiting moderation.',
+            message: 'Thanks for your review! ⭐ Your review has been submitted successfully.',
             review: {
-              ...newReview,
-              isUserReview: true
+              id: newReview.id,
+              productId: newReview.productId,
+              userName: maskCustomerDisplayName(newReview.userName, newReview.userEmail),
+              rating: newReview.rating,
+              title: newReview.title,
+              body: newReview.body,
+              status: newReview.status,
+              verifiedPurchase: newReview.verifiedPurchase,
+              helpfulCount: 0,
+              reportCount: 0,
+              isUserReview: true,
+              createdAt: newReview.createdAt
             }
           }, 201);
         }

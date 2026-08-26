@@ -230,7 +230,7 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                 <Edit3 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                 <span>Edit Your Review</span>
               </button>
-            ) : eligibility?.eligible ? (
+            ) : (
               <button
                 type="button"
                 onClick={() => setIsWriteModalOpen(true)}
@@ -239,7 +239,7 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                 <MessageSquarePlus className="w-4 h-4 fill-white text-emerald-600 shrink-0" />
                 <span>Write a Review</span>
               </button>
-            ) : null}
+            )}
           </div>
         </div>
 
@@ -267,13 +267,13 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
 
             <p className="text-xs text-slate-600 font-medium break-words">
               {totalCount > 0
-                ? `Based on ${totalCount} verified review${totalCount === 1 ? '' : 's'}`
+                ? `Based on ${totalCount} customer review${totalCount === 1 ? '' : 's'}`
                 : 'No published reviews yet'}
             </p>
 
             <div className="pt-2 border-t border-slate-200/80 flex items-center justify-center gap-1.5 text-[10px] sm:text-[11px] text-emerald-800 font-bold">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>100% Verified Purchases</span>
+              <span>Verified Customer Feedback</span>
             </div>
           </div>
 
@@ -315,40 +315,24 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
           </div>
         </div>
 
-        {/* Eligibility Notice / Guidance Banner */}
-        {!userReview && !eligibility?.eligible && (
+        {/* Community Review Notice Banner */}
+        {!userReview && (
           <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 text-xs text-slate-600 w-full min-w-0 box-border">
             <div className="flex items-center gap-2 min-w-0">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <span className="break-words text-[11px] sm:text-xs">
-                {eligibility?.authenticated
-                  ? 'Purchase this verified resource to share your experience with other customers.'
-                  : 'Sign in with your account to write a verified customer review.'}
+                Have you tried this product? Share your honest review to help other buyers.
               </span>
             </div>
 
             <div className="shrink-0">
-              {eligibility?.authenticated ? (
-                onBuyNow && (
-                  <button
-                    type="button"
-                    onClick={onBuyNow}
-                    className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shrink-0 cursor-pointer"
-                  >
-                    Buy Product Now
-                  </button>
-                )
-              ) : (
-                onOpenAuthModal && (
-                  <button
-                    type="button"
-                    onClick={onOpenAuthModal}
-                    className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shrink-0 cursor-pointer"
-                  >
-                    Sign In
-                  </button>
-                )
-              )}
+              <button
+                type="button"
+                onClick={() => setIsWriteModalOpen(true)}
+                className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shrink-0 cursor-pointer"
+              >
+                Write a Review
+              </button>
             </div>
           </div>
         )}
@@ -500,17 +484,26 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 {ratingFilter !== 'all'
                   ? 'Try selecting another rating filter to view reviews.'
-                  : 'Be the first verified customer to share your experience with this product.'}
+                  : 'Be the first to share your experience with this product.'}
               </p>
             </div>
 
-            {ratingFilter !== 'all' && (
+            {ratingFilter !== 'all' ? (
               <button
                 type="button"
                 onClick={() => setRatingFilter('all')}
                 className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
               >
                 Show All Reviews
+              </button>
+            ) : !userReview && (
+              <button
+                type="button"
+                onClick={() => setIsWriteModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <MessageSquarePlus className="w-3.5 h-3.5" />
+                <span>Be the first to review</span>
               </button>
             )}
           </div>
@@ -541,40 +534,38 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                       </div>
 
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs sm:text-sm font-bold text-slate-900 truncate max-w-[120px] sm:max-w-[200px]">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs sm:text-sm font-bold text-slate-900 truncate">
                             {rev.userName}
                           </span>
                           {rev.verifiedPurchase && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shrink-0">
-                              <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-600" />
-                              <span>Verified</span>
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 shrink-0">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              <span>Verified Purchase</span>
                             </span>
                           )}
                         </div>
+                        <span className="text-[10px] sm:text-[11px] text-slate-400">
+                          {new Date(rev.createdAt).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </span>
                       </div>
                     </div>
-
-                    <span className="text-[10px] sm:text-[11px] text-slate-400 shrink-0">
-                      {new Date(rev.createdAt).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </span>
                   </div>
 
-                  {/* Rating Stars & Title */}
-                  <div className="space-y-0.5 sm:space-y-1 w-full min-w-0">
-                    <div className="flex items-center gap-1.5 text-amber-500 flex-wrap">
-                      <div className="flex items-center gap-0.5 shrink-0">
+                  {/* Review Content */}
+                  <div className="space-y-1 w-full min-w-0">
+                    {/* Stars + Title Row */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-0.5 text-amber-400 shrink-0">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <Star
                             key={star}
                             className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${
-                              star <= rev.rating
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'text-slate-200 fill-slate-100'
+                              star <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200 fill-slate-100'
                             }`}
                           />
                         ))}
@@ -660,6 +651,12 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
           productId={productId}
           productName={productName}
           existingReview={userReview}
+          currentUser={{
+            name: eligibility?.userName,
+            email: eligibility?.userEmail,
+            id: eligibility?.userId,
+            authenticated: eligibility?.authenticated
+          }}
           isOpen={isWriteModalOpen}
           onClose={() => setIsWriteModalOpen(false)}
           onSuccess={handleReviewSubmitted}

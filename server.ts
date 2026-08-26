@@ -3694,6 +3694,16 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   // REVIEW SYSTEM API ENDPOINTS
   // =========================================================================
 
+  function resolveProductId(productId: string): string {
+    const clean = (productId || '').trim();
+    if (!clean) return '';
+    if (clean === 'the-ai-productivity-playbook' || clean === 'the-ai-productivity-playbook-2026') return 'dig-1787752756703';
+    if (clean === 'graphic-bundle') return 'dig-1787382882901';
+    if (clean === 'ai-thumbnail-prompts') return 'dig-1786719424523';
+    if (clean === 'sfx-pack') return 'dig-1786716184411';
+    return clean;
+  }
+
   function maskCustomerDisplayName(name?: string, email?: string): string {
     if (name && name.trim() && name.toLowerCase() !== 'customer') {
       const parts = name.trim().split(/\s+/);
@@ -3709,7 +3719,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   }
 
   function recomputeReviewStatsLocal(productId: string): any {
-    const cleanProdId = (productId || '').trim();
+    const cleanProdId = resolveProductId(productId);
     const published = Array.from(reviewsStore.values()).filter(
       (r: any) => r.productId === cleanProdId && r.status === 'published'
     );
@@ -3742,7 +3752,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
   function checkVerifiedPurchaseLocal(userEmail: string, productId: string, productName?: string): { isVerified: boolean; orderId?: string; orderItemId?: string } {
     const normEmail = (userEmail || '').trim().toLowerCase();
-    const cleanProdId = (productId || '').trim();
+    const cleanProdId = resolveProductId(productId);
     if (!normEmail || !cleanProdId) return { isVerified: false };
 
     const allOrders = Array.from(ordersStore.values());
@@ -3765,7 +3775,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
   // 1. GET /api/reviews/summary
   app.get('/api/reviews/summary', (req: Request, res: Response) => {
-    const productId = String(req.query.productId || req.query.id || '').trim();
+    const productId = resolveProductId(String(req.query.productId || req.query.id || ''));
     if (!productId) return res.status(400).json({ success: false, error: 'Product ID required' });
     const summary = reviewStatsStore.get(productId) || recomputeReviewStatsLocal(productId);
     return res.json({ success: true, summary });
@@ -3773,7 +3783,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
   // 2. GET /api/reviews/eligibility
   app.get('/api/reviews/eligibility', (req: Request, res: Response) => {
-    const productId = String(req.query.productId || req.query.id || '').trim();
+    const productId = resolveProductId(String(req.query.productId || req.query.id || ''));
     const productName = String(req.query.productName || '').trim();
     if (!productId) return res.status(400).json({ success: false, error: 'Product ID required' });
 
@@ -3785,23 +3795,27 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       return res.json({
         success: true,
         authenticated: false,
-        eligible: false,
+        isGuest: true,
+        eligible: true,
         verifiedPurchase: false,
         existingReview: false,
-        reason: 'Please sign in to write a review.'
+        reason: null
       });
     }
 
     const existingReview = Array.from(reviewsStore.values()).find(
-      (r: any) => r.userId === sess.userId && r.productId === productId
+      (r: any) => (r.userId === sess.userId || (r.userEmail && r.userEmail.toLowerCase() === sess.userEmail.toLowerCase())) && r.productId === productId
     );
 
     if (existingReview) {
       return res.json({
         success: true,
         authenticated: true,
+        userName: (sess as any).userName || (sess.userEmail.split('@')[0]),
+        userEmail: sess.userEmail,
+        userId: sess.userId,
         eligible: false,
-        verifiedPurchase: true,
+        verifiedPurchase: Boolean(existingReview.verifiedPurchase),
         existingReview: true,
         review: existingReview,
         reason: 'You have already reviewed this product.'
@@ -3809,22 +3823,15 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
 
     const purchase = checkVerifiedPurchaseLocal(sess.userEmail, productId, productName);
-    if (!purchase.isVerified) {
-      return res.json({
-        success: true,
-        authenticated: true,
-        eligible: false,
-        verifiedPurchase: false,
-        existingReview: false,
-        reason: 'Purchase this product to share your verified customer experience.'
-      });
-    }
 
     return res.json({
       success: true,
       authenticated: true,
+      userName: (sess as any).userName || (sess.userEmail.split('@')[0]),
+      userEmail: sess.userEmail,
+      userId: sess.userId,
       eligible: true,
-      verifiedPurchase: true,
+      verifiedPurchase: purchase.isVerified,
       existingReview: false,
       orderId: purchase.orderId,
       orderItemId: purchase.orderItemId
@@ -3833,7 +3840,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
   // 3. GET /api/reviews
   app.get('/api/reviews', (req: Request, res: Response) => {
-    const productId = String(req.query.productId || req.query.id || '').trim();
+    const productId = resolveProductId(String(req.query.productId || req.query.id || ''));
     if (!productId) return res.status(400).json({ success: false, error: 'Product ID required' });
 
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10));
@@ -3917,38 +3924,50 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
   // 4. POST /api/reviews
   app.post('/api/reviews', (req: Request, res: Response) => {
-    const cookies = parseCookies(req.headers.cookie);
-    const token = cookies['omove_session_token'] || req.headers.authorization?.replace('Bearer ', '').trim();
-    const sess = token ? sessionsStore.get(token) : null;
-
-    if (!sess || sess.expiresAt < Date.now()) {
-      return res.status(401).json({ success: false, error: 'UNAUTHENTICATED', message: 'Please sign in to write a review' });
-    }
-
-    const { productId, productName, rating, title, body } = req.body || {};
-    const cleanProdId = String(productId || '').trim();
+    const { productId, productName, rating, name, email, title, body } = req.body || {};
+    const cleanProdId = resolveProductId(String(productId || '').trim());
     const numRating = Number(rating);
-    const cleanTitle = String(title || '').trim().substring(0, 120);
-    const cleanBody = String(body || '').trim().substring(0, 3000);
+    const rawTitle = String(title || '').trim().replace(/<[^>]*>?/gm, '');
+    const rawBody = String(body || '').trim().replace(/<[^>]*>?/gm, '');
+    const cleanTitle = rawTitle.substring(0, 120) || `${numRating} Star Review`;
+    const cleanBody = rawBody.substring(0, 3000);
 
     if (!cleanProdId) return res.status(400).json({ success: false, error: 'Product ID is required' });
     if (!numRating || numRating < 1 || numRating > 5 || !Number.isInteger(numRating)) {
       return res.status(400).json({ success: false, error: 'Rating must be an integer between 1 and 5' });
     }
-    if (!cleanTitle) return res.status(400).json({ success: false, error: 'Review title is required' });
-    if (!cleanBody || cleanBody.length < 10) return res.status(400).json({ success: false, error: 'Review text must be at least 10 characters long' });
+    if (!cleanBody || cleanBody.length < 10) {
+      return res.status(400).json({ success: false, error: 'Review text must be at least 10 characters long' });
+    }
 
-    const verification = checkVerifiedPurchaseLocal(sess.userEmail, cleanProdId, productName);
-    if (!verification.isVerified) {
-      return res.status(403).json({
-        success: false,
-        error: 'ACCESS_DENIED',
-        message: 'Verified purchase required. You can review this product only after completing your purchase.'
-      });
+    const cookies = parseCookies(req.headers.cookie);
+    const token = cookies['omove_session_token'] || req.headers.authorization?.replace('Bearer ', '').trim();
+    const sess = token ? sessionsStore.get(token) : null;
+
+    let userId = '';
+    let userName = '';
+    let userEmail = '';
+
+    if (sess && sess.expiresAt >= Date.now()) {
+      userId = sess.userId;
+      userEmail = String(sess.userEmail || '').toLowerCase().trim();
+      const userRec = usersStore.get(userEmail);
+      userName = String(name || '').trim().replace(/<[^>]*>?/gm, '') || (userRec ? userRec.name : (sess.userEmail.split('@')[0] || 'Customer'));
+    } else {
+      userName = String(name || '').trim().replace(/<[^>]*>?/gm, '');
+      userEmail = String(email || '').trim().toLowerCase();
+
+      if (!userName || userName.length < 2) {
+        return res.status(400).json({ success: false, error: 'Please enter your name (at least 2 characters)' });
+      }
+      if (!userEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
+        return res.status(400).json({ success: false, error: 'Please enter a valid email address' });
+      }
+      userId = 'guest_' + userEmail.replace(/[^a-z0-9]/gi, '_');
     }
 
     const duplicate = Array.from(reviewsStore.values()).find(
-      (r: any) => r.userId === sess.userId && r.productId === cleanProdId
+      (r: any) => (r.userId === userId || (r.userEmail && r.userEmail.toLowerCase() === userEmail)) && r.productId === cleanProdId
     );
     if (duplicate) {
       return res.status(400).json({
@@ -3958,8 +3977,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       });
     }
 
-    const userRec = usersStore.get(sess.userEmail.toLowerCase());
-    const userName = userRec ? userRec.name : (sess.userEmail.split('@')[0] || 'Customer');
+    const verification = checkVerifiedPurchaseLocal(userEmail, cleanProdId, productName);
 
     const reviewId = `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
@@ -3967,29 +3985,43 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     const newReview = {
       id: reviewId,
       productId: cleanProdId,
-      userId: sess.userId,
+      userId,
       userName,
-      userEmail: sess.userEmail,
+      userEmail,
       orderId: verification.orderId || null,
       orderItemId: verification.orderItemId || null,
       rating: numRating,
       title: cleanTitle,
       body: cleanBody,
-      status: 'pending',
-      verifiedPurchase: true,
+      status: 'published',
+      verifiedPurchase: verification.isVerified,
       helpfulCount: 0,
       reportCount: 0,
       createdAt: now,
       updatedAt: now,
-      publishedAt: null
+      publishedAt: now
     };
 
     reviewsStore.set(reviewId, newReview);
+    recomputeReviewStatsLocal(cleanProdId);
 
     return res.status(201).json({
       success: true,
-      message: 'Thank you for sharing your experience! Your review has been submitted and is awaiting moderation.',
-      review: { ...newReview, isUserReview: true }
+      message: 'Thanks for your review! ⭐ Your review has been submitted successfully.',
+      review: {
+        id: newReview.id,
+        productId: newReview.productId,
+        userName: maskCustomerDisplayName(newReview.userName, newReview.userEmail),
+        rating: newReview.rating,
+        title: newReview.title,
+        body: newReview.body,
+        status: newReview.status,
+        verifiedPurchase: newReview.verifiedPurchase,
+        helpfulCount: 0,
+        reportCount: 0,
+        isUserReview: true,
+        createdAt: newReview.createdAt
+      }
     });
   });
 

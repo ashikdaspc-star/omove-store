@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ProductReview } from '../../types';
-import { Star, X, CheckCircle2, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { Star, X, AlertCircle, Loader2, Sparkles, User, Mail, ShieldCheck } from 'lucide-react';
 
 interface WriteReviewModalProps {
   productId: string;
   productName: string;
   existingReview?: ProductReview | null;
+  currentUser?: { name?: string; email?: string; id?: string; authenticated?: boolean } | null;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (review: ProductReview, message: string) => void;
@@ -23,16 +24,26 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
   productId,
   productName,
   existingReview,
+  currentUser,
   isOpen,
   onClose,
   onSuccess
 }) => {
   const [rating, setRating] = useState<number>(existingReview?.rating || 5);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
+  const [name, setName] = useState<string>(existingReview?.userName || currentUser?.name || '');
+  const [email, setEmail] = useState<string>(existingReview?.userEmail || currentUser?.email || '');
   const [title, setTitle] = useState<string>(existingReview?.title || '');
   const [body, setBody] = useState<string>(existingReview?.body || '');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isAuthenticated = Boolean(currentUser?.authenticated || (currentUser?.email && currentUser.email.includes('@')));
+
+  useEffect(() => {
+    if (currentUser?.name && !name) setName(currentUser.name);
+    if (currentUser?.email && !email) setEmail(currentUser.email);
+  }, [currentUser]);
 
   if (!isOpen) return null;
 
@@ -43,15 +54,24 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
     e.preventDefault();
     setError(null);
 
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
     const cleanTitle = title.trim();
     const cleanBody = body.trim();
 
+    if (!isAuthenticated) {
+      if (!cleanName || cleanName.length < 2) {
+        setError('Please provide your name (at least 2 characters).');
+        return;
+      }
+      if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        setError('Please provide a valid email address.');
+        return;
+      }
+    }
+
     if (!rating || rating < 1 || rating > 5) {
       setError('Please select a star rating between 1 and 5.');
-      return;
-    }
-    if (!cleanTitle) {
-      setError('Please provide a headline for your review.');
       return;
     }
     if (cleanTitle.length > 120) {
@@ -80,7 +100,9 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
           productId,
           productName,
           rating,
-          title: cleanTitle,
+          name: cleanName || (currentUser?.name ?? 'Customer'),
+          email: cleanEmail || (currentUser?.email ?? ''),
+          title: cleanTitle || `${rating} Star Review`,
           body: cleanBody
         })
       });
@@ -96,20 +118,20 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
           id: existingReview?.id || `rev_${Date.now()}`,
           productId,
           productName,
-          userId: '',
-          userName: 'You',
+          userId: currentUser?.id || '',
+          userName: cleanName || 'You',
           rating,
-          title: cleanTitle,
+          title: cleanTitle || `${rating} Star Review`,
           body: cleanBody,
-          status: 'pending',
-          verifiedPurchase: true,
+          status: 'published',
+          verifiedPurchase: Boolean(data.review?.verifiedPurchase),
           helpfulCount: existingReview?.helpfulCount || 0,
           reportCount: existingReview?.reportCount || 0,
           isUserReview: true,
           createdAt: existingReview?.createdAt || new Date().toISOString(),
           updatedAt: new Date().toISOString()
         },
-        data.message || (isEditing ? 'Your review was updated successfully.' : 'Your review was submitted and is awaiting moderation.')
+        data.message || 'Thanks for your review! ⭐ Your review has been submitted successfully.'
       );
       onClose();
     } catch (err: any) {
@@ -130,7 +152,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{isEditing ? 'Edit Customer Review' : 'Verified Customer Review'}</span>
+              <span>{isEditing ? 'Edit Your Review' : 'Write a Product Review'}</span>
             </div>
             <h3 className="text-base sm:text-lg font-bold text-slate-900 line-clamp-1 mt-0.5">
               {productName}
@@ -147,7 +169,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-5">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-4.5">
           {error && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2 animate-shake">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
@@ -155,16 +177,72 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
             </div>
           )}
 
-          {/* Verified Purchase Banner */}
-          <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200/90 flex items-center gap-2 text-xs text-emerald-800 font-medium">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>
-              <strong>Verified Purchase:</strong> Your review will display the verified customer badge once approved by moderation.
-            </span>
-          </div>
+          {/* User Status / Account Indicator */}
+          {isAuthenticated ? (
+            <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
+                  {(currentUser?.name || currentUser?.email || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-900 truncate">{currentUser?.name || 'Customer'}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{currentUser?.email}</p>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] shrink-0 border border-emerald-200">
+                Verified Account
+              </span>
+            </div>
+          ) : (
+            /* Guest Reviewer Input Fields */
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label htmlFor="reviewer-name" className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                    Your Name <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      id="reviewer-name"
+                      type="text"
+                      required
+                      maxLength={60}
+                      placeholder="e.g. Rahul Varma"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-600 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="reviewer-email" className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                    Your Email <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      id="reviewer-email"
+                      type="email"
+                      required
+                      maxLength={100}
+                      placeholder="e.g. rahul@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-600 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                <span>Your email is strictly private and will never be shown publicly.</span>
+              </p>
+            </div>
+          )}
 
           {/* Star Rating Selector */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 pt-1">
             <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
               Overall Rating <span className="text-rose-500">*</span>
             </label>
@@ -201,11 +279,11 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
             </div>
           </div>
 
-          {/* Review Headline */}
+          {/* Review Headline (Optional) */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label htmlFor="review-title" className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                Review Headline <span className="text-rose-500">*</span>
+                Review Headline <span className="text-slate-400 font-normal lowercase">(optional)</span>
               </label>
               <span className="text-[10px] text-slate-400 font-mono">
                 {title.length}/120
@@ -214,20 +292,19 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
             <input
               id="review-title"
               type="text"
-              required
               maxLength={120}
-              placeholder="e.g. Incredibly useful and saved me hours of setup"
+              placeholder="e.g. Transformed my daily workflow completely"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-600 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-colors"
             />
           </div>
 
-          {/* Review Description */}
+          {/* Detailed Review Message */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label htmlFor="review-body" className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                Detailed Review <span className="text-rose-500">*</span>
+                Review Message <span className="text-rose-500">*</span>
               </label>
               <span className="text-[10px] text-slate-400 font-mono">
                 {body.length}/3000
@@ -238,13 +315,13 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
               required
               rows={4}
               maxLength={3000}
-              placeholder="What did you like or dislike? How did this product perform for you? What should other customers know before purchasing?"
+              placeholder="What did you like or find helpful? How did this product perform for you? What should other buyers know?"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-600 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-colors leading-relaxed"
             />
             <p className="text-[10px] text-slate-400">
-              Minimum 10 characters. Please avoid personal identifying data like phone numbers or private keys.
+              Minimum 10 characters. Please avoid sharing personal private keys or phone numbers.
             </p>
           </div>
 
@@ -261,8 +338,8 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
 
             <button
               type="submit"
-              disabled={loading || !title.trim() || body.trim().length < 10}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+              disabled={loading || (!isAuthenticated && (!name.trim() || !email.trim())) || body.trim().length < 10}
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
               {loading ? (
                 <>

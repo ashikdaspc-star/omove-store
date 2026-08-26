@@ -4,6 +4,7 @@ import { DigitalProduct, DigitalCategory, CartItem, ReviewSummary } from '../typ
 import { matchProductBySlugOrId } from '../utils/productMatcher';
 import { isEbookProduct } from '../utils/categoryMatcher';
 import { ProductReviewsSection } from '../components/reviews/ProductReviewsSection';
+import { ProductImageGallery } from '../components/ProductImageGallery';
 import {
   Sparkles,
   DownloadCloud,
@@ -56,7 +57,6 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
   const [isCopied, setIsCopied] = useState(false);
   const [fetchedProduct, setFetchedProduct] = useState<DigitalProduct | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
 
@@ -79,14 +79,11 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
   useEffect(() => {
     if (!initialProduct && !matchProductBySlugOrId(products, routeSlug) && routeSlug) {
       setIsLoading(true);
-      fetch(`/api/digital-products?v=${Date.now()}`, { cache: 'no-store' })
-        .then((res) => (res.ok ? res.json() : []))
+      fetch(`/api/digital-products/${encodeURIComponent(routeSlug)}`)
+        .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (Array.isArray(data) && data.length > 0) {
-            const match = matchProductBySlugOrId(data, routeSlug);
-            if (match) {
-              setFetchedProduct(match);
-            }
+          if (data && data.success && data.product) {
+            setFetchedProduct(data.product);
           }
         })
         .catch(() => {})
@@ -143,9 +140,32 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
   };
 
   const isEbook = isEbookProduct(product, categories);
-  const mainProductImage = product.previewImage || product.image || (isEbook
-    ? 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&auto=format&fit=crop&q=80'
-    : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80');
+
+  // Compute all available preview images for gallery
+  const productGalleryImages = React.useMemo(() => {
+    const list: string[] = [];
+    if (product.image && typeof product.image === 'string' && product.image.trim()) {
+      list.push(product.image.trim());
+    }
+    if (product.previewImage && typeof product.previewImage === 'string' && product.previewImage.trim() && !list.includes(product.previewImage.trim())) {
+      list.push(product.previewImage.trim());
+    }
+    if (Array.isArray(product.screenshots)) {
+      product.screenshots.forEach((s) => {
+        if (s && typeof s === 'string' && s.trim() && !list.includes(s.trim())) {
+          list.push(s.trim());
+        }
+      });
+    }
+    if (list.length === 0) {
+      list.push(
+        isEbook
+          ? 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&auto=format&fit=crop&q=80'
+          : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'
+      );
+    }
+    return list;
+  }, [product, isEbook]);
 
   // Convert DigitalProduct to standard product wrapper for cart compatibility
   const cartProductPayload = {
@@ -164,9 +184,9 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
     licenseType: 'Digital File Download' as any,
     rating: 4.9,
     reviewCount: 125,
-    image: mainProductImage,
+    image: productGalleryImages[0],
     previewImage: product.previewImage || product.image,
-    screenshots: product.screenshots && product.screenshots.length > 0 ? product.screenshots : [mainProductImage],
+    screenshots: product.screenshots && product.screenshots.length > 0 ? product.screenshots : [productGalleryImages[0]],
     features: product.features,
     requirements: product.compatibility || [],
     versionHistory: [],
@@ -209,44 +229,22 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
           <span className="text-slate-800 font-medium truncate max-w-[120px] sm:max-w-[220px] shrink-0">{product.name}</span>
         </nav>
 
-        {/* 3-COLUMN EDITORIAL BOOKSTORE LAYOUT */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 xl:gap-12 items-start pt-0.5 sm:pt-2 w-full max-w-full min-w-0">
+        {/* 3-COLUMN EDITORIAL BOOKSTORE / ECOMMERCE LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 items-start pt-0.5 sm:pt-2 w-full max-w-full min-w-0">
           
           {/* ========================================================================= */}
-          {/* LEFT COLUMN: EBOOK COVER & PREVIEW CONTROLS (approx 25% | lg:col-span-3) */}
+          {/* LEFT COLUMN: PRODUCT IMAGE GALLERY & ACTIONS (lg:col-span-4)              */}
           {/* ========================================================================= */}
-          <div className="scroll-reveal lg:col-span-3 space-y-2.5 sm:space-y-4 w-full max-w-full min-w-0">
-            {/* Book Cover Container (Compact 190–230px height on mobile) */}
-            <div 
-              onClick={() => setShowPreviewModal(true)}
-              className="relative mx-auto w-full rounded-2xl overflow-hidden bg-slate-50/90 border border-slate-200/80 group cursor-pointer p-3 sm:p-4 lg:p-0 flex items-center justify-center min-h-[190px] max-h-[220px] min-[360px]:max-h-[235px] sm:max-h-[280px] lg:max-h-none lg:min-h-0 shadow-xs hover:border-emerald-300 transition-colors"
-            >
-              <img
-                src={mainProductImage}
-                alt={product.name}
-                className="w-auto max-w-[62%] sm:max-w-[75%] lg:max-w-full max-h-[175px] min-[360px]:max-h-[195px] sm:max-h-[260px] lg:max-h-none object-contain rounded-md shadow-xs group-hover:scale-[1.02] transition-transform duration-300 mx-auto"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = isEbook
-                    ? 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&auto=format&fit=crop&q=80'
-                    : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
-                }}
-              />
-            </div>
+          <div className="scroll-reveal lg:col-span-4 xl:col-span-4 space-y-3 sm:space-y-4 w-full max-w-full min-w-0">
+            {/* Interactive Image Gallery */}
+            <ProductImageGallery
+              images={productGalleryImages}
+              productName={product.name}
+              isEbook={isEbook}
+            />
 
-            {/* Below Cover Action Links (Compact 34–36px) */}
+            {/* Below Gallery Action Links (Compact 34–36px) */}
             <div className="flex items-center justify-center gap-4 py-1 text-xs text-slate-600 w-full min-h-[34px]">
-              <button
-                type="button"
-                onClick={() => setShowPreviewModal(true)}
-                className="inline-flex items-center gap-1.5 hover:text-emerald-700 font-medium transition-colors cursor-pointer py-1 px-2.5 active:scale-95"
-              >
-                <Search className="w-3.5 h-3.5 text-slate-400" />
-                <span>Preview</span>
-              </button>
-
-              <span className="text-slate-300">|</span>
-
               <button
                 type="button"
                 onClick={handleShare}
@@ -313,9 +311,9 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
 
 
           {/* ========================================================================= */}
-          {/* CENTER COLUMN: TITLE, METADATA, SYNOPSIS & SPECS (approx 50% | lg:col-span-6) */}
+          {/* CENTER COLUMN: TITLE, METADATA, SYNOPSIS & SPECS (approx 42% | lg:col-span-5) */}
           {/* ========================================================================= */}
-          <div className="scroll-reveal lg:col-span-6 space-y-4 sm:space-y-6 w-full max-w-full min-w-0" style={{ '--reveal-delay': '120ms' } as React.CSSProperties}>
+          <div className="scroll-reveal lg:col-span-5 xl:col-span-5 space-y-4 sm:space-y-6 w-full max-w-full min-w-0" style={{ '--reveal-delay': '120ms' } as React.CSSProperties}>
             
             {/* Title & Author Info */}
             <div className="space-y-1 w-full min-w-0">
@@ -669,38 +667,6 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
         </div>
       </div>
 
-      {/* Preview Modal / Lightbox */}
-      {showPreviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
-          <div className="relative max-w-lg w-full bg-white rounded-xl shadow-2xl p-4 space-y-4 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2 shrink-0">
-              <h3 className="font-bold text-sm text-slate-900">Product Preview</h3>
-              <button 
-                onClick={() => setShowPreviewModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="overflow-auto rounded-md bg-slate-50 flex items-center justify-center p-2 flex-1 min-h-0">
-              <img 
-                src={mainProductImage} 
-                alt={product.name} 
-                className="max-h-[60vh] sm:max-h-[68vh] w-auto max-w-full object-contain"
-              />
-            </div>
-            <div className="flex justify-end pt-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowPreviewModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md text-xs font-semibold cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Mobile-Only Sticky Bottom Buy Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2 font-sans pb-safe w-full max-w-full box-border">
         <div className="min-w-0 shrink">
