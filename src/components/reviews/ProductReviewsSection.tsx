@@ -184,19 +184,19 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
   const dist = summary?.distribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
   return (
-    <section className="scroll-reveal bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 border border-slate-200 shadow-xs space-y-6 sm:space-y-8 font-sans">
+    <section className="scroll-reveal bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-8 border border-slate-200 shadow-xs space-y-5 sm:space-y-8 font-sans w-full max-w-full min-w-0 overflow-hidden box-border">
       
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="p-3.5 rounded-xl bg-slate-900 text-white text-xs font-medium flex items-center justify-between gap-2 shadow-lg animate-fadeIn">
-          <div className="flex items-center gap-2">
+        <div className="p-3.5 rounded-xl bg-slate-900 text-white text-xs font-medium flex items-center justify-between gap-2 shadow-lg animate-fadeIn w-full max-w-full min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{toastMessage}</span>
+            <span className="truncate">{toastMessage}</span>
           </div>
           <button
             type="button"
             onClick={() => setToastMessage(null)}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-slate-400 hover:text-white transition-colors shrink-0 p-1"
           >
             ✕
           </button>
@@ -204,30 +204,30 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
       )}
 
       {/* 1. Header & Rating Overview */}
-      <div className="border-b border-slate-100 pb-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
+      <div className="border-b border-slate-100 pb-5 sm:pb-6 space-y-5 sm:space-y-6 w-full max-w-full min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 w-full min-w-0">
+          <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>Customer Feedback</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight mt-0.5">
+            <h2 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight mt-0.5 break-words">
               Verified Customer Reviews
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5 break-words">
               Genuine reviews submitted by customers who purchased this verified digital resource.
             </p>
           </div>
 
           {/* Write / Edit Review Button Action */}
-          <div>
+          <div className="w-full sm:w-auto shrink-0">
             {userReview ? (
               <button
                 type="button"
                 onClick={() => setIsWriteModalOpen(true)}
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
               >
-                <Edit3 className="w-3.5 h-3.5 text-slate-600" />
+                <Edit3 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                 <span>Edit Your Review</span>
               </button>
             ) : eligibility?.eligible ? (
@@ -236,7 +236,7 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                 onClick={() => setIsWriteModalOpen(true)}
                 className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
               >
-                <MessageSquarePlus className="w-4 h-4 fill-white text-emerald-600" />
+                <MessageSquarePlus className="w-4 h-4 fill-white text-emerald-600 shrink-0" />
                 <span>Write a Review</span>
               </button>
             ) : null}
@@ -244,19 +244,19 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
         </div>
 
         {/* Rating Breakdown & Stats Grid */}
-        <div className="grid md:grid-cols-12 gap-6 items-center pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6 items-center pt-1 sm:pt-2 w-full max-w-full min-w-0">
           
           {/* Left Column: Overall Score Card (md:col-span-4) */}
-          <div className="md:col-span-4 p-5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center space-y-2">
-            <div className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
+          <div className="md:col-span-4 p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center space-y-1.5 sm:space-y-2 w-full max-w-full min-w-0 box-border">
+            <div className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">
               {totalCount > 0 ? avgRating.toFixed(1) : '0.0'}
             </div>
 
-            <div className="flex items-center justify-center gap-1 text-amber-400">
+            <div className="flex items-center justify-center gap-0.5 sm:gap-1 text-amber-400">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star
                   key={star}
-                  className={`w-4 h-4 sm:w-5 sm:h-5 ${
+                  className={`w-3.5 h-3.5 sm:w-5 sm:h-5 ${
                     star <= Math.round(avgRating)
                       ? 'fill-amber-400 text-amber-400'
                       : 'text-slate-200 fill-slate-200'
@@ -265,20 +265,20 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
               ))}
             </div>
 
-            <p className="text-xs text-slate-600 font-medium">
+            <p className="text-xs text-slate-600 font-medium break-words">
               {totalCount > 0
                 ? `Based on ${totalCount} verified review${totalCount === 1 ? '' : 's'}`
                 : 'No published reviews yet'}
             </p>
 
-            <div className="pt-2 border-t border-slate-200/80 flex items-center justify-center gap-1.5 text-[11px] text-emerald-800 font-bold">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <div className="pt-2 border-t border-slate-200/80 flex items-center justify-center gap-1.5 text-[10px] sm:text-[11px] text-emerald-800 font-bold">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>100% Verified Purchases</span>
             </div>
           </div>
 
           {/* Right Column: Rating Distribution Bars (md:col-span-8) */}
-          <div className="md:col-span-8 space-y-2">
+          <div className="md:col-span-8 space-y-1.5 sm:space-y-2 w-full max-w-full min-w-0">
             {[5, 4, 3, 2, 1].map((starRating) => {
               const count = dist[starRating as keyof typeof dist] || 0;
               const percentage = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
@@ -289,25 +289,25 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                   key={starRating}
                   type="button"
                   onClick={() => setRatingFilter(isSelected ? 'all' : String(starRating))}
-                  className={`w-full flex items-center gap-3 py-1 px-2 rounded-lg text-xs transition-colors cursor-pointer group ${
+                  className={`w-full flex items-center gap-2 sm:gap-3 py-1 px-1.5 sm:px-2 rounded-lg text-xs transition-colors cursor-pointer group min-w-0 ${
                     isSelected ? 'bg-emerald-50' : 'hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex items-center gap-1 w-12 text-slate-700 font-bold shrink-0">
+                  <div className="flex items-center gap-1 w-10 sm:w-12 text-slate-700 font-bold shrink-0 text-xs">
                     <span>{starRating}</span>
                     <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                   </div>
 
-                  <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden relative">
+                  <div className="flex-1 h-2 sm:h-2.5 rounded-full bg-slate-100 overflow-hidden relative min-w-[50px]">
                     <div
                       className="h-full bg-amber-400 rounded-full transition-all duration-500 group-hover:bg-amber-500"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
 
-                  <div className="w-16 text-right text-[11px] text-slate-500 font-medium shrink-0">
+                  <div className="w-14 sm:w-16 text-right text-[10px] sm:text-[11px] text-slate-500 font-medium shrink-0">
                     <span>{percentage}%</span>
-                    <span className="text-[10px] text-slate-400 ml-1">({count})</span>
+                    <span className="text-[10px] text-slate-400 ml-0.5">({count})</span>
                   </div>
                 </button>
               );
@@ -317,23 +317,23 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
 
         {/* Eligibility Notice / Guidance Banner */}
         {!userReview && !eligibility?.eligible && (
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
-            <div className="flex items-center gap-2">
+          <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 text-xs text-slate-600 w-full min-w-0 box-border">
+            <div className="flex items-center gap-2 min-w-0">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>
+              <span className="break-words text-[11px] sm:text-xs">
                 {eligibility?.authenticated
                   ? 'Purchase this verified resource to share your experience with other customers.'
                   : 'Sign in with your account to write a verified customer review.'}
               </span>
             </div>
 
-            <div>
+            <div className="shrink-0">
               {eligibility?.authenticated ? (
                 onBuyNow && (
                   <button
                     type="button"
                     onClick={onBuyNow}
-                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shrink-0 cursor-pointer"
+                    className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shrink-0 cursor-pointer"
                   >
                     Buy Product Now
                   </button>
@@ -343,7 +343,7 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                   <button
                     type="button"
                     onClick={onOpenAuthModal}
-                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shrink-0 cursor-pointer"
+                    className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shrink-0 cursor-pointer"
                   >
                     Sign In
                   </button>
@@ -427,19 +427,19 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
       )}
 
       {/* 3. Review Filter Bar & Sorting */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+      <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 pt-1 min-w-0">
         {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto pb-1.5 scrollbar-none text-xs w-full sm:w-auto min-w-0">
           <button
             type="button"
             onClick={() => setRatingFilter('all')}
-            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-colors cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-bold whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
               ratingFilter === 'all'
                 ? 'bg-slate-900 text-white shadow-2xs'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
             }`}
           >
-            All Reviews ({totalCount})
+            All ({totalCount})
           </button>
 
           {[5, 4, 3, 2, 1].map((star) => {
@@ -450,7 +450,7 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                 key={star}
                 type="button"
                 onClick={() => setRatingFilter(isSelected ? 'all' : String(star))}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer ${
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-bold whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer shrink-0 ${
                   isSelected
                     ? 'bg-emerald-600 text-white shadow-2xs'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
@@ -465,13 +465,13 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
         </div>
 
         {/* Sort Select Dropdown */}
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-slate-400 font-medium">Sort by:</span>
+        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto text-xs">
+          <span className="text-xs text-slate-400 font-medium shrink-0">Sort:</span>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as any)}
             aria-label="Sort product reviews"
-            className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-600 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-600 cursor-pointer max-w-[160px] sm:max-w-none"
           >
             <option value="helpful">Most Helpful</option>
             <option value="newest">Newest First</option>
@@ -482,14 +482,14 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
       </div>
 
       {/* 4. Reviews List */}
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4 w-full max-w-full min-w-0">
         {loading ? (
-          <div className="p-12 text-center space-y-3">
+          <div className="p-8 sm:p-12 text-center space-y-3">
             <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
             <p className="text-xs text-slate-500 font-medium">Loading verified customer reviews...</p>
           </div>
         ) : reviews.length === 0 ? (
-          <div className="p-8 sm:p-12 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-3">
+          <div className="p-6 sm:p-12 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-3 w-full box-border">
             <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
               <Star className="w-6 h-6" />
             </div>
@@ -515,7 +515,7 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
             )}
           </div>
         ) : (
-          <div className="space-y-3.5">
+          <div className="space-y-3 sm:space-y-3.5 w-full max-w-full min-w-0">
             {reviews.map((rev) => {
               const isSelf = userReview && userReview.id === rev.id;
               if (isSelf) return null; // Skip self if already shown at top
@@ -530,32 +530,32 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
               return (
                 <div
                   key={rev.id}
-                  className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-slate-300 transition-all shadow-2xs space-y-3"
+                  className="p-3.5 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-slate-300 transition-all shadow-2xs space-y-2.5 sm:space-y-3 w-full max-w-full min-w-0 box-border"
                 >
                   {/* Top: Customer & Rating Header */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-between gap-2 w-full min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
                       {/* Avatar initials */}
-                      <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-[11px] sm:text-xs flex items-center justify-center shrink-0">
                         {initials}
                       </div>
 
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs sm:text-sm font-bold text-slate-900">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs sm:text-sm font-bold text-slate-900 truncate max-w-[120px] sm:max-w-[200px]">
                             {rev.userName}
                           </span>
                           {rev.verifiedPurchase && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              <span>Verified Purchase</span>
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shrink-0">
+                              <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-600" />
+                              <span>Verified</span>
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[10px] sm:text-[11px] text-slate-400 shrink-0">
                       {new Date(rev.createdAt).toLocaleDateString('en-IN', {
                         day: 'numeric',
                         month: 'short',
@@ -565,13 +565,13 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                   </div>
 
                   {/* Rating Stars & Title */}
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-amber-500">
-                      <div className="flex items-center gap-0.5">
+                  <div className="space-y-0.5 sm:space-y-1 w-full min-w-0">
+                    <div className="flex items-center gap-1.5 text-amber-500 flex-wrap">
+                      <div className="flex items-center gap-0.5 shrink-0">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <Star
                             key={star}
-                            className={`w-3.5 h-3.5 ${
+                            className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${
                               star <= rev.rating
                                 ? 'fill-amber-400 text-amber-400'
                                 : 'text-slate-200 fill-slate-100'
@@ -579,32 +579,32 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                           />
                         ))}
                       </div>
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 break-words">
                         {rev.title}
                       </h4>
                     </div>
 
                     {/* Review Body */}
-                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans pt-0.5">
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans pt-0.5 break-words [overflow-wrap:anywhere]">
                       {rev.body}
                     </p>
                   </div>
 
                   {/* Bottom Actions: Helpful & Report */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                    <div className="flex items-center gap-3">
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 w-full">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <button
                         type="button"
                         onClick={() => handleHelpfulVote(rev.id)}
                         disabled={actionLoading[rev.id]}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                        className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg transition-colors cursor-pointer text-xs ${
                           rev.userHasVoted
                             ? 'bg-emerald-50 text-emerald-700 font-bold border border-emerald-200'
                             : 'bg-slate-50 hover:bg-slate-100 text-slate-600 font-medium'
                         }`}
                         title="Mark as helpful"
                       >
-                        <ThumbsUp className={`w-3.5 h-3.5 ${rev.userHasVoted ? 'fill-emerald-600 text-emerald-600' : 'text-slate-400'}`} />
+                        <ThumbsUp className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${rev.userHasVoted ? 'fill-emerald-600 text-emerald-600' : 'text-slate-400'}`} />
                         <span>Helpful</span>
                         {rev.helpfulCount > 0 && <span>({rev.helpfulCount})</span>}
                       </button>
@@ -613,7 +613,7 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                     <button
                       type="button"
                       onClick={() => setReportModalReview(rev)}
-                      className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-slate-400 hover:text-rose-600 transition-colors cursor-pointer p-1"
                       title="Report this review"
                     >
                       <Flag className="w-3 h-3" />

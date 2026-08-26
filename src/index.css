@@ -303,17 +303,22 @@
 /* Mobile Responsive Protections & Touch Target Safety (max-width: 767px)    */
 /* ========================================================================= */
 @media (max-width: 767px) {
-  html, body {
+  html, body, #root {
     overflow-x: hidden;
     width: 100%;
-    max-width: 100vw;
+    max-width: 100%;
     -webkit-text-size-adjust: 100%;
   }
 
   /* Prevent unintended horizontal scroll / blowout from child containers */
-  * {
-    max-width: 100vw;
+  *, ::before, ::after {
+    max-width: 100%;
     box-sizing: border-box;
+  }
+
+  /* Ensure media and embedded elements never exceed viewport */
+  img, svg, video, canvas, audio, iframe, embed, object {
+    max-width: 100%;
   }
 
   /* Prevent iOS input auto-zoom on focus while keeping styles clean */
@@ -329,6 +334,15 @@
 
   /* Safe-area bottom utility for sticky mobile buy bar */
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 12px);
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Clean horizontal scrollbars for chips and tabs */
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
