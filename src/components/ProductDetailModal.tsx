@@ -99,28 +99,28 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const images = [product.image, ...(product.screenshots || [])];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto font-sans">
-      <div className="relative w-full max-w-4xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto font-sans">
+      <div className="relative w-full max-w-4xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden my-4 sm:my-8">
         {/* Header Bar */}
-        <div className="sticky top-0 z-20 flex items-center justify-between px-6 py-4 bg-white/95 border-b border-slate-100 backdrop-blur-md">
+        <div className="sticky top-0 z-20 flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 bg-white/95 border-b border-slate-100 backdrop-blur-md">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <span className="px-2 py-0.5 sm:px-2.5 sm:py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
               {product.category}
             </span>
-            <span className="text-xs text-slate-400">ID: {product.id}</span>
+            <span className="text-[10px] sm:text-xs text-slate-400">ID: {product.id}</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
+            className="p-1 sm:p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-8 max-h-[80vh] overflow-y-auto">
+        <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-8 max-h-[82vh] overflow-y-auto">
           {/* Gallery & Main Overview Grid */}
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-2 gap-4 sm:gap-8">
             {/* Gallery Column */}
             <div className="space-y-4">
               <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
