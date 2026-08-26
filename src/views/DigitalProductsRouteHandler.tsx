@@ -13,6 +13,7 @@ interface DigitalProductsRouteHandlerProps {
   onBuyNow: (product: any) => void;
   wishlist: string[];
   onToggleWishlist: (productId: string) => void;
+  onOpenAuthModal?: () => void;
 }
 
 export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerProps> = ({
@@ -22,7 +23,8 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
   onAddToCart,
   onBuyNow,
   wishlist,
-  onToggleWishlist
+  onToggleWishlist,
+  onOpenAuthModal
 }) => {
   const params = useParams<{ categorySlug?: string; subcategorySlug?: string }>();
   const routeSlug = params.subcategorySlug || params.categorySlug;
@@ -81,6 +83,7 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
         categories={activeCats}
         onAddToCart={onAddToCart}
         onBuyNow={onBuyNow}
+        onOpenAuthModal={onOpenAuthModal}
       />
     );
   }

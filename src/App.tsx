@@ -612,6 +612,14 @@ export default function App() {
     navigate('/admin');
   };
 
+  // Dedicated Full-Page Product Navigation Handler (No Modal on Homepage or Catalog)
+  const handleProductSelect = (product: Product) => {
+    if (!product) return;
+    const targetSlug = product.slug || product.id;
+    navigate(`/digital-products/${targetSlug}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   // Cart Handlers
   const handleAddToCart = (product: Product) => {
     setCart((prev) => {
@@ -1033,7 +1041,7 @@ export default function App() {
                   products={products}
                   services={services}
                   blogs={blogs}
-                  onSelectProduct={setSelectedProductForDetail}
+                  onSelectProduct={handleProductSelect}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
                   wishlist={wishlist}
@@ -1051,11 +1059,12 @@ export default function App() {
                 <DigitalProductsRouteHandler
                   products={products}
                   categories={digitalCategories}
-                  onSelectProduct={setSelectedProductForDetail}
+                  onSelectProduct={handleProductSelect}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                 />
               }
             />
@@ -1065,11 +1074,12 @@ export default function App() {
                 <DigitalProductsRouteHandler
                   products={products}
                   categories={digitalCategories}
-                  onSelectProduct={setSelectedProductForDetail}
+                  onSelectProduct={handleProductSelect}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                 />
               }
             />
@@ -1079,126 +1089,190 @@ export default function App() {
                 <DigitalProductsRouteHandler
                   products={products}
                   categories={digitalCategories}
-                  onSelectProduct={setSelectedProductForDetail}
+                  onSelectProduct={handleProductSelect}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
                   wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                 />
               }
             />
-          <Route path="/digital-product-sell" element={<Navigate to="/digital-products" replace />} />
 
-          <Route
-            path="/store"
-            element={
-              <StoreView
-                products={products}
-                onSelectProduct={setSelectedProductForDetail}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
-                wishlist={wishlist}
-                onToggleWishlist={handleToggleWishlist}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
-              />
-            }
-          />
-
-          <Route path="/services" element={<Navigate to="/remote-support" replace />} />
-
-          <Route
-            path="/remote-support"
-            element={
-              <RemoteSupportBookingView
-                services={services}
-                onBookingSuccess={handleBookingSuccess}
-                setCurrentView={handleNavigateView}
-              />
-            }
-          />
-
-          <Route
-            path="/downloads"
-            element={
-              <ProtectedRoute isLoggedIn={isLoggedIn} onOpenAuthModal={() => setIsAuthModalOpen(true)}>
-                <DownloadsView
+            {/* Product Route Aliases */}
+            <Route
+              path="/product/:categorySlug"
+              element={
+                <DigitalProductsRouteHandler
                   products={products}
-                  orders={orders}
-                  customerProfile={customerProfile}
-                  onSelectProduct={setSelectedProductForDetail}
+                  categories={digitalCategories}
+                  onSelectProduct={handleProductSelect}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
-                />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route path="/blog" element={<BlogView blogs={blogs} />} />
-
-          <Route path="/contact" element={<AboutContactView />} />
-          <Route path="/about" element={<AboutView />} />
-          <Route path="/support" element={<SupportView />} />
-          <Route path="/about-contact" element={<Navigate to="/contact" replace />} />
-
-          {/* Legal & Policy Pages */}
-          <Route path="/refund-policy" element={<RefundPolicyView />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicyView />} />
-          <Route path="/terms" element={<TermsView />} />
-          <Route path="/delivery-policy" element={<DeliveryPolicyView />} />
-          <Route path="/cookie-policy" element={<CookiePolicyView />} />
-
-          <Route
-            path="/reset-password"
-            element={<ResetPasswordView onOpenAuthModal={() => setIsAuthModalOpen(true)} />}
-          />
-
-          {/* Protected Customer Account Routes */}
-          <Route
-            path="/my-account"
-            element={
-              <ProtectedRoute isLoggedIn={isLoggedIn} onOpenAuthModal={() => setIsAuthModalOpen(true)}>
-                <DashboardView
-                  orders={orders}
-                  bookings={bookings}
-                  wishlistProducts={wishlistProducts}
-                  customerProfile={customerProfile}
-                  onUpdateCustomerProfile={setCustomerProfile}
-                  onSelectProduct={setSelectedProductForDetail}
-                  onAddToCart={handleAddToCart}
-                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
-                  onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
-                  setCurrentView={handleNavigateView}
-                  onSignOut={handleSignOut}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                 />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute isLoggedIn={isLoggedIn} onOpenAuthModal={() => setIsAuthModalOpen(true)}>
-                <DashboardView
-                  orders={orders}
-                  bookings={bookings}
-                  wishlistProducts={wishlistProducts}
-                  customerProfile={customerProfile}
-                  onUpdateCustomerProfile={setCustomerProfile}
-                  onSelectProduct={setSelectedProductForDetail}
+              }
+            />
+            <Route
+              path="/product/:categorySlug/:subcategorySlug"
+              element={
+                <DigitalProductsRouteHandler
+                  products={products}
+                  categories={digitalCategories}
+                  onSelectProduct={handleProductSelect}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
                   onToggleWishlist={handleToggleWishlist}
-                  onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
-                  setCurrentView={handleNavigateView}
-                  onSignOut={handleSignOut}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                 />
-              </ProtectedRoute>
-            }
-          />
+              }
+            />
+            <Route
+              path="/products/:categorySlug"
+              element={
+                <DigitalProductsRouteHandler
+                  products={products}
+                  categories={digitalCategories}
+                  onSelectProduct={handleProductSelect}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                />
+              }
+            />
+            <Route
+              path="/products/:categorySlug/:subcategorySlug"
+              element={
+                <DigitalProductsRouteHandler
+                  products={products}
+                  categories={digitalCategories}
+                  onSelectProduct={handleProductSelect}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                />
+              }
+            />
+
+            <Route path="/digital-product-sell" element={<Navigate to="/digital-products" replace />} />
+
+            <Route
+              path="/store"
+              element={
+                <StoreView
+                  products={products}
+                  onSelectProduct={handleProductSelect}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  selectedCategory={selectedCategory}
+                  setSelectedCategory={setSelectedCategory}
+                />
+              }
+            />
+
+            <Route path="/services" element={<Navigate to="/remote-support" replace />} />
+
+            <Route
+              path="/remote-support"
+              element={
+                <RemoteSupportBookingView
+                  services={services}
+                  onBookingSuccess={handleBookingSuccess}
+                  setCurrentView={handleNavigateView}
+                />
+              }
+            />
+
+            <Route
+              path="/downloads"
+              element={
+                <ProtectedRoute isLoggedIn={isLoggedIn} onOpenAuthModal={() => setIsAuthModalOpen(true)}>
+                  <DownloadsView
+                    products={products}
+                    orders={orders}
+                    customerProfile={customerProfile}
+                    onSelectProduct={handleProductSelect}
+                    onAddToCart={handleAddToCart}
+                    onBuyNow={handleBuyNow}
+                  />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route path="/blog" element={<BlogView blogs={blogs} />} />
+
+            <Route path="/contact" element={<AboutContactView />} />
+            <Route path="/about" element={<AboutView />} />
+            <Route path="/support" element={<SupportView />} />
+            <Route path="/about-contact" element={<Navigate to="/contact" replace />} />
+
+            {/* Legal & Policy Pages */}
+            <Route path="/refund-policy" element={<RefundPolicyView />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicyView />} />
+            <Route path="/terms" element={<TermsView />} />
+            <Route path="/delivery-policy" element={<DeliveryPolicyView />} />
+            <Route path="/cookie-policy" element={<CookiePolicyView />} />
+
+            <Route
+              path="/reset-password"
+              element={<ResetPasswordView onOpenAuthModal={() => setIsAuthModalOpen(true)} />}
+            />
+
+            {/* Protected Customer Account Routes */}
+            <Route
+              path="/my-account"
+              element={
+                <ProtectedRoute isLoggedIn={isLoggedIn} onOpenAuthModal={() => setIsAuthModalOpen(true)}>
+                  <DashboardView
+                    orders={orders}
+                    bookings={bookings}
+                    wishlistProducts={wishlistProducts}
+                    customerProfile={customerProfile}
+                    onUpdateCustomerProfile={setCustomerProfile}
+                    onSelectProduct={handleProductSelect}
+                    onAddToCart={handleAddToCart}
+                    onBuyNow={handleBuyNow}
+                    onToggleWishlist={handleToggleWishlist}
+                    onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
+                    setCurrentView={handleNavigateView}
+                    onSignOut={handleSignOut}
+                  />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute isLoggedIn={isLoggedIn} onOpenAuthModal={() => setIsAuthModalOpen(true)}>
+                  <DashboardView
+                    orders={orders}
+                    bookings={bookings}
+                    wishlistProducts={wishlistProducts}
+                    customerProfile={customerProfile}
+                    onUpdateCustomerProfile={setCustomerProfile}
+                    onSelectProduct={handleProductSelect}
+                    onAddToCart={handleAddToCart}
+                    onBuyNow={handleBuyNow}
+                    onToggleWishlist={handleToggleWishlist}
+                    onOpenInvoiceModal={(ord) => setSelectedInvoiceOrder(ord)}
+                    setCurrentView={handleNavigateView}
+                    onSignOut={handleSignOut}
+                  />
+                </ProtectedRoute>
+              }
+            />
 
           <Route
             path="/admin"
@@ -1261,13 +1335,6 @@ export default function App() {
         isOpen={isAdminAuthModalOpen}
         onClose={() => setIsAdminAuthModalOpen(false)}
         onSuccess={handleAdminAuthSuccess}
-      />
-
-      <ProductDetailModal
-        product={selectedProductForDetail}
-        onClose={() => setSelectedProductForDetail(null)}
-        onAddToCart={handleAddToCart}
-        onBuyNow={handleBuyNow}
       />
 
       <CheckoutModal

@@ -15,7 +15,7 @@ export const FloatingWhatsAppButton: React.FC = () => {
   const whatsappUrl = `https://wa.me/918345968169?text=${encodeURIComponent('Hello Omove Store, I have a question regarding your products and services.')}`;
 
   return (
-    <aside className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-40" aria-label="WhatsApp Support">
+    <aside className="fixed bottom-16 sm:bottom-6 right-3 sm:right-6 z-40" aria-label="WhatsApp Support">
       <a
         href={whatsappUrl}
         target="_blank"

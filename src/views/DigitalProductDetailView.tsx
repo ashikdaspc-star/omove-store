@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { DigitalProduct, DigitalCategory, CartItem } from '../types';
+import { DigitalProduct, DigitalCategory, CartItem, ReviewSummary } from '../types';
 import { matchProductBySlugOrId } from '../utils/productMatcher';
 import { isEbookProduct } from '../utils/categoryMatcher';
+import { ProductReviewsSection } from '../components/reviews/ProductReviewsSection';
 import {
   Sparkles,
   DownloadCloud,
@@ -26,7 +27,8 @@ import {
   Star,
   Check,
   X,
-  FileText
+  FileText,
+  ArrowRight
 } from 'lucide-react';
 
 interface DigitalProductDetailViewProps {
@@ -35,6 +37,7 @@ interface DigitalProductDetailViewProps {
   categories?: DigitalCategory[];
   onAddToCart: (product: any) => void;
   onBuyNow: (product: any) => void;
+  onOpenAuthModal?: () => void;
 }
 
 export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> = ({
@@ -42,7 +45,8 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
   products = [],
   categories = [],
   onAddToCart,
-  onBuyNow
+  onBuyNow,
+  onOpenAuthModal
 }) => {
   const params = useParams<{ categorySlug?: string; subcategorySlug?: string; productSlug?: string }>();
   const routeSlug = params.productSlug || params.subcategorySlug || params.categorySlug;
@@ -51,9 +55,23 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
   const [fetchedProduct, setFetchedProduct] = useState<DigitalProduct | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
 
   // Try resolving product from passed prop, products list, or fetched state
   const product = initialProduct || matchProductBySlugOrId(products, routeSlug) || fetchedProduct;
+
+  useEffect(() => {
+    if (product && product.id) {
+      fetch(`/api/reviews/summary?productId=${encodeURIComponent(product.id)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.success && data.summary) {
+            setReviewSummary(data.summary);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [product?.id]);
 
   useEffect(() => {
     if (!initialProduct && !matchProductBySlugOrId(products, routeSlug) && routeSlug) {
@@ -198,12 +216,12 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
             {/* Book Cover Container */}
             <div 
               onClick={() => setShowPreviewModal(true)}
-              className="relative mx-auto w-full max-w-[280px] lg:max-w-none rounded-md overflow-hidden bg-slate-100 shadow-sm border border-slate-200/80 group cursor-pointer"
+              className="relative mx-auto w-full max-w-[240px] sm:max-w-[280px] lg:max-w-none rounded-md overflow-hidden bg-slate-100 shadow-sm border border-slate-200/80 group cursor-pointer"
             >
               <img
                 src={mainProductImage}
                 alt={product.name}
-                className="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                className="w-full max-h-[260px] sm:max-h-none object-contain sm:object-cover group-hover:scale-[1.02] transition-transform duration-300 mx-auto"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
                   e.currentTarget.src = isEbook
@@ -236,15 +254,57 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
               </button>
             </div>
 
-            {/* Clean Understated Rating */}
+            {/* Dynamic Verified Customer Rating Card */}
             <div className="pt-2 text-center border-t border-slate-100">
-              <div className="inline-flex items-center gap-1 text-amber-500">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                ))}
-                <span className="text-xs font-bold text-slate-900 ml-1">4.9</span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">(125 verified reader reviews)</p>
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('product-reviews-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className="group inline-flex flex-col items-center hover:opacity-85 transition-all cursor-pointer"
+                title="Jump to Customer Reviews"
+              >
+                {reviewSummary && reviewSummary.reviewCount > 0 ? (
+                  <>
+                    <div className="inline-flex items-center gap-1 text-amber-500">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-3.5 h-3.5 ${
+                            star <= Math.round(reviewSummary.averageRating)
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'text-slate-200 fill-slate-100'
+                          }`}
+                        />
+                      ))}
+                      <span className="text-xs font-bold text-slate-900 ml-1">
+                        {reviewSummary.averageRating.toFixed(1)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 group-hover:text-emerald-700 group-hover:underline transition-colors mt-0.5">
+                      ({reviewSummary.reviewCount} verified {reviewSummary.reviewCount === 1 ? 'review' : 'reviews'})
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="inline-flex items-center gap-1 text-slate-300">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className="w-3.5 h-3.5 text-slate-200 fill-slate-100"
+                        />
+                      ))}
+                      <span className="text-xs font-bold text-slate-400 ml-1">
+                        0.0
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 group-hover:text-emerald-700 group-hover:underline transition-colors mt-0.5">
+                      (No reviews yet • Be the first to review)
+                    </p>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
@@ -256,7 +316,7 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
             
             {/* Title & Author Info */}
             <div className="space-y-2">
-              <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-tight">
+              <h1 className="text-2xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-tight">
                 {product.name}
               </h1>
 
@@ -277,6 +337,57 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
                 )}
                 <span>•</span>
                 <span>{product.ebookSpecs?.language || product.language || 'English'}</span>
+              </div>
+            </div>
+
+            {/* Mobile-Only Immediate Purchase Action Card (Appears before description for high conversion) */}
+            <div className="lg:hidden rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3 shadow-xs">
+              <div className="flex items-baseline justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Price</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">₹{product.price}</span>
+                    {product.originalPrice > product.price && (
+                      <span className="text-xs text-slate-400 line-through font-medium">₹{product.originalPrice}</span>
+                    )}
+                  </div>
+                </div>
+                {discountPercent > 0 && (
+                  <span className="px-2 py-0.5 rounded text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200">
+                    Save {discountPercent}%
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => onBuyNow(cartProductPayload)}
+                  className="w-full min-h-[48px] py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm tracking-wide shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
+                >
+                  <Zap className="w-4 h-4 fill-white" />
+                  <span>⚡ BUY NOW</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onAddToCart(cartProductPayload)}
+                  className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs border border-slate-300 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
+                >
+                  <ShoppingCart className="w-4 h-4 text-slate-600" />
+                  <span>ADD TO CART</span>
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-600 font-medium">
+                <span className="flex items-center gap-1 text-emerald-800 font-bold">
+                  <DownloadCloud className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Instant Download</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Lifetime Access</span>
+                </span>
               </div>
             </div>
 
@@ -448,13 +559,24 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
               )}
             </div>
 
+            {/* Verified Customer Reviews Section */}
+            <div id="product-reviews-section">
+              <ProductReviewsSection
+                productId={product.id}
+                productName={product.name}
+                onOpenAuthModal={onOpenAuthModal}
+                onBuyNow={() => onBuyNow(cartProductPayload)}
+                onSummaryLoaded={setReviewSummary}
+              />
+            </div>
+
           </div>
 
 
           {/* ========================================================================= */}
-          {/* RIGHT COLUMN: STICKY PURCHASE PANEL (approx 25% | lg:col-span-3)          */}
+          {/* RIGHT COLUMN: STICKY PURCHASE PANEL (approx 25% | Desktop Only)            */}
           {/* ========================================================================= */}
-          <div className="scroll-reveal lg:col-span-3 lg:sticky lg:top-24 space-y-4" style={{ '--reveal-delay': '240ms' } as React.CSSProperties}>
+          <div className="scroll-reveal hidden lg:block lg:col-span-3 lg:sticky lg:top-24 space-y-4" style={{ '--reveal-delay': '240ms' } as React.CSSProperties}>
             <div className="rounded-lg bg-white border border-slate-200 p-5 shadow-xs space-y-4">
               
               <div className="space-y-1">
@@ -561,6 +683,40 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
           </div>
         </div>
       )}
+      {/* Mobile-Only Sticky Bottom Buy Bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl px-3.5 py-2.5 flex items-center justify-between gap-3 font-sans">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-lg font-extrabold text-slate-900 font-mono">₹{product.price}</span>
+            {discountPercent > 0 && (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                -{discountPercent}%
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-slate-500 truncate max-w-[140px] font-medium">{product.name}</p>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => onAddToCart(cartProductPayload)}
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center justify-center cursor-pointer min-h-[38px] min-w-[38px]"
+            title="Add to Cart"
+          >
+            <ShoppingCart className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onBuyNow(cartProductPayload)}
+            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs tracking-wide shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all min-h-[38px]"
+          >
+            <Zap className="w-3.5 h-3.5 fill-white" />
+            <span>BUY NOW</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

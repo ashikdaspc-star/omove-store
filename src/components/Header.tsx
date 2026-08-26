@@ -104,24 +104,24 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-      <div className="w-full xl:w-fit max-w-full mx-auto px-2.5 sm:px-6 lg:px-8 h-13 sm:h-16 lg:h-20 flex items-center justify-between xl:justify-center gap-1 sm:gap-3 lg:gap-4 xl:gap-5">
+      <div className="w-full xl:w-fit max-w-full mx-auto px-3.5 sm:px-6 lg:px-8 h-14 sm:h-16 lg:h-20 flex items-center justify-between xl:justify-center gap-2 sm:gap-3 lg:gap-4 xl:gap-5">
         {/* Left: Brand Logo & Title */}
         <Link
           to="/"
           onClick={handleNavClick}
-          className="flex items-center gap-1 sm:gap-2.5 cursor-pointer group select-none shrink-0"
+          className="flex items-center gap-2 sm:gap-2.5 cursor-pointer group select-none shrink-0"
         >
           <img
             src="/logo.png"
             alt="Omove Store Logo"
-            className="h-6 sm:h-9 lg:h-11 w-auto object-contain group-hover:scale-105 transition-transform"
+            className="h-7 sm:h-9 lg:h-11 w-auto object-contain group-hover:scale-105 transition-transform"
           />
           <div>
             <div className="flex items-center gap-0.5 leading-tight">
-              <span className="text-xs sm:text-xl lg:text-2xl font-extrabold tracking-tight text-slate-900 font-sans">Omove</span>
-              <span className="text-xs sm:text-xl lg:text-2xl font-extrabold tracking-tight text-emerald-600 font-sans">Store</span>
+              <span className="text-base sm:text-xl lg:text-2xl font-extrabold tracking-tight text-slate-900 font-sans">Omove</span>
+              <span className="text-base sm:text-xl lg:text-2xl font-extrabold tracking-tight text-emerald-600 font-sans">Store</span>
             </div>
-            <p className="text-[6.5px] sm:text-[9px] uppercase tracking-wider text-slate-500 font-semibold font-mono hidden min-[400px]:block">Digital • Software • PC Support</p>
+            <p className="text-[7.5px] sm:text-[9px] uppercase tracking-wider text-slate-500 font-semibold font-mono hidden min-[480px]:block">Digital • Software • PC Support</p>
           </div>
         </Link>
 
@@ -159,59 +159,59 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* Right: Clean Unified Action Cluster */}
-        <div className="flex items-center gap-1 sm:gap-2 lg:gap-3 shrink-0">
-          {/* Quick Search Button */}
+        <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 shrink-0">
+          {/* 1. Quick Search Button (36px square on mobile, full button on desktop) */}
           <button
             onClick={() => setShowSearchModal(true)}
-            className="p-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl bg-slate-100/90 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 text-[9px] sm:text-xs font-medium flex items-center gap-1 sm:gap-2 transition-all min-h-[28px] min-w-[28px] sm:min-h-[44px] justify-center"
+            className="w-9 h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200/90 text-xs font-medium flex items-center justify-center gap-1.5 sm:gap-2 transition-all min-h-[36px] min-w-[36px] sm:min-h-[44px] cursor-pointer shadow-2xs"
             title="Search software, drivers or services"
             aria-label="Search"
           >
-            <Search className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600" />
-            <span className="hidden min-[480px]:inline text-slate-500">Search...</span>
+            <Search className="w-4 h-4 text-slate-700" />
+            <span className="hidden md:inline text-slate-500 font-sans">Search...</span>
           </button>
 
-          {/* WhatsApp Support Button */}
+          {/* 2. WhatsApp Support Button (Desktop / Tablet Only — hidden on mobile header) */}
           <a
             href="https://wa.me/918345968169"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 px-1.5 py-1 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 font-semibold text-[9px] sm:text-xs transition-all shadow-xs min-h-[28px] sm:min-h-[44px]"
+            className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 font-semibold text-xs transition-all shadow-2xs min-h-[44px]"
           >
-            <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
-            <span className="hidden min-[360px]:inline">WhatsApp</span>
+            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+            <span>WhatsApp</span>
           </a>
 
-          {/* Cart Trigger */}
+          {/* 3. Cart Trigger (36px square on mobile with badge, full button on desktop) */}
           <button
             onClick={() => setIsCartOpen(true)}
-            className="relative px-1.5 py-1 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] sm:text-xs font-mono tracking-wide shadow-md shadow-emerald-600/20 flex items-center gap-1 sm:gap-1.5 transition-all hover:scale-[1.02] active:scale-95 min-h-[28px] sm:min-h-[44px]"
+            className="relative w-9 h-9 sm:w-auto sm:h-auto sm:px-3.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs font-mono tracking-wide shadow-sm shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-95 min-h-[36px] min-w-[36px] sm:min-h-[44px] cursor-pointer"
             aria-label="Shopping Cart"
           >
-            <ShoppingBag className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="font-sans">Cart</span>
+            <ShoppingBag className="w-4 h-4" />
+            <span className="hidden sm:inline font-sans font-bold">Cart</span>
             {cartCount > 0 && (
-              <span className="flex h-3.5 w-3.5 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-white text-emerald-700 font-bold text-[8px] sm:text-xs">
+              <span className="absolute -top-1 -right-1 sm:static flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-white text-emerald-700 font-bold text-[9px] sm:text-xs shadow-xs">
                 {cartCount}
               </span>
             )}
           </button>
 
-          {/* User Account / Sign In Dropdown Control */}
+          {/* 4. User Account / Sign In (Desktop / Tablet Only — available in drawer on mobile) */}
           {isLoggedIn ? (
-            <div className="relative">
+            <div className="relative hidden md:block">
               <button
                 onClick={() => setAccountMenuOpen(!accountMenuOpen)}
-                className="flex items-center gap-1 sm:gap-2 p-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200/90 text-[9px] sm:text-xs font-mono font-bold text-slate-800 transition-all min-h-[28px] sm:min-h-[44px]"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200/90 text-xs font-mono font-bold text-slate-800 transition-all min-h-[44px] cursor-pointer"
                 aria-expanded={accountMenuOpen}
                 aria-haspopup="true"
                 aria-label="Account Menu"
               >
-                <div className="w-4.5 h-4.5 sm:w-6 sm:h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] sm:text-[11px] font-bold uppercase shadow-xs shrink-0">
+                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[11px] font-bold uppercase shadow-xs shrink-0">
                   {customerName ? customerName.charAt(0) : 'U'}
                 </div>
-                <span className="hidden md:inline font-sans font-bold text-slate-900">{customerName.split(' ')[0]}</span>
-                <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform hidden sm:block ${accountMenuOpen ? 'rotate-180' : ''}`} />
+                <span className="font-sans font-bold text-slate-900">{customerName.split(' ')[0]}</span>
+                <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {accountMenuOpen && (
@@ -275,21 +275,21 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <button
               onClick={() => onOpenAuthModal && onOpenAuthModal()}
-              className="px-1.5 py-1 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-[9px] sm:text-xs flex items-center gap-1 transition-all shadow-sm min-h-[28px] sm:min-h-[44px]"
+              className="hidden md:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all shadow-sm min-h-[44px] cursor-pointer"
               aria-label="Sign In"
             >
-              <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
+              <User className="w-3.5 h-3.5 text-emerald-400" />
               <span className="font-sans">Sign In</span>
             </button>
           )}
 
-          {/* Mobile Menu Toggle */}
+          {/* 5. Mobile Menu Toggle (36px square on mobile) */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="xl:hidden p-1 sm:p-2.5 rounded-lg sm:rounded-xl bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900 min-h-[28px] min-w-[28px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer"
+            className="xl:hidden w-9 h-9 sm:w-auto sm:h-auto sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/90 text-slate-700 hover:text-slate-900 min-h-[36px] min-w-[36px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer shadow-2xs"
             aria-label="Toggle menu"
           >
-            {mobileMenuOpen ? <X className="w-3.5 h-3.5 sm:w-5 sm:h-5" /> : <Menu className="w-3.5 h-3.5 sm:w-5 sm:h-5" />}
+            {mobileMenuOpen ? <X className="w-4 h-4 sm:w-5 sm:h-5" /> : <Menu className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
         </div>
       </div>

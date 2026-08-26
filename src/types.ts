@@ -107,16 +107,6 @@ export interface Product {
   salesCount: number;
 }
 
-export interface ProductReview {
-  id: string;
-  productId: string;
-  author: string;
-  rating: number;
-  date: string;
-  comment: string;
-  verifiedPurchase: boolean;
-}
-
 export type ServiceCategory =
   | 'Windows Fix'
   | 'Driver Repair'
@@ -267,3 +257,68 @@ export interface CartItem {
   product: Product;
   quantity: number;
 }
+
+export type ReviewStatus = 'pending' | 'published' | 'rejected' | 'hidden';
+
+export interface ProductReview {
+  id: string;
+  productId: string;
+  productName?: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  userAvatar?: string;
+  orderId?: string;
+  orderItemId?: string;
+  rating: number;
+  title: string;
+  body: string;
+  status: ReviewStatus;
+  verifiedPurchase: boolean;
+  helpfulCount: number;
+  reportCount: number;
+  userHasVoted?: boolean;
+  userHasReported?: boolean;
+  isUserReview?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+}
+
+export interface ReviewSummary {
+  productId: string;
+  reviewCount: number;
+  averageRating: number;
+  rating1: number;
+  rating2: number;
+  rating3: number;
+  rating4: number;
+  rating5: number;
+  distribution: {
+    1: number;
+    2: number;
+    3: number;
+    4: number;
+    5: number;
+  };
+}
+
+export interface ReviewEligibility {
+  eligible: boolean;
+  verifiedPurchase: boolean;
+  existingReview: boolean;
+  reason?: string;
+  review?: ProductReview | null;
+  orderId?: string;
+  orderItemId?: string;
+}
+
+export interface ReviewReport {
+  id: string;
+  reviewId: string;
+  userId: string;
+  reason: string;
+  details?: string;
+  createdAt: string;
+}
+

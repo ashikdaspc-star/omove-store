@@ -21,6 +21,7 @@ import {
   Activity,
   Settings,
   ShieldCheck,
+  Star,
   LogOut,
   X
 } from 'lucide-react';
@@ -35,6 +36,7 @@ export type AdminTab =
   | 'support-contributions'
   | 'customers'
   | 'downloads'
+  | 'reviews'
   | 'services'
   | 'remote-support'
   | 'support-tickets'
@@ -79,7 +81,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         { id: 'payments' as AdminTab, label: 'Payments', icon: CreditCard },
         { id: 'support-contributions' as AdminTab, label: 'Support Contributions', icon: Heart },
         { id: 'customers' as AdminTab, label: 'Customers', icon: Users },
-        { id: 'downloads' as AdminTab, label: 'Downloads', icon: Download }
+        { id: 'downloads' as AdminTab, label: 'Downloads', icon: Download },
+        { id: 'reviews' as AdminTab, label: 'Customer Reviews', icon: Star, badge: 'D1' }
       ]
     },
     {

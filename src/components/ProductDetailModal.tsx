@@ -50,20 +50,32 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         {
           id: 'rev-1',
           productId: product.id,
-          author: 'Mark S. (IT System Admin)',
+          userId: 'usr-1',
+          userName: 'Mark S.',
+          title: 'Essential utility for system tuning',
+          body: 'Absolutely essential software for IT repair. The debloat feature saved me 3 hours on 5 client laptops today!',
           rating: 5,
-          date: '2 days ago',
-          comment: 'Absolutely essential software for IT repair. The debloat feature saved me 3 hours on 5 client laptops today!',
-          verifiedPurchase: true
+          status: 'published',
+          verifiedPurchase: true,
+          helpfulCount: 14,
+          reportCount: 0,
+          createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+          updatedAt: new Date(Date.now() - 2 * 86400000).toISOString()
         },
         {
           id: 'rev-2',
           productId: product.id,
-          author: 'Karan Patel',
+          userId: 'usr-2',
+          userName: 'Karan P.',
+          title: 'Super fast delivery and easy setup',
+          body: 'Google Drive download link was delivered instantly after Razorpay payment. Downloaded in under 1 minute.',
           rating: 5,
-          date: '1 week ago',
-          comment: 'Google Drive download link was delivered instantly after Razorpay payment. Downloaded in under 1 minute.',
-          verifiedPurchase: true
+          status: 'published',
+          verifiedPurchase: true,
+          helpfulCount: 8,
+          reportCount: 0,
+          createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+          updatedAt: new Date(Date.now() - 7 * 86400000).toISOString()
         }
       ]);
     }
@@ -78,11 +90,17 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     const review: ProductReview = {
       id: 'rev-' + Date.now(),
       productId: product.id,
-      author: newReviewAuthor,
+      userId: 'usr-self',
+      userName: newReviewAuthor,
+      title: 'Customer Review',
+      body: newReviewComment,
       rating: newReviewRating,
-      date: 'Just now',
-      comment: newReviewComment,
-      verifiedPurchase: true
+      status: 'published',
+      verifiedPurchase: true,
+      helpfulCount: 0,
+      reportCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     setReviews([review, ...reviews]);
@@ -396,7 +414,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       <div key={rev.id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-xs text-slate-900">{rev.author}</span>
+                            <span className="font-bold text-xs text-slate-900">{rev.userName}</span>
                             {rev.verifiedPurchase && (
                               <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
                                 Verified Purchase
@@ -409,8 +427,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                             ))}
                           </div>
                         </div>
-                        <p className="text-xs text-slate-600 leading-relaxed">{rev.comment}</p>
-                        <span className="text-[10px] text-slate-400">{rev.date}</span>
+                        <p className="text-xs text-slate-600 leading-relaxed">{rev.body}</p>
+                        <span className="text-[10px] text-slate-400">{new Date(rev.createdAt).toLocaleDateString()}</span>
                       </div>
                     ))}
                   </div>

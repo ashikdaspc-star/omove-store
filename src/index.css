@@ -326,4 +326,9 @@
   select {
     font-size: 16px;
   }
+
+  /* Safe-area bottom utility for sticky mobile buy bar */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 12px);
+  }
 }

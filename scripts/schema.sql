@@ -112,6 +112,63 @@ CREATE TABLE IF NOT EXISTS support_payments (
   paid_at TEXT
 );
 
+-- =========================================================================
+-- REVIEW SYSTEM TABLES
+-- =========================================================================
+
+CREATE TABLE IF NOT EXISTS reviews (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  user_name TEXT NOT NULL,
+  user_email TEXT,
+  order_id TEXT,
+  order_item_id TEXT,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'published', 'rejected', 'hidden'
+  verified_purchase INTEGER NOT NULL DEFAULT 0, -- 1 for verified purchase, 0 otherwise
+  helpful_count INTEGER NOT NULL DEFAULT 0,
+  report_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  published_at TEXT,
+  UNIQUE(user_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS review_helpful_votes (
+  id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(review_id, user_id),
+  FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS review_reports (
+  id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  details TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE(review_id, user_id),
+  FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS review_stats (
+  product_id TEXT PRIMARY KEY,
+  review_count INTEGER NOT NULL DEFAULT 0,
+  average_rating REAL NOT NULL DEFAULT 0,
+  rating_1 INTEGER NOT NULL DEFAULT 0,
+  rating_2 INTEGER NOT NULL DEFAULT 0,
+  rating_3 INTEGER NOT NULL DEFAULT 0,
+  rating_4 INTEGER NOT NULL DEFAULT 0,
+  rating_5 INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);
+
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_email ON sessions(user_email);
@@ -123,3 +180,13 @@ CREATE INDEX IF NOT EXISTS idx_bookings_email ON bookings(email);
 CREATE INDEX IF NOT EXISTS idx_bookings_phone ON bookings(phone);
 CREATE INDEX IF NOT EXISTS idx_coupon_usages_code_email ON coupon_usages(coupon_code, user_email);
 CREATE INDEX IF NOT EXISTS idx_support_payments_status ON support_payments(payment_status);
+
+-- Review Indexes
+CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_product_status ON reviews(product_id, status);
+CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
+CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating);
+CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at);
+CREATE INDEX IF NOT EXISTS idx_review_helpful_votes_review ON review_helpful_votes(review_id);
+CREATE INDEX IF NOT EXISTS idx_review_reports_review ON review_reports(review_id);

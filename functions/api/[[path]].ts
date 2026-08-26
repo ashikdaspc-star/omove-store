@@ -9,6 +9,7 @@ import servicesData from '../../src/data/services.json';
 import usersData from '../../src/data/users.json';
 import blogsData from '../../src/data/blogs.json';
 import sessionsData from '../../src/data/sessions.json';
+import reviewsData from '../../src/data/reviews.json';
 import { MOCK_PRODUCTS, MOCK_SERVICES, MOCK_BLOGS, MOCK_COUPONS } from '../../src/data/mockData';
 
 const BUNDLED_STATIC_DATA: Record<string, any[]> = {
@@ -491,6 +492,344 @@ async function saveD1SupportPayment(env: Env, payment: any): Promise<boolean> {
   }
 }
 
+// ─── CLOUDFLARE D1 REVIEW SYSTEM HELPERS ───
+
+async function ensureD1ReviewTables(env: Env): Promise<void> {
+  if (!env.DB) return;
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        user_name TEXT NOT NULL,
+        user_email TEXT,
+        order_id TEXT,
+        order_item_id TEXT,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        verified_purchase INTEGER NOT NULL DEFAULT 0,
+        helpful_count INTEGER NOT NULL DEFAULT 0,
+        report_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        published_at TEXT,
+        UNIQUE(user_id, product_id)
+      )
+    `).run();
+
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS review_helpful_votes (
+        id TEXT PRIMARY KEY,
+        review_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(review_id, user_id),
+        FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
+      )
+    `).run();
+
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS review_reports (
+        id TEXT PRIMARY KEY,
+        review_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        details TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE(review_id, user_id),
+        FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
+      )
+    `).run();
+
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS review_stats (
+        product_id TEXT PRIMARY KEY,
+        review_count INTEGER NOT NULL DEFAULT 0,
+        average_rating REAL NOT NULL DEFAULT 0,
+        rating_1 INTEGER NOT NULL DEFAULT 0,
+        rating_2 INTEGER NOT NULL DEFAULT 0,
+        rating_3 INTEGER NOT NULL DEFAULT 0,
+        rating_4 INTEGER NOT NULL DEFAULT 0,
+        rating_5 INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      )
+    `).run();
+
+    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id)`).run(); } catch(e){}
+    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_product_status ON reviews(product_id, status)`).run(); } catch(e){}
+    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id)`).run(); } catch(e){}
+    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)`).run(); } catch(e){}
+    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating)`).run(); } catch(e){}
+    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at)`).run(); } catch(e){}
+    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_review_helpful_votes_review ON review_helpful_votes(review_id)`).run(); } catch(e){}
+    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_review_reports_review ON review_reports(review_id)`).run(); } catch(e){}
+
+    // Auto-seed initial reviews if database table is empty
+    const countCheck = await env.DB.prepare(`SELECT COUNT(*) as count FROM reviews`).first();
+    if (countCheck && Number(countCheck.count) === 0 && Array.isArray(reviewsData) && reviewsData.length > 0) {
+      for (const rev of reviewsData) {
+        try {
+          await env.DB.prepare(`
+            INSERT OR IGNORE INTO reviews (
+              id, product_id, user_id, user_name, user_email,
+              order_id, order_item_id, rating, title, body,
+              status, verified_purchase, helpful_count, report_count,
+              created_at, updated_at, published_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            rev.id,
+            rev.productId,
+            rev.userId,
+            rev.userName,
+            rev.userEmail || null,
+            rev.orderId || null,
+            rev.orderItemId || null,
+            Number(rev.rating),
+            rev.title,
+            rev.body,
+            rev.status || 'published',
+            rev.verifiedPurchase ? 1 : 0,
+            Number(rev.helpfulCount || 0),
+            Number(rev.reportCount || 0),
+            rev.createdAt || new Date().toISOString(),
+            rev.updatedAt || new Date().toISOString(),
+            rev.publishedAt || rev.createdAt || new Date().toISOString()
+          ).run();
+        } catch (err: any) {
+          console.warn(`[D1 SEED REVIEW ERROR] ${err.message}`);
+        }
+      }
+      await recomputeProductReviewStats(env, 'dig-1787382882901');
+    }
+  } catch (e: any) {
+    console.warn(`[D1 ENSURE REVIEW TABLES ERROR] ${e.message}`);
+  }
+}
+
+function maskCustomerDisplayName(name?: string, email?: string): string {
+  if (name && name.trim() && name.toLowerCase() !== 'customer') {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]} ${parts[parts.length - 1].charAt(0).toUpperCase()}.`;
+  }
+  if (email && email.includes('@')) {
+    const prefix = email.split('@')[0];
+    if (prefix.length <= 3) return prefix;
+    return `${prefix.substring(0, 3)}***`;
+  }
+  return 'Verified Customer';
+}
+
+async function checkVerifiedPurchase(
+  env: Env,
+  userEmail: string,
+  productId: string,
+  productName?: string
+): Promise<{ isVerified: boolean; orderId?: string; orderItemId?: string }> {
+  const normEmail = (userEmail || '').trim().toLowerCase();
+  const cleanProdId = (productId || '').trim();
+  if (!normEmail || !cleanProdId) return { isVerified: false };
+
+  if (env.DB) {
+    try {
+      const res = await env.DB.prepare(`
+        SELECT o.id as order_id, oi.id as order_item_id, oi.product_id, oi.product_name, o.payment_status, o.status, o.payment_verified_at
+        FROM orders o
+        JOIN order_items oi ON o.id = oi.order_id
+        WHERE LOWER(TRIM(o.customer_email)) = ?
+          AND (
+            UPPER(o.payment_status) = 'PAID' OR
+            UPPER(o.payment_status) = 'COMPLETED' OR
+            UPPER(o.payment_status) = 'SUCCESS' OR
+            UPPER(o.status) = 'COMPLETED' OR
+            UPPER(o.status) = 'PAID' OR
+            o.payment_verified_at IS NOT NULL
+          )
+          AND (
+            oi.product_id = ? OR
+            LOWER(TRIM(oi.product_id)) = LOWER(TRIM(?)) OR
+            (? != '' AND LOWER(TRIM(oi.product_name)) = LOWER(TRIM(?)))
+          )
+        ORDER BY o.created_at DESC
+        LIMIT 1
+      `).bind(
+        normEmail,
+        cleanProdId,
+        cleanProdId,
+        productName || '',
+        productName || ''
+      ).first();
+
+      if (res && res.order_id) {
+        return { isVerified: true, orderId: res.order_id, orderItemId: res.order_item_id };
+      }
+    } catch (e: any) {
+      console.warn(`[D1 CHECK VERIFIED PURCHASE ERROR] ${e.message}`);
+    }
+  }
+
+  // Fallback in-memory check
+  const allOrders = Array.from(ordersStore.values());
+  for (const o of allOrders) {
+    const oEmail = (o.customerEmail || '').trim().toLowerCase();
+    const isPaid = o.paymentStatus === 'PAID' || o.paymentStatus === 'COMPLETED' || o.paymentStatus === 'SUCCESS' || o.status === 'completed' || Boolean(o.paymentVerifiedAt);
+    if (oEmail === normEmail && isPaid && Array.isArray(o.items)) {
+      const match = o.items.find((it: any) =>
+        it.productId === cleanProdId ||
+        (it.productId && it.productId.toLowerCase() === cleanProdId.toLowerCase()) ||
+        (productName && it.productName && it.productName.toLowerCase() === productName.toLowerCase())
+      );
+      if (match) {
+        return { isVerified: true, orderId: o.id, orderItemId: match.productId };
+      }
+    }
+  }
+
+  return { isVerified: false };
+}
+
+async function recomputeProductReviewStats(env: Env, productId: string): Promise<any> {
+  const cleanProdId = (productId || '').trim();
+  if (!cleanProdId) return null;
+
+  if (env.DB) {
+    try {
+      await ensureD1ReviewTables(env);
+      const rowsRes = await env.DB.prepare(`
+        SELECT rating, COUNT(*) as cnt
+        FROM reviews
+        WHERE product_id = ? AND status = 'published'
+        GROUP BY rating
+      `).bind(cleanProdId).all();
+
+      const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      let totalRating = 0;
+      let totalReviews = 0;
+
+      (rowsRes.results || []).forEach((r: any) => {
+        const rat = Number(r.rating);
+        const cnt = Number(r.cnt || 0);
+        if (rat >= 1 && rat <= 5) {
+          counts[rat] = cnt;
+          totalRating += rat * cnt;
+          totalReviews += cnt;
+        }
+      });
+
+      const avgRating = totalReviews > 0 ? Number((totalRating / totalReviews).toFixed(1)) : 0;
+      const now = new Date().toISOString();
+
+      await env.DB.prepare(`
+        INSERT INTO review_stats (
+          product_id, review_count, average_rating,
+          rating_1, rating_2, rating_3, rating_4, rating_5, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(product_id) DO UPDATE SET
+          review_count = excluded.review_count,
+          average_rating = excluded.average_rating,
+          rating_1 = excluded.rating_1,
+          rating_2 = excluded.rating_2,
+          rating_3 = excluded.rating_3,
+          rating_4 = excluded.rating_4,
+          rating_5 = excluded.rating_5,
+          updated_at = excluded.updated_at
+      `).bind(
+        cleanProdId,
+        totalReviews,
+        avgRating,
+        counts[1],
+        counts[2],
+        counts[3],
+        counts[4],
+        counts[5],
+        now
+      ).run();
+
+      return {
+        productId: cleanProdId,
+        reviewCount: totalReviews,
+        averageRating: avgRating,
+        rating1: counts[1],
+        rating2: counts[2],
+        rating3: counts[3],
+        rating4: counts[4],
+        rating5: counts[5],
+        distribution: counts,
+        updatedAt: now
+      };
+    } catch (e: any) {
+      console.warn(`[D1 RECOMPUTE REVIEW STATS ERROR] ${e.message}`);
+    }
+  }
+
+  // Fallback in-memory recompute
+  const published = Array.from(reviewsStore.values()).filter((r: any) => r.productId === cleanProdId && r.status === 'published');
+  const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  let totalRating = 0;
+  published.forEach((r: any) => {
+    const rat = Number(r.rating);
+    if (rat >= 1 && rat <= 5) {
+      counts[rat] = (counts[rat] || 0) + 1;
+      totalRating += rat;
+    }
+  });
+  const totalReviews = published.length;
+  const avgRating = totalReviews > 0 ? Number((totalRating / totalReviews).toFixed(1)) : 0;
+  const stats = {
+    productId: cleanProdId,
+    reviewCount: totalReviews,
+    averageRating: avgRating,
+    rating1: counts[1],
+    rating2: counts[2],
+    rating3: counts[3],
+    rating4: counts[4],
+    rating5: counts[5],
+    distribution: counts,
+    updatedAt: new Date().toISOString()
+  };
+  reviewStatsStore.set(cleanProdId, stats);
+  return stats;
+}
+
+async function getD1ReviewStats(env: Env, productId: string): Promise<any> {
+  const cleanProdId = (productId || '').trim();
+  if (!cleanProdId) return null;
+
+  if (env.DB) {
+    try {
+      await ensureD1ReviewTables(env);
+      const row = await env.DB.prepare(`SELECT * FROM review_stats WHERE product_id = ?`).bind(cleanProdId).first();
+      if (row) {
+        return {
+          productId: row.product_id,
+          reviewCount: Number(row.review_count || 0),
+          averageRating: Number(row.average_rating || 0),
+          rating1: Number(row.rating_1 || 0),
+          rating2: Number(row.rating_2 || 0),
+          rating3: Number(row.rating_3 || 0),
+          rating4: Number(row.rating_4 || 0),
+          rating5: Number(row.rating_5 || 0),
+          distribution: {
+            1: Number(row.rating_1 || 0),
+            2: Number(row.rating_2 || 0),
+            3: Number(row.rating_3 || 0),
+            4: Number(row.rating_4 || 0),
+            5: Number(row.rating_5 || 0)
+          },
+          updatedAt: row.updated_at
+        };
+      }
+    } catch (e: any) {
+      console.warn(`[D1 GET REVIEW STATS ERROR] ${e.message}`);
+    }
+  }
+
+  return recomputeProductReviewStats(env, cleanProdId);
+}
+
 // Helper: Dispatch Support Emails (Customer + Admin) via FormSubmit AJAX API
 async function sendSupportEmails(
   type: 'SUCCESS' | 'FAILED',
@@ -645,6 +984,16 @@ const bookingsStore: Map<string, any> = new Map();
 if (Array.isArray(bookingsData)) {
   bookingsData.forEach((b: any) => { if (b.id) bookingsStore.set(b.id, b); });
 }
+
+const reviewsStore: Map<string, any> = new Map();
+if (Array.isArray(reviewsData)) {
+  reviewsData.forEach((r: any) => {
+    if (r.id) reviewsStore.set(r.id, r);
+  });
+}
+const reviewHelpfulVotesStore: Map<string, Set<string>> = new Map();
+const reviewReportsStore: Map<string, any[]> = new Map();
+const reviewStatsStore: Map<string, any> = new Map();
 
 // Helper: Get GitHub Token
 function getGitHubToken(env: Env): string {
@@ -3482,6 +3831,793 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         if (method === 'DELETE') {
           await deleteD1Booking(env, decodedId);
           return jsonResponse({ success: true, sync: { success: true } });
+        }
+      }
+    }
+
+    // =========================================================================
+    // PRODUCT REVIEWS API ENDPOINTS (/api/reviews/* and /api/admin/reviews/*)
+    // =========================================================================
+
+    // 1. GET /api/reviews/summary?productId=...
+    if (path === '/api/reviews/summary' && method === 'GET') {
+      const productId = (url.searchParams.get('productId') || url.searchParams.get('id') || '').trim();
+      if (!productId) {
+        return jsonResponse({ success: false, error: 'Product ID required' }, 400);
+      }
+      const summary = await getD1ReviewStats(env, productId);
+      return jsonResponse({ success: true, summary });
+    }
+
+    // 2. GET /api/reviews/eligibility?productId=...
+    if (path === '/api/reviews/eligibility' && method === 'GET') {
+      const productId = (url.searchParams.get('productId') || url.searchParams.get('id') || '').trim();
+      const productName = (url.searchParams.get('productName') || '').trim();
+      if (!productId) {
+        return jsonResponse({ success: false, error: 'Product ID required' }, 400);
+      }
+
+      const sess = getSessionFromRequest(request);
+      if (!sess) {
+        return jsonResponse({
+          success: true,
+          authenticated: false,
+          eligible: false,
+          verifiedPurchase: false,
+          existingReview: false,
+          reason: 'Please sign in to write a review.'
+        });
+      }
+
+      // Check if user already reviewed this product
+      let existingReview: any = null;
+      if (env.DB) {
+        try {
+          await ensureD1ReviewTables(env);
+          existingReview = await env.DB.prepare(
+            `SELECT * FROM reviews WHERE user_id = ? AND product_id = ?`
+          ).bind(sess.userId, productId).first();
+        } catch (e: any) {
+          console.warn(`[D1 ELIGIBILITY CHECK ERROR] ${e.message}`);
+        }
+      } else {
+        existingReview = Array.from(reviewsStore.values()).find(
+          (r: any) => r.userId === sess.userId && r.productId === productId
+        );
+      }
+
+      if (existingReview) {
+        const formatted = {
+          id: existingReview.id,
+          productId: existingReview.product_id || existingReview.productId,
+          userId: existingReview.user_id || existingReview.userId,
+          userName: existingReview.user_name || existingReview.userName,
+          rating: Number(existingReview.rating),
+          title: existingReview.title,
+          body: existingReview.body,
+          status: existingReview.status,
+          verifiedPurchase: Boolean(existingReview.verified_purchase ?? existingReview.verifiedPurchase),
+          helpfulCount: Number(existingReview.helpful_count || existingReview.helpfulCount || 0),
+          reportCount: Number(existingReview.report_count || existingReview.reportCount || 0),
+          createdAt: existingReview.created_at || existingReview.createdAt,
+          updatedAt: existingReview.updated_at || existingReview.updatedAt
+        };
+        return jsonResponse({
+          success: true,
+          authenticated: true,
+          eligible: false,
+          verifiedPurchase: true,
+          existingReview: true,
+          review: formatted,
+          reason: 'You have already reviewed this product.'
+        });
+      }
+
+      // Check verified purchase from orders
+      const purchaseVerification = await checkVerifiedPurchase(env, sess.userEmail, productId, productName);
+      if (!purchaseVerification.isVerified) {
+        return jsonResponse({
+          success: true,
+          authenticated: true,
+          eligible: false,
+          verifiedPurchase: false,
+          existingReview: false,
+          reason: 'Purchase this product to share your verified customer experience.'
+        });
+      }
+
+      return jsonResponse({
+        success: true,
+        authenticated: true,
+        eligible: true,
+        verifiedPurchase: true,
+        existingReview: false,
+        orderId: purchaseVerification.orderId,
+        orderItemId: purchaseVerification.orderItemId
+      });
+    }
+
+    // 3. ADMIN: /api/admin/reviews
+    if (path.startsWith('/api/admin/reviews')) {
+      const sess = getSessionFromRequest(request);
+      if (!sess || !sess.isAdmin) {
+        return jsonResponse({ success: false, error: 'UNAUTHORIZED', message: 'Admin authentication required' }, 401);
+      }
+
+      const parts = path.split('/').filter(Boolean);
+      const reviewId = parts.length >= 4 ? parts[3] : '';
+
+      if (!reviewId) {
+        // GET /api/admin/reviews
+        if (method === 'GET') {
+          const filterStatus = (url.searchParams.get('status') || '').trim().toLowerCase();
+          const filterRating = url.searchParams.get('rating');
+          const filterProduct = (url.searchParams.get('productId') || '').trim();
+          const searchQuery = (url.searchParams.get('search') || '').trim().toLowerCase();
+          const onlyReported = url.searchParams.get('reported') === 'true';
+
+          let allReviews: any[] = [];
+          if (env.DB) {
+            try {
+              await ensureD1ReviewTables(env);
+              const res = await env.DB.prepare(`SELECT * FROM reviews ORDER BY created_at DESC`).all();
+              allReviews = (res.results || []).map((r: any) => ({
+                id: r.id,
+                productId: r.product_id,
+                userId: r.user_id,
+                userName: r.user_name,
+                userEmail: r.user_email || '',
+                orderId: r.order_id || '',
+                orderItemId: r.order_item_id || '',
+                rating: Number(r.rating),
+                title: r.title,
+                body: r.body,
+                status: r.status,
+                verifiedPurchase: Boolean(r.verified_purchase),
+                helpfulCount: Number(r.helpful_count || 0),
+                reportCount: Number(r.report_count || 0),
+                createdAt: r.created_at,
+                updatedAt: r.updated_at,
+                publishedAt: r.published_at || null
+              }));
+            } catch (e: any) {
+              console.warn(`[D1 ADMIN GET REVIEWS ERROR] ${e.message}`);
+            }
+          } else {
+            allReviews = Array.from(reviewsStore.values());
+          }
+
+          // Admin stats
+          const stats = {
+            total: allReviews.length,
+            pending: allReviews.filter((r: any) => r.status === 'pending').length,
+            published: allReviews.filter((r: any) => r.status === 'published').length,
+            rejected: allReviews.filter((r: any) => r.status === 'rejected').length,
+            hidden: allReviews.filter((r: any) => r.status === 'hidden').length,
+            reported: allReviews.filter((r: any) => Number(r.reportCount || 0) > 0).length
+          };
+
+          // Filter
+          let filtered = allReviews;
+          if (filterStatus && filterStatus !== 'all') {
+            filtered = filtered.filter((r: any) => r.status === filterStatus);
+          }
+          if (filterRating && filterRating !== 'all') {
+            filtered = filtered.filter((r: any) => r.rating === Number(filterRating));
+          }
+          if (filterProduct) {
+            filtered = filtered.filter((r: any) => r.productId === filterProduct || (r.productId && r.productId.toLowerCase() === filterProduct.toLowerCase()));
+          }
+          if (onlyReported) {
+            filtered = filtered.filter((r: any) => Number(r.reportCount || 0) > 0);
+          }
+          if (searchQuery) {
+            filtered = filtered.filter((r: any) =>
+              (r.userName && r.userName.toLowerCase().includes(searchQuery)) ||
+              (r.userEmail && r.userEmail.toLowerCase().includes(searchQuery)) ||
+              (r.title && r.title.toLowerCase().includes(searchQuery)) ||
+              (r.body && r.body.toLowerCase().includes(searchQuery)) ||
+              (r.productId && r.productId.toLowerCase().includes(searchQuery))
+            );
+          }
+
+          return jsonResponse({
+            success: true,
+            reviews: filtered,
+            total: filtered.length,
+            stats
+          });
+        }
+      } else {
+        const decodedReviewId = decodeURIComponent(reviewId);
+
+        // PATCH /api/admin/reviews/:id (Update status)
+        if (method === 'PATCH' || method === 'PUT') {
+          const body: any = await request.json().catch(() => ({}));
+          const newStatus = (body.status || '').toLowerCase().trim();
+          if (!['pending', 'published', 'rejected', 'hidden'].includes(newStatus)) {
+            return jsonResponse({ success: false, error: 'Invalid review status. Supported: pending, published, rejected, hidden' }, 400);
+          }
+
+          const now = new Date().toISOString();
+          let targetProdId = '';
+
+          if (env.DB) {
+            try {
+              await ensureD1ReviewTables(env);
+              const existing = await env.DB.prepare(`SELECT * FROM reviews WHERE id = ?`).bind(decodedReviewId).first();
+              if (!existing) {
+                return jsonResponse({ success: false, error: 'Review not found' }, 404);
+              }
+              targetProdId = existing.product_id;
+              const publishedAt = newStatus === 'published' ? (existing.published_at || now) : null;
+
+              await env.DB.prepare(`
+                UPDATE reviews
+                SET status = ?, published_at = ?, updated_at = ?
+                WHERE id = ?
+              `).bind(newStatus, publishedAt, now, decodedReviewId).run();
+
+              await recomputeProductReviewStats(env, targetProdId);
+            } catch (e: any) {
+              console.warn(`[D1 ADMIN UPDATE REVIEW ERROR] ${e.message}`);
+              return jsonResponse({ success: false, error: e.message }, 500);
+            }
+          } else {
+            const existing = reviewsStore.get(decodedReviewId);
+            if (!existing) return jsonResponse({ success: false, error: 'Review not found' }, 404);
+            targetProdId = existing.productId;
+            existing.status = newStatus;
+            existing.publishedAt = newStatus === 'published' ? (existing.publishedAt || now) : null;
+            existing.updatedAt = now;
+            reviewsStore.set(decodedReviewId, existing);
+            await recomputeProductReviewStats(env, targetProdId);
+          }
+
+          return jsonResponse({ success: true, message: `Review status changed to ${newStatus}.`, status: newStatus });
+        }
+
+        // DELETE /api/admin/reviews/:id
+        if (method === 'DELETE') {
+          let targetProdId = '';
+          if (env.DB) {
+            try {
+              await ensureD1ReviewTables(env);
+              const existing = await env.DB.prepare(`SELECT * FROM reviews WHERE id = ?`).bind(decodedReviewId).first();
+              if (existing) {
+                targetProdId = existing.product_id;
+                await env.DB.prepare(`DELETE FROM reviews WHERE id = ?`).bind(decodedReviewId).run();
+                await env.DB.prepare(`DELETE FROM review_helpful_votes WHERE review_id = ?`).bind(decodedReviewId).run();
+                await env.DB.prepare(`DELETE FROM review_reports WHERE review_id = ?`).bind(decodedReviewId).run();
+                await recomputeProductReviewStats(env, targetProdId);
+              }
+            } catch (e: any) {
+              console.warn(`[D1 ADMIN DELETE REVIEW ERROR] ${e.message}`);
+            }
+          } else {
+            const existing = reviewsStore.get(decodedReviewId);
+            if (existing) {
+              targetProdId = existing.productId;
+              reviewsStore.delete(decodedReviewId);
+              reviewHelpfulVotesStore.delete(decodedReviewId);
+              reviewReportsStore.delete(decodedReviewId);
+              await recomputeProductReviewStats(env, targetProdId);
+            }
+          }
+
+          return jsonResponse({ success: true, message: 'Review permanently deleted by administrator.' });
+        }
+      }
+    }
+
+    // 4. PUBLIC & CUSTOMER REVIEWS ENDPOINTS (/api/reviews and /api/reviews/:id/*)
+    if (path.startsWith('/api/reviews')) {
+      const parts = path.split('/').filter(Boolean);
+      const subParam = parts.length >= 3 ? parts[2] : '';
+      const subAction = parts.length >= 4 ? parts[3] : '';
+
+      // Helpful vote toggle: POST /api/reviews/:id/helpful
+      if (subParam && subAction === 'helpful' && method === 'POST') {
+        const sess = getSessionFromRequest(request);
+        if (!sess) {
+          return jsonResponse({ success: false, error: 'UNAUTHENTICATED', message: 'Please sign in to vote' }, 401);
+        }
+
+        const reviewId = decodeURIComponent(subParam);
+        let userHasVoted = false;
+        let newCount = 0;
+
+        if (env.DB) {
+          try {
+            await ensureD1ReviewTables(env);
+            const existingVote = await env.DB.prepare(
+              `SELECT id FROM review_helpful_votes WHERE review_id = ? AND user_id = ?`
+            ).bind(reviewId, sess.userId).first();
+
+            if (existingVote) {
+              // Remove vote
+              await env.DB.prepare(
+                `DELETE FROM review_helpful_votes WHERE review_id = ? AND user_id = ?`
+              ).bind(reviewId, sess.userId).run();
+              userHasVoted = false;
+            } else {
+              // Add vote
+              const voteId = `vh_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+              await env.DB.prepare(
+                `INSERT INTO review_helpful_votes (id, review_id, user_id, created_at) VALUES (?, ?, ?, ?)`
+              ).bind(voteId, reviewId, sess.userId, new Date().toISOString()).run();
+              userHasVoted = true;
+            }
+
+            const countRes = await env.DB.prepare(
+              `SELECT COUNT(*) as cnt FROM review_helpful_votes WHERE review_id = ?`
+            ).bind(reviewId).first();
+            newCount = Number(countRes?.cnt || 0);
+
+            await env.DB.prepare(`UPDATE reviews SET helpful_count = ? WHERE id = ?`).bind(newCount, reviewId).run();
+          } catch (e: any) {
+            console.warn(`[D1 HELPFUL VOTE ERROR] ${e.message}`);
+            return jsonResponse({ success: false, error: 'Database error while voting' }, 500);
+          }
+        } else {
+          let voters = reviewHelpfulVotesStore.get(reviewId);
+          if (!voters) {
+            voters = new Set<string>();
+            reviewHelpfulVotesStore.set(reviewId, voters);
+          }
+          if (voters.has(sess.userId)) {
+            voters.delete(sess.userId);
+            userHasVoted = false;
+          } else {
+            voters.add(sess.userId);
+            userHasVoted = true;
+          }
+          newCount = voters.size;
+          const rev = reviewsStore.get(reviewId);
+          if (rev) rev.helpfulCount = newCount;
+        }
+
+        return jsonResponse({ success: true, helpfulCount: newCount, userHasVoted });
+      }
+
+      // Report review: POST /api/reviews/:id/report
+      if (subParam && subAction === 'report' && method === 'POST') {
+        const sess = getSessionFromRequest(request);
+        if (!sess) {
+          return jsonResponse({ success: false, error: 'UNAUTHENTICATED', message: 'Please sign in to report a review' }, 401);
+        }
+
+        const reviewId = decodeURIComponent(subParam);
+        const body: any = await request.json().catch(() => ({}));
+        const reason = (body.reason || 'Other').trim().substring(0, 100);
+        const details = (body.details || '').trim().substring(0, 1000);
+
+        if (env.DB) {
+          try {
+            await ensureD1ReviewTables(env);
+            const existingReport = await env.DB.prepare(
+              `SELECT id FROM review_reports WHERE review_id = ? AND user_id = ?`
+            ).bind(reviewId, sess.userId).first();
+
+            if (existingReport) {
+              return jsonResponse({ success: true, alreadyReported: true, message: 'You have already reported this review.' });
+            }
+
+            const repId = `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            await env.DB.prepare(
+              `INSERT INTO review_reports (id, review_id, user_id, reason, details, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+            ).bind(repId, reviewId, sess.userId, reason, details, new Date().toISOString()).run();
+
+            const countRes = await env.DB.prepare(
+              `SELECT COUNT(*) as cnt FROM review_reports WHERE review_id = ?`
+            ).bind(reviewId).first();
+            const repCount = Number(countRes?.cnt || 0);
+
+            await env.DB.prepare(`UPDATE reviews SET report_count = ? WHERE id = ?`).bind(repCount, reviewId).run();
+          } catch (e: any) {
+            console.warn(`[D1 REPORT REVIEW ERROR] ${e.message}`);
+            return jsonResponse({ success: false, error: 'Failed to record report' }, 500);
+          }
+        } else {
+          let reports = reviewReportsStore.get(reviewId) || [];
+          if (reports.some((r: any) => r.userId === sess.userId)) {
+            return jsonResponse({ success: true, alreadyReported: true, message: 'You have already reported this review.' });
+          }
+          reports.push({ id: `rep_${Date.now()}`, reviewId, userId: sess.userId, reason, details, createdAt: new Date().toISOString() });
+          reviewReportsStore.set(reviewId, reports);
+          const rev = reviewsStore.get(reviewId);
+          if (rev) rev.reportCount = reports.length;
+        }
+
+        return jsonResponse({ success: true, message: 'Thank you for your feedback. Our team will review this report.' });
+      }
+
+      // Single review edit/delete by ID: PATCH/DELETE /api/reviews/:id
+      if (subParam && !subAction) {
+        const reviewId = decodeURIComponent(subParam);
+        const sess = getSessionFromRequest(request);
+        if (!sess) {
+          return jsonResponse({ success: false, error: 'UNAUTHENTICATED', message: 'Please sign in' }, 401);
+        }
+
+        if (method === 'PATCH' || method === 'PUT') {
+          const body: any = await request.json().catch(() => ({}));
+          const rating = Number(body.rating);
+          const title = (body.title || '').trim().substring(0, 120);
+          const reviewBody = (body.body || '').trim().substring(0, 3000);
+
+          if (!rating || rating < 1 || rating > 5 || !Number.isInteger(rating)) {
+            return jsonResponse({ success: false, error: 'Rating must be an integer between 1 and 5' }, 400);
+          }
+          if (!title) {
+            return jsonResponse({ success: false, error: 'Review title is required' }, 400);
+          }
+          if (!reviewBody || reviewBody.length < 10) {
+            return jsonResponse({ success: false, error: 'Review text must be at least 10 characters long' }, 400);
+          }
+
+          const now = new Date().toISOString();
+          let targetProdId = '';
+
+          if (env.DB) {
+            try {
+              await ensureD1ReviewTables(env);
+              const existing = await env.DB.prepare(`SELECT * FROM reviews WHERE id = ?`).bind(reviewId).first();
+              if (!existing) return jsonResponse({ success: false, error: 'Review not found' }, 404);
+              if (existing.user_id !== sess.userId && !sess.isAdmin) {
+                return jsonResponse({ success: false, error: 'FORBIDDEN', message: 'You can only edit your own reviews' }, 403);
+              }
+
+              targetProdId = existing.product_id;
+              await env.DB.prepare(`
+                UPDATE reviews
+                SET rating = ?, title = ?, body = ?, status = 'pending', updated_at = ?
+                WHERE id = ?
+              `).bind(rating, title, reviewBody, now, reviewId).run();
+
+              await recomputeProductReviewStats(env, targetProdId);
+            } catch (e: any) {
+              console.warn(`[D1 EDIT REVIEW ERROR] ${e.message}`);
+              return jsonResponse({ success: false, error: e.message }, 500);
+            }
+          } else {
+            const existing = reviewsStore.get(reviewId);
+            if (!existing) return jsonResponse({ success: false, error: 'Review not found' }, 404);
+            if (existing.userId !== sess.userId && !sess.isAdmin) {
+              return jsonResponse({ success: false, error: 'FORBIDDEN', message: 'You can only edit your own reviews' }, 403);
+            }
+
+            targetProdId = existing.productId;
+            existing.rating = rating;
+            existing.title = title;
+            existing.body = reviewBody;
+            existing.status = 'pending';
+            existing.updatedAt = now;
+            reviewsStore.set(reviewId, existing);
+            await recomputeProductReviewStats(env, targetProdId);
+          }
+
+          return jsonResponse({
+            success: true,
+            message: 'Your review has been updated and is awaiting moderation approval.',
+            status: 'pending'
+          });
+        }
+
+        if (method === 'DELETE') {
+          let targetProdId = '';
+          if (env.DB) {
+            try {
+              await ensureD1ReviewTables(env);
+              const existing = await env.DB.prepare(`SELECT * FROM reviews WHERE id = ?`).bind(reviewId).first();
+              if (!existing) return jsonResponse({ success: false, error: 'Review not found' }, 404);
+              if (existing.user_id !== sess.userId && !sess.isAdmin) {
+                return jsonResponse({ success: false, error: 'FORBIDDEN', message: 'You can only delete your own reviews' }, 403);
+              }
+
+              targetProdId = existing.product_id;
+              await env.DB.prepare(`DELETE FROM reviews WHERE id = ?`).bind(reviewId).run();
+              await env.DB.prepare(`DELETE FROM review_helpful_votes WHERE review_id = ?`).bind(reviewId).run();
+              await env.DB.prepare(`DELETE FROM review_reports WHERE review_id = ?`).bind(reviewId).run();
+              await recomputeProductReviewStats(env, targetProdId);
+            } catch (e: any) {
+              console.warn(`[D1 DELETE REVIEW ERROR] ${e.message}`);
+              return jsonResponse({ success: false, error: e.message }, 500);
+            }
+          } else {
+            const existing = reviewsStore.get(reviewId);
+            if (!existing) return jsonResponse({ success: false, error: 'Review not found' }, 404);
+            if (existing.userId !== sess.userId && !sess.isAdmin) {
+              return jsonResponse({ success: false, error: 'FORBIDDEN', message: 'You can only delete your own reviews' }, 403);
+            }
+
+            targetProdId = existing.productId;
+            reviewsStore.delete(reviewId);
+            reviewHelpfulVotesStore.delete(reviewId);
+            reviewReportsStore.delete(reviewId);
+            await recomputeProductReviewStats(env, targetProdId);
+          }
+
+          return jsonResponse({ success: true, message: 'Review deleted successfully.' });
+        }
+      }
+
+      // Root collection: GET /api/reviews and POST /api/reviews
+      if (!subParam) {
+        // GET /api/reviews?productId=...&sort=...&rating=...&page=...&limit=...
+        if (method === 'GET') {
+          const productId = (url.searchParams.get('productId') || url.searchParams.get('id') || '').trim();
+          if (!productId) {
+            return jsonResponse({ success: false, error: 'Product ID required' }, 400);
+          }
+
+          const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
+          const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') || '20', 10)));
+          const sort = (url.searchParams.get('sort') || 'helpful').toLowerCase();
+          const filterRating = url.searchParams.get('rating');
+
+          const sess = getSessionFromRequest(request);
+          const currentUserId = sess ? sess.userId : null;
+
+          let rawReviews: any[] = [];
+          let userVotedSet = new Set<string>();
+          let userReportedSet = new Set<string>();
+          let userOwnReview: any = null;
+
+          if (env.DB) {
+            try {
+              await ensureD1ReviewTables(env);
+              // Fetch published reviews
+              const query = `
+                SELECT * FROM reviews
+                WHERE product_id = ? AND status = 'published'
+                ORDER BY ${sort === 'newest' ? 'created_at DESC' : sort === 'highest' ? 'rating DESC, created_at DESC' : sort === 'lowest' ? 'rating ASC, created_at DESC' : 'helpful_count DESC, created_at DESC'}
+              `;
+              const res = await env.DB.prepare(query).bind(productId).all();
+              rawReviews = res.results || [];
+
+              // If user is logged in, find their own review (published or pending) and vote states
+              if (currentUserId) {
+                const userRevRes = await env.DB.prepare(
+                  `SELECT * FROM reviews WHERE product_id = ? AND user_id = ?`
+                ).bind(productId, currentUserId).first();
+                if (userRevRes) {
+                  userOwnReview = {
+                    id: userRevRes.id,
+                    productId: userRevRes.product_id,
+                    userId: userRevRes.user_id,
+                    userName: userRevRes.user_name,
+                    rating: Number(userRevRes.rating),
+                    title: userRevRes.title,
+                    body: userRevRes.body,
+                    status: userRevRes.status,
+                    verifiedPurchase: Boolean(userRevRes.verified_purchase),
+                    helpfulCount: Number(userRevRes.helpful_count || 0),
+                    reportCount: Number(userRevRes.report_count || 0),
+                    isUserReview: true,
+                    createdAt: userRevRes.created_at,
+                    updatedAt: userRevRes.updated_at
+                  };
+                }
+
+                const votesRes = await env.DB.prepare(
+                  `SELECT review_id FROM review_helpful_votes WHERE user_id = ?`
+                ).bind(currentUserId).all();
+                (votesRes.results || []).forEach((v: any) => userVotedSet.add(v.review_id));
+
+                const reportsRes = await env.DB.prepare(
+                  `SELECT review_id FROM review_reports WHERE user_id = ?`
+                ).bind(currentUserId).all();
+                (reportsRes.results || []).forEach((r: any) => userReportedSet.add(r.review_id));
+              }
+            } catch (e: any) {
+              console.warn(`[D1 GET REVIEWS ERROR] ${e.message}`);
+            }
+          } else {
+            rawReviews = Array.from(reviewsStore.values()).filter(
+              (r: any) => r.productId === productId && r.status === 'published'
+            );
+            if (sort === 'newest') rawReviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            else if (sort === 'highest') rawReviews.sort((a, b) => b.rating - a.rating || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            else if (sort === 'lowest') rawReviews.sort((a, b) => a.rating - b.rating || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            else rawReviews.sort((a, b) => (b.helpfulCount || 0) - (a.helpfulCount || 0) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+            if (currentUserId) {
+              const foundOwn = Array.from(reviewsStore.values()).find(
+                (r: any) => r.productId === productId && r.userId === currentUserId
+              );
+              if (foundOwn) userOwnReview = { ...foundOwn, isUserReview: true };
+              for (const [revId, voters] of reviewHelpfulVotesStore.entries()) {
+                if (voters.has(currentUserId)) userVotedSet.add(revId);
+              }
+              for (const [revId, reports] of reviewReportsStore.entries()) {
+                if (reports.some((rp: any) => rp.userId === currentUserId)) userReportedSet.add(revId);
+              }
+            }
+          }
+
+          // Optional rating filter
+          let filtered = rawReviews;
+          if (filterRating && filterRating !== 'all') {
+            const ratNum = Number(filterRating);
+            filtered = filtered.filter((r: any) => Number(r.rating) === ratNum);
+          }
+
+          const total = filtered.length;
+          const totalPages = Math.ceil(total / limit) || 1;
+          const paginated = filtered.slice((page - 1) * limit, page * limit);
+
+          const sanitizedReviews = paginated.map((r: any) => ({
+            id: r.id,
+            productId: r.product_id || r.productId,
+            userName: maskCustomerDisplayName(r.user_name || r.userName, r.user_email || r.userEmail),
+            rating: Number(r.rating),
+            title: r.title,
+            body: r.body,
+            status: r.status,
+            verifiedPurchase: Boolean(r.verified_purchase ?? r.verifiedPurchase),
+            helpfulCount: Number(r.helpful_count || r.helpfulCount || 0),
+            reportCount: Number(r.report_count || r.reportCount || 0),
+            userHasVoted: userVotedSet.has(r.id),
+            userHasReported: userReportedSet.has(r.id),
+            isUserReview: currentUserId ? (r.user_id || r.userId) === currentUserId : false,
+            createdAt: r.created_at || r.createdAt
+          }));
+
+          const summary = await getD1ReviewStats(env, productId);
+
+          return jsonResponse({
+            success: true,
+            reviews: sanitizedReviews,
+            userReview: userOwnReview,
+            summary,
+            pagination: {
+              page,
+              limit,
+              total,
+              totalPages
+            }
+          });
+        }
+
+        // POST /api/reviews (Create new review)
+        if (method === 'POST') {
+          const sess = getSessionFromRequest(request);
+          if (!sess) {
+            return jsonResponse({ success: false, error: 'UNAUTHENTICATED', message: 'Please sign in to write a review' }, 401);
+          }
+
+          const body: any = await request.json().catch(() => ({}));
+          const productId = (body.productId || body.id || '').trim();
+          const productName = (body.productName || '').trim();
+          const rating = Number(body.rating);
+          const title = (body.title || '').trim().substring(0, 120);
+          const reviewBody = (body.body || '').trim().substring(0, 3000);
+
+          if (!productId) {
+            return jsonResponse({ success: false, error: 'Product ID is required' }, 400);
+          }
+          if (!rating || rating < 1 || rating > 5 || !Number.isInteger(rating)) {
+            return jsonResponse({ success: false, error: 'Rating must be an integer between 1 and 5' }, 400);
+          }
+          if (!title) {
+            return jsonResponse({ success: false, error: 'Review headline is required' }, 400);
+          }
+          if (!reviewBody || reviewBody.length < 10) {
+            return jsonResponse({ success: false, error: 'Review text must be at least 10 characters long' }, 400);
+          }
+
+          // Strict Server-Side Verified Purchase Check
+          const verification = await checkVerifiedPurchase(env, sess.userEmail, productId, productName);
+          if (!verification.isVerified) {
+            return jsonResponse({
+              success: false,
+              error: 'ACCESS_DENIED',
+              message: 'Verified purchase required. You can review this product only after completing your purchase.'
+            }, 403);
+          }
+
+          // Check if already reviewed (One review per customer per product)
+          if (env.DB) {
+            try {
+              await ensureD1ReviewTables(env);
+              const duplicate = await env.DB.prepare(
+                `SELECT id FROM reviews WHERE user_id = ? AND product_id = ?`
+              ).bind(sess.userId, productId).first();
+              if (duplicate) {
+                return jsonResponse({
+                  success: false,
+                  error: 'DUPLICATE_REVIEW',
+                  message: 'You have already submitted a review for this product. You can edit your existing review instead.'
+                }, 400);
+              }
+            } catch (e: any) {
+              console.warn(`[D1 DUPLICATE CHECK ERROR] ${e.message}`);
+            }
+          } else {
+            const duplicate = Array.from(reviewsStore.values()).find(
+              (r: any) => r.userId === sess.userId && r.productId === productId
+            );
+            if (duplicate) {
+              return jsonResponse({
+                success: false,
+                error: 'DUPLICATE_REVIEW',
+                message: 'You have already submitted a review for this product.'
+              }, 400);
+            }
+          }
+
+          // Get user details for safe display name
+          const userRec = usersStore.get(sess.userEmail.toLowerCase());
+          const userName = userRec ? userRec.name : (sess.userEmail.split('@')[0] || 'Customer');
+
+          const reviewId = `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          const now = new Date().toISOString();
+
+          const newReview = {
+            id: reviewId,
+            productId,
+            userId: sess.userId,
+            userName,
+            userEmail: sess.userEmail,
+            orderId: verification.orderId || null,
+            orderItemId: verification.orderItemId || null,
+            rating,
+            title,
+            body: reviewBody,
+            status: 'pending',
+            verifiedPurchase: true,
+            helpfulCount: 0,
+            reportCount: 0,
+            createdAt: now,
+            updatedAt: now,
+            publishedAt: null
+          };
+
+          if (env.DB) {
+            try {
+              await ensureD1ReviewTables(env);
+              await env.DB.prepare(`
+                INSERT INTO reviews (
+                  id, product_id, user_id, user_name, user_email,
+                  order_id, order_item_id, rating, title, body,
+                  status, verified_purchase, helpful_count, report_count,
+                  created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).bind(
+                newReview.id,
+                newReview.productId,
+                newReview.userId,
+                newReview.userName,
+                newReview.userEmail,
+                newReview.orderId,
+                newReview.orderItemId,
+                newReview.rating,
+                newReview.title,
+                newReview.body,
+                'pending',
+                1,
+                0,
+                0,
+                newReview.createdAt,
+                newReview.updatedAt
+              ).run();
+            } catch (e: any) {
+              console.warn(`[D1 INSERT REVIEW ERROR] ${e.message}`);
+              return jsonResponse({ success: false, error: 'Database error saving review: ' + e.message }, 500);
+            }
+          } else {
+            reviewsStore.set(reviewId, newReview);
+          }
+
+          return jsonResponse({
+            success: true,
+            message: 'Thank you for sharing your experience! Your review has been submitted and is awaiting moderation.',
+            review: {
+              ...newReview,
+              isUserReview: true
+            }
+          }, 201);
         }
       }
     }

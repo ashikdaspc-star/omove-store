@@ -92,6 +92,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         return { group: 'Commerce', title: 'Registered Customer Directory' };
       case 'downloads':
         return { group: 'Commerce', title: 'Digital Downloads Logs' };
+      case 'reviews':
+        return { group: 'Commerce', title: 'Customer Reviews Moderation' };
       case 'services':
         return { group: 'Services', title: 'Services Catalog' };
       case 'remote-support':

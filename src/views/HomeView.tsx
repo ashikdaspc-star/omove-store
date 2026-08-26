@@ -664,8 +664,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </p>
               </div>
 
-              {/* 3. HERO ACTION CLUSTER: CTAS & TRUST FEATURES (Order 3 on mobile — placed after Featured & Secondary cards!) */}
-              <div className="order-3 lg:order-none space-y-2 sm:space-y-4 pt-2.5 lg:pt-0 w-full">
+              {/* 2. HERO ACTION CLUSTER: CTAS & TRUST FEATURES (Order 2 on mobile — placed right before Featured Product) */}
+              <div className="order-2 lg:order-none space-y-2 sm:space-y-4 pt-1 sm:pt-0 w-full">
                 {/* Primary & Secondary Action CTAs */}
                 <div className="pt-0.5 grid grid-cols-2 gap-1.5 w-full max-w-[300px] min-[360px]:max-w-[330px] sm:max-w-none mx-auto lg:mx-0">
                   <button
@@ -674,7 +674,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       navigate('/digital-products');
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                    className="w-full sm:w-auto px-2 py-1.5 sm:px-7 sm:py-3.5 min-h-[38px] sm:min-h-[48px] rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9.5px] min-[360px]:text-[10.5px] sm:text-sm tracking-tight shadow-sm shadow-emerald-600/20 flex items-center justify-center gap-1 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer whitespace-nowrap"
+                    className="w-full sm:w-auto px-2 py-1.5 sm:px-7 sm:py-3.5 min-h-[44px] sm:min-h-[48px] rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9.5px] min-[360px]:text-[10.5px] sm:text-sm tracking-tight shadow-sm shadow-emerald-600/20 flex items-center justify-center gap-1 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer whitespace-nowrap"
                   >
                     <Package className="w-3.5 h-3.5 shrink-0" />
                     <span className="hidden min-[380px]:inline">EXPLORE DIGITAL PRODUCTS</span>
@@ -685,7 +685,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <button
                     type="button"
                     onClick={scrollToTopSelling}
-                    className="w-full sm:w-auto px-2 py-1.5 sm:px-6 sm:py-3.5 min-h-[38px] sm:min-h-[48px] rounded-lg sm:rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-[9.5px] min-[360px]:text-[10.5px] sm:text-sm tracking-tight shadow-xs flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                    className="w-full sm:w-auto px-2 py-1.5 sm:px-6 sm:py-3.5 min-h-[44px] sm:min-h-[48px] rounded-lg sm:rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-[9.5px] min-[360px]:text-[10.5px] sm:text-sm tracking-tight shadow-xs flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
                   >
                     <span className="hidden min-[380px]:inline">TOP SELLING PRODUCTS</span>
                     <span className="min-[380px]:hidden">TOP SELLING</span>
@@ -719,8 +719,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
             </div>
 
-            {/* 2. RIGHT COLUMN: FEATURED PRODUCT & SECONDARY CARDS (Order 2 on mobile, 5 cols on lg) */}
-            <div className="order-2 lg:order-none lg:col-span-5 relative w-full">
+            {/* 3. RIGHT COLUMN: FEATURED PRODUCT & SECONDARY CARDS (Order 3 on mobile, 5 cols on lg) */}
+            <div className="order-3 lg:order-none lg:col-span-5 relative w-full pt-1.5 sm:pt-0">
               
               <div className="relative mx-auto max-w-[290px] min-[360px]:max-w-[315px] sm:max-w-[430px] lg:max-w-none space-y-1.5">
                 
@@ -749,8 +749,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       )}
                     </div>
 
-                    {/* Main Product Image - Full width, 16:9 uncropped artwork */}
-                    <div className="relative aspect-[16/9] w-full rounded-lg sm:rounded-xl overflow-hidden bg-slate-100 border border-slate-200/80">
+                    {/* Main Product Image - Full width, 16:9 uncropped artwork with controlled mobile height */}
+                    <div className="relative aspect-[16/9] max-h-[175px] sm:max-h-none w-full rounded-lg sm:rounded-xl overflow-hidden bg-slate-100 border border-slate-200/80">
                       <img 
                         src={featuredProduct.image || featuredProduct.previewImage || '/logo.png'} 
                         alt={featuredProduct.name}
