@@ -639,13 +639,17 @@ export default function App() {
       alert("You’re offline. Please reconnect to the internet to purchase this product.");
       return;
     }
-    setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) return prev;
-      return [{ product, quantity: 1 }];
-    });
+    setCart([{ product, quantity: 1 }]);
+    setActiveDiscountCode(undefined);
+    setActiveDiscountAmount(0);
     setIsCartOpen(false);
     setIsCheckoutOpen(true);
+  };
+
+  const handleCloseCheckout = () => {
+    setIsCheckoutOpen(false);
+    setActiveDiscountCode(undefined);
+    setActiveDiscountAmount(0);
   };
 
   const handleUpdateCartQuantity = (productId: string, quantity: number) => {
@@ -1339,14 +1343,14 @@ export default function App() {
 
       <CheckoutModal
         isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
+        onClose={handleCloseCheckout}
         cart={cart}
         discountAmount={activeDiscountAmount}
         discountCode={activeDiscountCode}
         onClearCart={() => setCart([])}
         onOrderSuccess={handleOrderSuccess}
         onOpenInvoiceModal={(ord) => {
-          setIsCheckoutOpen(false);
+          handleCloseCheckout();
           setSelectedInvoiceOrder(ord);
         }}
       />

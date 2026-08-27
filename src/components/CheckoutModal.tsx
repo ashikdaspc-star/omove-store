@@ -114,8 +114,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [paypalLoading, setPaypalLoading] = useState(false);
   const createdOrderRef = useRef<Order | null>(null);
 
-  const handleGoToMyOrders = () => {
+  const handleCloseModal = () => {
+    setCreatedOrder(null);
+    createdOrderRef.current = null;
+    setPaymentFailedNotice('');
+    setIsProcessing(false);
+    setCouponStatus(null);
     onClose();
+  };
+
+  const handleGoToMyOrders = () => {
+    handleCloseModal();
     navigate('/my-account?tab=orders');
   };
 
@@ -134,27 +143,49 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   // Expandable Coupon State
-  const [showCouponInput, setShowCouponInput] = useState(false);
+  const [showCouponInput, setShowCouponInput] = useState(Boolean(discountCode));
   const [couponInput, setCouponInput] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<number>(discountAmount || 0);
   const [appliedCode, setAppliedCode] = useState<string>(discountCode || '');
   const [couponStatus, setCouponStatus] = useState<{ valid: boolean; message: string } | null>(null);
 
+  // Sync or reset coupon/discount state based on props
   useEffect(() => {
-    if (discountAmount && discountAmount > 0) {
-      setAppliedDiscount(discountAmount);
-    }
+    setAppliedDiscount(discountAmount || 0);
+    setAppliedCode(discountCode || '');
     if (discountCode) {
-      setAppliedCode(discountCode);
       setShowCouponInput(true);
+    } else {
+      setShowCouponInput(false);
+      setCouponStatus(null);
     }
   }, [discountAmount, discountCode]);
 
+  // Reset transaction and order state whenever checkout modal opens or closes
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) {
+      setCreatedOrder(null);
+      createdOrderRef.current = null;
+      setPaymentFailedNotice('');
+      setIsProcessing(false);
+      setCouponStatus(null);
+    } else {
       fetchAndCacheCoupons().catch(() => {});
     }
   }, [isOpen]);
+
+  // Reset transaction whenever cart items change (e.g. user selects a different product)
+  const prevCartHashRef = useRef<string>('');
+  useEffect(() => {
+    const currentHash = cart.map(i => `${i.product.id}:${i.quantity}:${i.product.price}`).join('|');
+    if (prevCartHashRef.current !== currentHash) {
+      prevCartHashRef.current = currentHash;
+      setCreatedOrder(null);
+      createdOrderRef.current = null;
+      setPaymentFailedNotice('');
+      setIsProcessing(false);
+    }
+  }, [cart]);
 
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const finalTotal = Math.max(0, Number((subtotal - appliedDiscount).toFixed(2)));
@@ -454,7 +485,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             return;
           }
         } else {
-          setPaymentFailedNotice('Server error creating order. Please try again.');
+          const errData = await res.json().catch(() => ({}));
+          setPaymentFailedNotice(errData.message || errData.error || 'Server error creating order. Please try again.');
           setIsProcessing(false);
           return;
         }
@@ -627,7 +659,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCloseModal}
             aria-label="Close checkout modal"
             className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
           >
@@ -748,7 +780,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleCloseModal}
                   className="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer"
                 >
                   CLOSE

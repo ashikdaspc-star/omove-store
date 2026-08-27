@@ -1881,7 +1881,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   // ORDER & CHECKOUT ENDPOINTS
   app.post('/api/orders/create', (req: Request, res: Response) => {
     try {
-      const { items, customerName, customerEmail, customerPhone, paymentMethod, discountAmount = 0 } = req.body || {};
+      const { items, customerName, customerEmail, customerPhone, paymentMethod, couponCode, discountAmount = 0 } = req.body || {};
 
       if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, error: 'Cart is empty. Please add items to checkout.' });
@@ -1891,11 +1891,11 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       let subtotal = 0;
 
       items.forEach((it: any) => {
-        const prod = dynamicProductsStore.find(p => p.id === it.productId);
-        const price = prod ? Number(prod.price) : 499;
+        const prod = dynamicProductsStore.find(p => p.id === it.productId) || MOCK_PRODUCTS.find(p => p.id === it.productId);
+        const price = prod ? Number(prod.price) : (Number(it.price) || 499);
         const isDigital = prod ? (prod.productType === 'DIGITAL' || prod.id?.startsWith('dig') || prod.category === 'Digital Products') : (it.productType === 'DIGITAL' || it.productId?.startsWith('dig'));
-        const name = prod ? prod.name : (isDigital ? 'Digital Product' : 'Store Product');
-        const qty = Number(it.quantity) || 1;
+        const name = prod ? prod.name : (it.productName || (isDigital ? 'Digital Product' : 'Store Product'));
+        const qty = Math.max(1, Number(it.quantity) || 1);
         subtotal += price * qty;
 
         const licenseKey = isDigital ? `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}` : '';
@@ -1908,14 +1908,27 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
           licenseKey: licenseKey,
           downloadLimit: isDigital ? 5 : 0,
           downloadsCount: 0,
-          fileSize: isDigital ? (prod?.downloadSize || 'Instant Access') : '',
-          googleDriveUrl: isDigital ? (prod?.googleDriveUrl || prod?.fileUrl || '') : '',
-          fileUrl: isDigital ? (prod?.fileUrl || '/api/downloads/setup') : ''
+          fileSize: isDigital ? (prod?.downloadSize || it.fileSize || 'Instant Access') : '',
+          googleDriveUrl: isDigital ? (prod?.googleDriveUrl || prod?.fileUrl || it.googleDriveUrl || '') : '',
+          fileUrl: isDigital ? (prod?.fileUrl || it.fileUrl || '/api/downloads/setup') : ''
         });
       });
 
-      const discount = Math.min(subtotal, Number(discountAmount) || 0);
-      const total = Math.max(0, subtotal - discount);
+      let calculatedDiscount = Number(discountAmount) || 0;
+      const cleanCoupon = (couponCode || '').trim().toUpperCase();
+      if (cleanCoupon) {
+        if (cleanCoupon === 'OMOVE100' || cleanCoupon === 'WELLCOME100') {
+          calculatedDiscount = subtotal;
+        } else if (cleanCoupon === 'OMOVE15') {
+          calculatedDiscount = Math.round((subtotal * 15) / 100);
+        } else if (cleanCoupon === 'PROMO50') {
+          calculatedDiscount = Math.min(subtotal, 50);
+        }
+      }
+
+      const discount = Math.min(subtotal, Math.max(0, calculatedDiscount));
+      const total = Math.max(0, Number((subtotal - discount).toFixed(2)));
+      const isZeroTotal = total <= 0;
       const orderId = `ord-${Date.now()}`;
       const orderNumber = `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -1923,15 +1936,16 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
         id: orderId,
         orderNumber: orderNumber,
         customerName: customerName || 'Customer',
-        customerEmail: customerEmail || 'customer@omovestore.shop',
+        customerEmail: (customerEmail || 'customer@omovestore.shop').trim().toLowerCase(),
         customerPhone: customerPhone || '',
         items: orderItems,
         subtotal: subtotal,
         discount: discount,
         tax: 0,
         total: total,
-        paymentMethod: paymentMethod || 'Razorpay UPI',
-        paymentStatus: total <= 0 ? 'SUCCESS' : 'PENDING',
+        paymentMethod: isZeroTotal ? (cleanCoupon ? `Coupon (${cleanCoupon})` : '100% Discount') : (paymentMethod || 'Razorpay UPI'),
+        paymentStatus: isZeroTotal ? 'SUCCESS' : 'PENDING',
+        razorpayPaymentId: isZeroTotal ? `FREE_COUPON_${cleanCoupon || '100PCT'}` : undefined,
         createdAt: new Date().toISOString()
       };
 
@@ -1942,6 +1956,8 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       res.json({
         success: true,
         order: newOrder,
+        orderId: newOrder.id,
+        isZeroTotal,
         razorpayKeyId: razorpayKeyId
       });
     } catch (err: any) {
@@ -2256,93 +2272,6 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   });
 
   const processedPaymentIds: Set<string> = new Set();
-
-  // Create Order (Server-Authoritative Order Initialization)
-  app.post('/api/orders/create', async (req: Request, res: Response) => {
-    const { items, customerName, customerEmail, customerPhone, paymentMethod, discountAmount } = req.body || {};
-    if (!items || !Array.isArray(items) || !items.length) {
-      return res.status(400).json({ error: 'Cart is empty or invalid request format.' });
-    }
-
-    const orderId = 'ord-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-    const orderNumber = 'OMV-ORD-2026-' + Math.floor(10000 + Math.random() * 90000);
-
-    let subtotal = 0;
-    const orderItems = items.map((it: any) => {
-      const prod = dynamicProductsStore.find(p => p.id === it.productId) || MOCK_PRODUCTS.find(p => p.id === it.productId) || it;
-      const price = Number(prod.price) || 999;
-      const qty = Math.max(1, parseInt(it.quantity || 1, 10));
-      subtotal += price * qty;
-      return {
-        productId: prod.id,
-        productName: prod.name,
-        price: price,
-        quantity: qty,
-        licenseKey: generateLicenseKey(),
-        downloadLimit: 5,
-        downloadsCount: 0,
-        fileSize: prod.downloadSize || '50 MB',
-        fileUrl: `/api/downloads/${orderId}/${prod.id}`
-      };
-    });
-
-    const disc = Math.max(0, Number(discountAmount) || 0);
-    const tax = 0;
-    const total = Math.max(0, Number((subtotal - disc).toFixed(2)));
-
-    let razorpayOrderId = 'order_rzp_' + Math.random().toString(36).substring(2, 14);
-    let realOrderCreated = false;
-
-    if (razorpayInstance && total > 0) {
-      try {
-        const rzpOrder = await razorpayInstance.orders.create({
-          amount: Math.round(total * 100),
-          currency: 'INR',
-          receipt: orderNumber,
-          notes: { customerName, customerEmail }
-        });
-        if (rzpOrder && rzpOrder.id) {
-          razorpayOrderId = rzpOrder.id;
-          realOrderCreated = true;
-        }
-      } catch (err) {
-        console.warn('Razorpay API order creation note:', err);
-      }
-    }
-
-    const initialStatus = total === 0 ? 'SUCCESS' : 'PENDING';
-
-    const newOrder: Order = {
-      id: orderId,
-      orderNumber,
-      customerName: customerName || 'Valued Customer',
-      customerEmail: (customerEmail || 'customer@omove.tech').trim().toLowerCase(),
-      customerPhone: customerPhone || '+91 9999999999',
-      items: orderItems,
-      subtotal: Number(subtotal.toFixed(2)),
-      discount: Number(disc.toFixed(2)),
-      tax,
-      total,
-      paymentMethod: paymentMethod || 'Razorpay UPI',
-      paymentStatus: initialStatus,
-      razorpayPaymentId: total === 0 ? 'FREE_COUPON_' + Date.now() : undefined,
-      createdAt: new Date().toISOString()
-    };
-
-    ordersStore.set(orderId, newOrder);
-
-    res.json({
-      success: true,
-      order: newOrder,
-      isRealGateway: realOrderCreated,
-      razorpayKeyId: realOrderCreated ? razorpayKeyId : (process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_OMOVE_DEMO_KEY'),
-      razorpayOrder: {
-        id: razorpayOrderId,
-        currency: 'INR',
-        amount: Math.round(total * 100)
-      }
-    });
-  });
 
   // Verify Order Payment (Cryptographic HMAC Verification & Order Activation)
   app.post('/api/orders/verify', (req: Request, res: Response) => {

@@ -108,17 +108,80 @@ async function getD1Orders(env: Env): Promise<any[]> {
   return Array.from(ordersStore.values());
 }
 
+let d1OrderTablesEnsured = false;
+
+async function ensureD1OrderTables(env: Env): Promise<void> {
+  if (!env.DB || d1OrderTablesEnsured) return;
+  try {
+    await env.DB.batch([
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS orders (
+          id TEXT PRIMARY KEY,
+          order_number TEXT UNIQUE NOT NULL,
+          razorpay_order_id TEXT,
+          razorpay_payment_id TEXT,
+          customer_name TEXT NOT NULL,
+          customer_email TEXT NOT NULL,
+          customer_phone TEXT,
+          subtotal REAL NOT NULL DEFAULT 0,
+          discount REAL NOT NULL DEFAULT 0,
+          coupon_code TEXT,
+          tax REAL NOT NULL DEFAULT 0,
+          total REAL NOT NULL DEFAULT 0,
+          total_amount REAL NOT NULL DEFAULT 0,
+          payment_method TEXT DEFAULT 'Razorpay UPI',
+          payment_status TEXT DEFAULT 'PENDING',
+          status TEXT DEFAULT 'pending',
+          payment_verified_at TEXT,
+          paypal_order_id TEXT,
+          paypal_capture_id TEXT,
+          payment_provider TEXT DEFAULT 'razorpay',
+          payment_currency TEXT DEFAULT 'INR',
+          payment_amount_usd REAL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      `),
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS order_items (
+          id TEXT PRIMARY KEY,
+          order_id TEXT NOT NULL,
+          product_id TEXT NOT NULL,
+          product_name TEXT NOT NULL,
+          price REAL NOT NULL,
+          quantity INTEGER NOT NULL DEFAULT 1,
+          file_size TEXT,
+          file_url TEXT,
+          google_drive_url TEXT,
+          license_key TEXT,
+          download_limit INTEGER DEFAULT 5,
+          downloads_count INTEGER DEFAULT 0,
+          FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+        )
+      `),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_customer_email ON orders(customer_email)`),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)`),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)`),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id)`)
+    ]);
+    d1OrderTablesEnsured = true;
+  } catch (e: any) {
+    console.warn(`[D1 ENSURE ORDER TABLES ERROR] ${e.message}`);
+  }
+}
+
 async function saveD1Order(env: Env, order: any): Promise<boolean> {
   ordersStore.set(order.id, order);
   if (!env.DB) return true;
 
   try {
-    // Ensure PayPal columns exist (idempotent ALTER TABLE)
-    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN paypal_order_id TEXT`).run(); } catch (_e) {}
-    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN paypal_capture_id TEXT`).run(); } catch (_e) {}
-    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN payment_provider TEXT DEFAULT 'razorpay'`).run(); } catch (_e) {}
-    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN payment_currency TEXT DEFAULT 'INR'`).run(); } catch (_e) {}
-    try { await env.DB.prepare(`ALTER TABLE orders ADD COLUMN payment_amount_usd REAL`).run(); } catch (_e) {}
+    await ensureD1OrderTables(env);
+
+    const now = new Date().toISOString();
+    const orderCreatedAt = order.createdAt || now;
+    const orderUpdatedAt = order.updatedAt || now;
+
+    const statements: any[] = [];
 
     const orderStmt = env.DB.prepare(`
       INSERT INTO orders (
@@ -140,9 +203,7 @@ async function saveD1Order(env: Env, order: any): Promise<boolean> {
         status = excluded.status,
         payment_verified_at = excluded.payment_verified_at,
         updated_at = excluded.updated_at
-    `);
-
-    await orderStmt.bind(
+    `).bind(
       order.id,
       order.orderNumber || `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`,
       order.razorpayOrderId || null,
@@ -165,9 +226,11 @@ async function saveD1Order(env: Env, order: any): Promise<boolean> {
       order.paymentProvider || 'razorpay',
       order.paymentCurrency || 'INR',
       order.paymentAmountUsd != null ? Number(order.paymentAmountUsd) : null,
-      order.createdAt || new Date().toISOString(),
-      order.updatedAt || new Date().toISOString()
-    ).run();
+      orderCreatedAt,
+      orderUpdatedAt
+    );
+
+    statements.push(orderStmt);
 
     if (Array.isArray(order.items)) {
       let idx = 0;
@@ -182,26 +245,28 @@ async function saveD1Order(env: Env, order: any): Promise<boolean> {
           ON CONFLICT(id) DO UPDATE SET
             license_key = excluded.license_key,
             downloads_count = excluded.downloads_count
-        `);
-        await itemStmt.bind(
+        `).bind(
           itemId,
           order.id,
           item.productId || `prod_${idx}`,
           item.productName || 'Product',
           Number(item.price || 0),
           Number(item.quantity || 1),
-          item.fileSize || '50 MB',
+          item.fileSize || 'Instant Access',
           item.fileUrl || '/api/downloads/setup',
           item.googleDriveUrl || item.fileUrl || '',
           item.licenseKey || '',
           Number(item.downloadLimit || 5),
           Number(item.downloadsCount || 0)
-        ).run();
+        );
+        statements.push(itemStmt);
       }
     }
+
+    await env.DB.batch(statements);
     return true;
   } catch (e: any) {
-    console.warn(`[D1 SAVE ORDER ERROR] ${e.message}`);
+    console.error(`[D1 SAVE ORDER ERROR] ${e.message}`, e);
     return false;
   }
 }
@@ -2677,17 +2742,25 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     // 8. Orders & Payments Endpoints
     if (path === '/api/orders/create' && method === 'POST') {
-      const body: any = await request.json().catch(() => ({}));
-      const orderId = body.id || `ord-${Date.now()}`;
+      try {
+        const body: any = await request.json().catch(() => ({}));
+        const orderId = body.id || `ord-${Date.now()}`;
 
-      const storeProds = await getWorkingData('src/data/products.json', env);
-      const digProds = await getWorkingData('src/data/digital_products.json', env);
-      const allProds = [...(Array.isArray(storeProds) ? storeProds : []), ...(Array.isArray(digProds) ? digProds : [])];
+        if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
+          return jsonResponse({
+            success: false,
+            error: 'EMPTY_CART',
+            message: 'Cart is empty. Please add items to checkout.'
+          }, 400);
+        }
 
-      let subtotal = 0;
-      const resolvedItems: any[] = [];
+        const storeProds = await getWorkingData('src/data/products.json', env);
+        const digProds = await getWorkingData('src/data/digital_products.json', env);
+        const allProds = [...(Array.isArray(storeProds) ? storeProds : []), ...(Array.isArray(digProds) ? digProds : [])];
 
-      if (Array.isArray(body.items)) {
+        let subtotal = 0;
+        const resolvedItems: any[] = [];
+
         for (const item of body.items) {
           const product = allProds.find((p: any) =>
             p && (
@@ -2697,10 +2770,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             )
           );
           const price = product ? Number(product.price) : Number(item.price || 0);
-          const qty = Number(item.quantity) || 1;
+          const qty = Math.max(1, Number(item.quantity) || 1);
           subtotal += price * qty;
 
-          const isDigital = product ? (product.productType === 'DIGITAL' || product.id?.startsWith('dig') || product.category === 'Digital Products') : (item.productType === 'DIGITAL' || item.productId?.startsWith('dig'));
+          const isDigital = product
+            ? (product.productType === 'DIGITAL' || product.id?.startsWith('dig') || product.category === 'Digital Products')
+            : (item.productType === 'DIGITAL' || item.productId?.startsWith('dig') || item.category === 'Digital Products');
           const resolvedDriveUrl = isDigital && product ? (product.googleDriveUrl || product.fileUrl || '') : (isDigital ? (item.googleDriveUrl || item.fileUrl || '') : '');
           const downloadEndpoint = isDigital ? `/api/downloads/setup?orderId=${encodeURIComponent(orderId)}&productId=${encodeURIComponent(item.productId || product?.id || '')}` : '';
 
@@ -2718,68 +2793,90 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             downloadsCount: 0
           });
         }
-      }
 
-      let discountAmount = 0;
-      let appliedCouponCode = '';
-      const couponCode = (body.couponCode || '').trim().toUpperCase();
-      if (couponCode) {
-        const freshCoupons = await getWorkingData('src/data/coupons.json', env);
-        if (Array.isArray(freshCoupons) && freshCoupons.length > 0) dynamicCouponsStore = freshCoupons;
+        // Server-Side Coupon Validation
+        let discountAmount = 0;
+        let appliedCouponCode = '';
+        const couponCode = (body.couponCode || '').trim().toUpperCase();
+        if (couponCode) {
+          const freshCoupons = await getWorkingData('src/data/coupons.json', env);
+          if (Array.isArray(freshCoupons) && freshCoupons.length > 0) dynamicCouponsStore = freshCoupons;
 
-        const couponResult = validateCouponServerSide(couponCode, subtotal, dynamicCouponsStore);
-        if (couponResult.valid) {
-          discountAmount = couponResult.discountAmount;
-          appliedCouponCode = couponResult.coupon?.code || couponCode;
+          const couponResult = validateCouponServerSide(couponCode, subtotal, dynamicCouponsStore);
+          if (couponResult.valid) {
+            discountAmount = Math.min(subtotal, Math.max(0, Number(couponResult.discountAmount) || 0));
+            appliedCouponCode = couponResult.coupon?.code || couponCode;
+          }
         }
+
+        const rawTotal = subtotal - discountAmount;
+        const totalVal = Math.max(0, isNaN(rawTotal) ? 0 : Number(rawTotal.toFixed(2)));
+        const amountInPaise = Math.round(totalVal * 100);
+        const isZeroTotal = totalVal <= 0;
+
+        const rzpKeyId = getRazorpayKeyId(env);
+        const rzpKeySecret = getRazorpayKeySecret(env);
+
+        let realRzpOrderId = '';
+        // Only call Razorpay API for PAID orders (> 0 paise)
+        if (!isZeroTotal && amountInPaise > 0 && rzpKeyId && rzpKeySecret) {
+          try {
+            realRzpOrderId = await createRazorpayOrderApi(amountInPaise, 'INR', orderId, rzpKeyId, rzpKeySecret) || '';
+          } catch (rzpErr: any) {
+            console.warn('[RAZORPAY_CREATE_ORDER_WARN]', rzpErr?.message);
+          }
+        }
+
+        const rzpOrderId = isZeroTotal
+          ? `free_ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+          : (realRzpOrderId || body.razorpayOrderId || `rzp_ord_${Date.now()}`);
+
+        const nowIso = new Date().toISOString();
+        const newOrder = {
+          id: orderId,
+          orderNumber: body.orderNumber || `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+          razorpayOrderId: rzpOrderId,
+          razorpayPaymentId: isZeroTotal ? `FREE_COUPON_${appliedCouponCode || '100PCT'}` : null,
+          customerName: body.customerName || 'Customer',
+          customerEmail: (body.customerEmail || 'customer@example.com').toLowerCase().trim(),
+          customerPhone: body.customerPhone || '+91 8345968169',
+          items: resolvedItems,
+          subtotal: subtotal,
+          discount: discountAmount,
+          couponCode: appliedCouponCode,
+          tax: 0,
+          total: totalVal,
+          totalAmount: totalVal,
+          paymentMethod: isZeroTotal ? (appliedCouponCode ? `Coupon (${appliedCouponCode})` : '100% Discount') : (body.paymentMethod || 'Razorpay UPI'),
+          paymentStatus: isZeroTotal ? 'SUCCESS' : 'PENDING',
+          status: isZeroTotal ? 'completed' : 'pending',
+          paymentVerifiedAt: isZeroTotal ? nowIso : null,
+          createdAt: nowIso,
+          updatedAt: nowIso
+        };
+
+        await saveD1Order(env, newOrder);
+
+        return jsonResponse({
+          success: true,
+          order: newOrder,
+          orderId,
+          razorpayOrderId: rzpOrderId,
+          razorpayKeyId: rzpKeyId,
+          amount: amountInPaise,
+          currency: 'INR',
+          keyId: rzpKeyId,
+          isZeroTotal,
+          sync: { success: true }
+        });
+      } catch (err: any) {
+        console.error('[API_ORDERS_CREATE_ERROR]', err);
+        return jsonResponse({
+          success: false,
+          error: 'ORDER_CREATION_FAILED',
+          message: err?.message || 'Server error creating order. Please try again.'
+        }, 500);
       }
-
-      const totalVal = Math.max(0, subtotal - discountAmount);
-      const amountInPaise = Math.round(totalVal * 100);
-
-      const rzpKeyId = getRazorpayKeyId(env);
-      const rzpKeySecret = getRazorpayKeySecret(env);
-
-      let realRzpOrderId = '';
-      if (amountInPaise > 0 && rzpKeyId && rzpKeySecret) {
-        realRzpOrderId = await createRazorpayOrderApi(amountInPaise, 'INR', orderId, rzpKeyId, rzpKeySecret) || '';
-      }
-
-      const rzpOrderId = realRzpOrderId || body.razorpayOrderId || `rzp_ord_${Date.now()}`;
-
-      const newOrder = {
-        id: orderId,
-        orderNumber: body.orderNumber || `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-        razorpayOrderId: rzpOrderId,
-        customerName: body.customerName || 'Customer',
-        customerEmail: body.customerEmail || 'customer@example.com',
-        customerPhone: body.customerPhone || '+91 8345968169',
-        items: resolvedItems,
-        subtotal: subtotal,
-        discount: discountAmount,
-        couponCode: appliedCouponCode,
-        tax: 0,
-        total: totalVal,
-        totalAmount: totalVal,
-        paymentMethod: body.paymentMethod || 'Razorpay UPI',
-        paymentStatus: totalVal <= 0 ? 'SUCCESS' : 'PENDING',
-        status: totalVal <= 0 ? 'completed' : 'pending',
-        createdAt: new Date().toISOString()
-      };
-
-      await saveD1Order(env, newOrder);
-
-      return jsonResponse({
-        success: true,
-        order: newOrder,
-        orderId,
-        razorpayOrderId: rzpOrderId,
-        razorpayKeyId: rzpKeyId,
-        amount: amountInPaise,
-        currency: 'INR',
-        keyId: rzpKeyId,
-        sync: { success: true }
-      });
     }
 
     if (path === '/api/orders/verify' && method === 'POST') {
