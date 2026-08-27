@@ -52,6 +52,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
 
     const cleanName = name.trim();
@@ -64,7 +65,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
         setError('Please provide your name (at least 2 characters).');
         return;
       }
-      if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
         setError('Please provide a valid email address.');
         return;
       }
@@ -76,10 +77,6 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
     }
     if (cleanTitle.length > 120) {
       setError('Review headline cannot exceed 120 characters.');
-      return;
-    }
-    if (!cleanBody || cleanBody.length < 10) {
-      setError('Please write at least 10 characters describing your experience.');
       return;
     }
     if (cleanBody.length > 3000) {
@@ -217,14 +214,13 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="reviewer-email" className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                    Your Email <span className="text-rose-500">*</span>
+                    Your Email <span className="text-slate-400 font-normal lowercase">(optional)</span>
                   </label>
                   <div className="relative">
                     <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
                     <input
                       id="reviewer-email"
                       type="email"
-                      required
                       maxLength={100}
                       placeholder="e.g. rahul@example.com"
                       value={email}
@@ -304,7 +300,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label htmlFor="review-body" className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                Review Message <span className="text-rose-500">*</span>
+                Review Message <span className="text-slate-400 font-normal lowercase">(optional)</span>
               </label>
               <span className="text-[10px] text-slate-400 font-mono">
                 {body.length}/3000
@@ -312,7 +308,6 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
             </div>
             <textarea
               id="review-body"
-              required
               rows={4}
               maxLength={3000}
               placeholder="What did you like or find helpful? How did this product perform for you? What should other buyers know?"
@@ -321,7 +316,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-600 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-colors leading-relaxed"
             />
             <p className="text-[10px] text-slate-400">
-              Minimum 10 characters. Please avoid sharing personal private keys or phone numbers.
+              Optional. Please avoid sharing personal private keys or phone numbers.
             </p>
           </div>
 
@@ -338,7 +333,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
 
             <button
               type="submit"
-              disabled={loading || (!isAuthenticated && (!name.trim() || !email.trim())) || body.trim().length < 10}
+              disabled={loading || (!isAuthenticated && !name.trim())}
               className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
               {loading ? (

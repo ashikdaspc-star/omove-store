@@ -494,117 +494,60 @@ async function saveD1SupportPayment(env: Env, payment: any): Promise<boolean> {
 
 // ─── CLOUDFLARE D1 REVIEW SYSTEM HELPERS ───
 
+let d1ReviewTablesEnsured = false;
+
 async function ensureD1ReviewTables(env: Env): Promise<void> {
-  if (!env.DB) return;
+  if (!env.DB || d1ReviewTablesEnsured) return;
   try {
-    await env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS reviews (
-        id TEXT PRIMARY KEY,
-        product_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        user_name TEXT NOT NULL,
-        user_email TEXT,
-        order_id TEXT,
-        order_item_id TEXT,
-        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-        title TEXT NOT NULL,
-        body TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        verified_purchase INTEGER NOT NULL DEFAULT 0,
-        helpful_count INTEGER NOT NULL DEFAULT 0,
-        report_count INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        published_at TEXT,
-        UNIQUE(user_id, product_id)
-      )
-    `).run();
-
-    await env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS review_helpful_votes (
-        id TEXT PRIMARY KEY,
-        review_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        UNIQUE(review_id, user_id),
-        FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
-      )
-    `).run();
-
-    await env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS review_reports (
-        id TEXT PRIMARY KEY,
-        review_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        reason TEXT NOT NULL,
-        details TEXT,
-        created_at TEXT NOT NULL,
-        UNIQUE(review_id, user_id),
-        FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
-      )
-    `).run();
-
-    await env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS review_stats (
-        product_id TEXT PRIMARY KEY,
-        review_count INTEGER NOT NULL DEFAULT 0,
-        average_rating REAL NOT NULL DEFAULT 0,
-        rating_1 INTEGER NOT NULL DEFAULT 0,
-        rating_2 INTEGER NOT NULL DEFAULT 0,
-        rating_3 INTEGER NOT NULL DEFAULT 0,
-        rating_4 INTEGER NOT NULL DEFAULT 0,
-        rating_5 INTEGER NOT NULL DEFAULT 0,
-        updated_at TEXT NOT NULL
-      )
-    `).run();
-
-    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id)`).run(); } catch(e){}
-    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_product_status ON reviews(product_id, status)`).run(); } catch(e){}
-    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id)`).run(); } catch(e){}
-    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)`).run(); } catch(e){}
-    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating)`).run(); } catch(e){}
-    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at)`).run(); } catch(e){}
-    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_review_helpful_votes_review ON review_helpful_votes(review_id)`).run(); } catch(e){}
-    // Auto-seed initial reviews if not present in database
-    if (Array.isArray(reviewsData) && reviewsData.length > 0) {
-      const distinctProductIds = new Set<string>();
-      for (const rev of reviewsData) {
-        try {
-          await env.DB.prepare(`
-            INSERT OR IGNORE INTO reviews (
-              id, product_id, user_id, user_name, user_email,
-              order_id, order_item_id, rating, title, body,
-              status, verified_purchase, helpful_count, report_count,
-              created_at, updated_at, published_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).bind(
-            rev.id,
-            rev.productId,
-            rev.userId,
-            rev.userName,
-            rev.userEmail || null,
-            rev.orderId || null,
-            rev.orderItemId || null,
-            Number(rev.rating),
-            rev.title,
-            rev.body,
-            rev.status || 'published',
-            rev.verifiedPurchase ? 1 : 0,
-            Number(rev.helpfulCount || 0),
-            Number(rev.reportCount || 0),
-            rev.createdAt || new Date().toISOString(),
-            rev.updatedAt || new Date().toISOString(),
-            rev.publishedAt || rev.createdAt || new Date().toISOString()
-          ).run();
-          if (rev.productId) distinctProductIds.add(rev.productId);
-        } catch (err: any) {
-          console.warn(`[D1 SEED REVIEW ERROR] ${err.message}`);
-        }
-      }
-      for (const pid of distinctProductIds) {
-        await recomputeProductReviewStats(env, pid);
-      }
-    }
+    await env.DB.batch([
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS reviews (
+          id TEXT PRIMARY KEY,
+          product_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          user_name TEXT NOT NULL,
+          user_email TEXT,
+          order_id TEXT,
+          order_item_id TEXT,
+          rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          verified_purchase INTEGER NOT NULL DEFAULT 0,
+          helpful_count INTEGER NOT NULL DEFAULT 0,
+          report_count INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          published_at TEXT,
+          UNIQUE(user_id, product_id)
+        )
+      `),
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS review_helpful_votes (
+          id TEXT PRIMARY KEY,
+          review_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(review_id, user_id),
+          FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
+        )
+      `),
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS review_reports (
+          id TEXT PRIMARY KEY,
+          review_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          details TEXT,
+          created_at TEXT NOT NULL,
+          UNIQUE(review_id, user_id),
+          FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
+        )
+      `),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_prod_status ON reviews(product_id, status)`),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_user_prod ON reviews(user_id, product_id)`)
+    ]);
+    d1ReviewTablesEnsured = true;
   } catch (e: any) {
     console.warn(`[D1 ENSURE REVIEW TABLES ERROR] ${e.message}`);
   }
@@ -647,7 +590,7 @@ async function checkVerifiedPurchase(
   if (env.DB) {
     try {
       const res = await env.DB.prepare(`
-        SELECT o.id as order_id, oi.id as order_item_id, oi.product_id, oi.product_name, o.payment_status, o.status, o.payment_verified_at
+        SELECT o.id as order_id, oi.id as order_item_id
         FROM orders o
         JOIN order_items oi ON o.id = oi.order_id
         WHERE LOWER(TRIM(o.customer_email)) = ?
@@ -675,7 +618,7 @@ async function checkVerifiedPurchase(
       ).first();
 
       if (res && res.order_id) {
-        return { isVerified: true, orderId: res.order_id, orderItemId: res.order_item_id };
+        return { isVerified: true, orderId: String(res.order_id), orderItemId: String(res.order_item_id || '') };
       }
     } catch (e: any) {
       console.warn(`[D1 CHECK VERIFIED PURCHASE ERROR] ${e.message}`);
@@ -703,80 +646,58 @@ async function checkVerifiedPurchase(
 }
 
 async function recomputeProductReviewStats(env: Env, productId: string): Promise<any> {
+  return getD1ReviewStats(env, productId);
+}
+
+async function getD1ReviewStats(env: Env, productId: string): Promise<any> {
   const cleanProdId = resolveProductId(productId);
   if (!cleanProdId) return null;
 
   if (env.DB) {
     try {
       await ensureD1ReviewTables(env);
-      const rowsRes = await env.DB.prepare(`
-        SELECT rating, COUNT(*) as cnt
+      const row = await env.DB.prepare(`
+        SELECT 
+          COUNT(*) as review_count,
+          COALESCE(AVG(rating), 0) as average_rating,
+          SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as rating_1,
+          SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as rating_2,
+          SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as rating_3,
+          SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as rating_4,
+          SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as rating_5
         FROM reviews
         WHERE product_id = ? AND status = 'published'
-        GROUP BY rating
-      `).bind(cleanProdId).all();
+      `).bind(cleanProdId).first();
 
-      const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-      let totalRating = 0;
-      let totalReviews = 0;
-
-      (rowsRes.results || []).forEach((r: any) => {
-        const rat = Number(r.rating);
-        const cnt = Number(r.cnt || 0);
-        if (rat >= 1 && rat <= 5) {
-          counts[rat] = cnt;
-          totalRating += rat * cnt;
-          totalReviews += cnt;
-        }
-      });
-
-      const avgRating = totalReviews > 0 ? Number((totalRating / totalReviews).toFixed(1)) : 0;
-      const now = new Date().toISOString();
-
-      await env.DB.prepare(`
-        INSERT INTO review_stats (
-          product_id, review_count, average_rating,
-          rating_1, rating_2, rating_3, rating_4, rating_5, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(product_id) DO UPDATE SET
-          review_count = excluded.review_count,
-          average_rating = excluded.average_rating,
-          rating_1 = excluded.rating_1,
-          rating_2 = excluded.rating_2,
-          rating_3 = excluded.rating_3,
-          rating_4 = excluded.rating_4,
-          rating_5 = excluded.rating_5,
-          updated_at = excluded.updated_at
-      `).bind(
-        cleanProdId,
-        totalReviews,
-        avgRating,
-        counts[1],
-        counts[2],
-        counts[3],
-        counts[4],
-        counts[5],
-        now
-      ).run();
-
-      return {
-        productId: cleanProdId,
-        reviewCount: totalReviews,
-        averageRating: avgRating,
-        rating1: counts[1],
-        rating2: counts[2],
-        rating3: counts[3],
-        rating4: counts[4],
-        rating5: counts[5],
-        distribution: counts,
-        updatedAt: now
-      };
+      if (row) {
+        const totalReviews = Number(row.review_count || 0);
+        const avg = Number(row.average_rating || 0);
+        const counts: Record<number, number> = {
+          1: Number(row.rating_1 || 0),
+          2: Number(row.rating_2 || 0),
+          3: Number(row.rating_3 || 0),
+          4: Number(row.rating_4 || 0),
+          5: Number(row.rating_5 || 0)
+        };
+        return {
+          productId: cleanProdId,
+          reviewCount: totalReviews,
+          averageRating: totalReviews > 0 ? Number(avg.toFixed(1)) : 0,
+          rating1: counts[1],
+          rating2: counts[2],
+          rating3: counts[3],
+          rating4: counts[4],
+          rating5: counts[5],
+          distribution: counts,
+          updatedAt: new Date().toISOString()
+        };
+      }
     } catch (e: any) {
-      console.warn(`[D1 RECOMPUTE REVIEW STATS ERROR] ${e.message}`);
+      console.warn(`[D1 GET REVIEW STATS ERROR] ${e.message}`);
     }
   }
 
-  // Fallback in-memory recompute
+  // Fallback in-memory stats
   const published = Array.from(reviewsStore.values()).filter((r: any) => r.productId === cleanProdId && r.status === 'published');
   const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   let totalRating = 0;
@@ -789,7 +710,7 @@ async function recomputeProductReviewStats(env: Env, productId: string): Promise
   });
   const totalReviews = published.length;
   const avgRating = totalReviews > 0 ? Number((totalRating / totalReviews).toFixed(1)) : 0;
-  const stats = {
+  return {
     productId: cleanProdId,
     reviewCount: totalReviews,
     averageRating: avgRating,
@@ -801,44 +722,6 @@ async function recomputeProductReviewStats(env: Env, productId: string): Promise
     distribution: counts,
     updatedAt: new Date().toISOString()
   };
-  reviewStatsStore.set(cleanProdId, stats);
-  return stats;
-}
-
-async function getD1ReviewStats(env: Env, productId: string): Promise<any> {
-  const cleanProdId = resolveProductId(productId);
-  if (!cleanProdId) return null;
-
-  if (env.DB) {
-    try {
-      await ensureD1ReviewTables(env);
-      const row = await env.DB.prepare(`SELECT * FROM review_stats WHERE product_id = ?`).bind(cleanProdId).first();
-      if (row) {
-        return {
-          productId: row.product_id,
-          reviewCount: Number(row.review_count || 0),
-          averageRating: Number(row.average_rating || 0),
-          rating1: Number(row.rating_1 || 0),
-          rating2: Number(row.rating_2 || 0),
-          rating3: Number(row.rating_3 || 0),
-          rating4: Number(row.rating_4 || 0),
-          rating5: Number(row.rating_5 || 0),
-          distribution: {
-            1: Number(row.rating_1 || 0),
-            2: Number(row.rating_2 || 0),
-            3: Number(row.rating_3 || 0),
-            4: Number(row.rating_4 || 0),
-            5: Number(row.rating_5 || 0)
-          },
-          updatedAt: row.updated_at
-        };
-      }
-    } catch (e: any) {
-      console.warn(`[D1 GET REVIEW STATS ERROR] ${e.message}`);
-    }
-  }
-
-  return recomputeProductReviewStats(env, cleanProdId);
 }
 
 // Helper: Dispatch Support Emails (Customer + Admin) via FormSubmit AJAX API
@@ -4251,17 +4134,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         if (method === 'PATCH' || method === 'PUT') {
           const body: any = await request.json().catch(() => ({}));
           const rating = Number(body.rating);
-          const title = (body.title || '').trim().substring(0, 120);
+          const title = (body.title || '').trim().substring(0, 120) || `${rating} Star Review`;
           const reviewBody = (body.body || '').trim().substring(0, 3000);
 
           if (!rating || rating < 1 || rating > 5 || !Number.isInteger(rating)) {
             return jsonResponse({ success: false, error: 'Rating must be an integer between 1 and 5' }, 400);
-          }
-          if (!title) {
-            return jsonResponse({ success: false, error: 'Review title is required' }, 400);
-          }
-          if (!reviewBody || reviewBody.length < 10) {
-            return jsonResponse({ success: false, error: 'Review text must be at least 10 characters long' }, 400);
           }
 
           const now = new Date().toISOString();
@@ -4505,9 +4382,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           if (!rating || rating < 1 || rating > 5 || !Number.isInteger(rating)) {
             return jsonResponse({ success: false, error: 'Rating must be an integer between 1 and 5' }, 400);
           }
-          if (!reviewBody || reviewBody.length < 10) {
-            return jsonResponse({ success: false, error: 'Review text must be at least 10 characters long' }, 400);
-          }
 
           const sess = getSessionFromRequest(request);
           let userId = '';
@@ -4526,71 +4400,48 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             if (!userName || userName.length < 2) {
               return jsonResponse({ success: false, error: 'Please enter your name (at least 2 characters)' }, 400);
             }
-            if (!userEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
+            if (userEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
               return jsonResponse({ success: false, error: 'Please enter a valid email address' }, 400);
             }
-            userId = 'guest_' + userEmail.replace(/[^a-z0-9]/gi, '_');
+            userId = userEmail
+              ? ('guest_' + userEmail.replace(/[^a-z0-9]/gi, '_'))
+              : ('guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
           }
 
           // Check if already reviewed (One review per customer per product)
           if (env.DB) {
             try {
               await ensureD1ReviewTables(env);
-              const duplicate = await env.DB.prepare(
-                `SELECT id FROM reviews WHERE (user_id = ? OR (user_email IS NOT NULL AND LOWER(TRIM(user_email)) = ?)) AND product_id = ?`
-              ).bind(userId, userEmail, productId).first();
-              if (duplicate) {
-                return jsonResponse({
-                  success: false,
-                  error: 'DUPLICATE_REVIEW',
-                  message: 'You have already submitted a review for this product.'
-                }, 400);
-              }
-            } catch (e: any) {
-              console.warn(`[D1 DUPLICATE CHECK ERROR] ${e.message}`);
-            }
-          } else {
-            const duplicate = Array.from(reviewsStore.values()).find(
-              (r: any) => (r.userId === userId || (r.userEmail && r.userEmail.toLowerCase() === userEmail)) && r.productId === productId
-            );
-            if (duplicate) {
-              return jsonResponse({
-                success: false,
-                error: 'DUPLICATE_REVIEW',
-                message: 'You have already submitted a review for this product.'
-              }, 400);
-            }
-          }
-
-          // Check verified purchase from orders
-          const verification = await checkVerifiedPurchase(env, userEmail, productId, productName);
-
+              if (userEmail) {
+                const duplicate = await env.DB.prepare(
+                  `SELECT id FROM reviews WHERE (user_id = ? OR (user_email IS NOT NULL AND LOWER(TRIM(user_email)) = ?)) AND product_id = ?`
+                ).bind(userId, userEmail, productId).first();
+                if (duplicate) {
+                  return jsonResponse({
+                    success: false,
+                    error: 'DUPLICATE_REVIEW',
+                    message: 'You have already submitted a review for this product.'
+                  }, 400);
           const reviewId = `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
           const now = new Date().toISOString();
 
-          const newReview = {
-            id: reviewId,
-            productId,
-            userId,
-            userName,
-            userEmail,
-            orderId: verification.orderId || null,
-            orderItemId: verification.orderItemId || null,
-            rating,
-            title,
-            body: reviewBody,
-            status: 'published',
-            verifiedPurchase: verification.isVerified,
-            helpfulCount: 0,
-            reportCount: 0,
-            createdAt: now,
-            updatedAt: now,
-            publishedAt: now
-          };
+          let verifiedPurchase = false;
+          let orderId: string | null = null;
+          let orderItemId: string | null = null;
 
           if (env.DB) {
             try {
               await ensureD1ReviewTables(env);
+
+              // 1. Single query verified purchase lookup if email provided
+              if (userEmail) {
+                const verification = await checkVerifiedPurchase(env, userEmail, productId, productName);
+                verifiedPurchase = verification.isVerified;
+                orderId = verification.orderId || null;
+                orderItemId = verification.orderItemId || null;
+              }
+
+              // 2. Single INSERT query
               await env.DB.prepare(`
                 INSERT INTO reviews (
                   id, product_id, user_id, user_name, user_email,
@@ -4599,50 +4450,96 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                   created_at, updated_at, published_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
-                newReview.id,
-                newReview.productId,
-                newReview.userId,
-                newReview.userName,
-                newReview.userEmail,
-                newReview.orderId,
-                newReview.orderItemId,
-                newReview.rating,
-                newReview.title,
-                newReview.body,
+                reviewId,
+                productId,
+                userId,
+                userName,
+                userEmail || null,
+                orderId,
+                orderItemId,
+                rating,
+                title,
+                reviewBody,
                 'published',
-                newReview.verifiedPurchase ? 1 : 0,
+                verifiedPurchase ? 1 : 0,
                 0,
                 0,
-                newReview.createdAt,
-                newReview.updatedAt,
-                newReview.publishedAt
+                now,
+                now,
+                now
               ).run();
-              await recomputeProductReviewStats(env, productId);
+
             } catch (e: any) {
-              console.warn(`[D1 INSERT REVIEW ERROR] ${e.message}`);
-              return jsonResponse({ success: false, error: 'Database error saving review: ' + e.message }, 500);
+              console.error(`[D1 INSERT REVIEW ERROR]`, e);
+              const errMsg = (e && e.message) ? String(e.message) : '';
+              if (errMsg.includes('UNIQUE') || errMsg.includes('constraint') || errMsg.includes('duplicate')) {
+                return jsonResponse({
+                  success: false,
+                  error: 'You have already submitted a review for this product.'
+                }, 400);
+              }
+              return jsonResponse({
+                success: false,
+                error: 'Unable to save your review right now. Please try again.'
+              }, 500);
             }
           } else {
+            if (userEmail) {
+              const duplicate = Array.from(reviewsStore.values()).find(
+                (r: any) => (r.userId === userId || (r.userEmail && r.userEmail.toLowerCase() === userEmail)) && r.productId === productId
+              );
+              if (duplicate) {
+                return jsonResponse({
+                  success: false,
+                  error: 'DUPLICATE_REVIEW',
+                  message: 'You have already submitted a review for this product.'
+                }, 400);
+              }
+            }
+
+            const verification = await checkVerifiedPurchase(env, userEmail, productId, productName);
+            verifiedPurchase = verification.isVerified;
+            orderId = verification.orderId || null;
+            orderItemId = verification.orderItemId || null;
+
+            const newReview = {
+              id: reviewId,
+              productId,
+              userId,
+              userName,
+              userEmail,
+              orderId,
+              orderItemId,
+              rating,
+              title,
+              body: reviewBody,
+              status: 'published',
+              verifiedPurchase,
+              helpfulCount: 0,
+              reportCount: 0,
+              createdAt: now,
+              updatedAt: now,
+              publishedAt: now
+            };
             reviewsStore.set(reviewId, newReview);
-            await recomputeProductReviewStats(env, productId);
           }
 
           return jsonResponse({
             success: true,
             message: 'Thanks for your review! ⭐ Your review has been submitted successfully.',
             review: {
-              id: newReview.id,
-              productId: newReview.productId,
-              userName: maskCustomerDisplayName(newReview.userName, newReview.userEmail),
-              rating: newReview.rating,
-              title: newReview.title,
-              body: newReview.body,
-              status: newReview.status,
-              verifiedPurchase: newReview.verifiedPurchase,
+              id: reviewId,
+              productId,
+              userName: maskCustomerDisplayName(userName, userEmail),
+              rating,
+              title,
+              body: reviewBody,
+              status: 'published',
+              verifiedPurchase,
               helpfulCount: 0,
               reportCount: 0,
               isUserReview: true,
-              createdAt: newReview.createdAt
+              createdAt: now
             }
           }, 201);
         }

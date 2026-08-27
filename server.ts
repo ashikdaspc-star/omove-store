@@ -66,7 +66,7 @@ const generatedKeysStore: Map<string, string[]> = new Map();
 // Reviews In-Memory Stores
 const reviewsStore: Map<string, any> = new Map();
 try {
-  const reviewsJsonPath = path.join(__dirname, 'src', 'data', 'reviews.json');
+  const reviewsJsonPath = path.join(process.cwd(), 'src', 'data', 'reviews.json');
   if (fs.existsSync(reviewsJsonPath)) {
     const raw = fs.readFileSync(reviewsJsonPath, 'utf8');
     const parsed = JSON.parse(raw);
@@ -3936,9 +3936,6 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     if (!numRating || numRating < 1 || numRating > 5 || !Number.isInteger(numRating)) {
       return res.status(400).json({ success: false, error: 'Rating must be an integer between 1 and 5' });
     }
-    if (!cleanBody || cleanBody.length < 10) {
-      return res.status(400).json({ success: false, error: 'Review text must be at least 10 characters long' });
-    }
 
     const cookies = parseCookies(req.headers.cookie);
     const token = cookies['omove_session_token'] || req.headers.authorization?.replace('Bearer ', '').trim();
@@ -3960,21 +3957,25 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       if (!userName || userName.length < 2) {
         return res.status(400).json({ success: false, error: 'Please enter your name (at least 2 characters)' });
       }
-      if (!userEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
+      if (userEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
         return res.status(400).json({ success: false, error: 'Please enter a valid email address' });
       }
-      userId = 'guest_' + userEmail.replace(/[^a-z0-9]/gi, '_');
+      userId = userEmail
+        ? ('guest_' + userEmail.replace(/[^a-z0-9]/gi, '_'))
+        : ('guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
     }
 
-    const duplicate = Array.from(reviewsStore.values()).find(
-      (r: any) => (r.userId === userId || (r.userEmail && r.userEmail.toLowerCase() === userEmail)) && r.productId === cleanProdId
-    );
-    if (duplicate) {
-      return res.status(400).json({
-        success: false,
-        error: 'DUPLICATE_REVIEW',
-        message: 'You have already submitted a review for this product.'
-      });
+    if (userEmail) {
+      const duplicate = Array.from(reviewsStore.values()).find(
+        (r: any) => (r.userId === userId || (r.userEmail && r.userEmail.toLowerCase() === userEmail)) && r.productId === cleanProdId
+      );
+      if (duplicate) {
+        return res.status(400).json({
+          success: false,
+          error: 'DUPLICATE_REVIEW',
+          message: 'You have already submitted a review for this product.'
+        });
+      }
     }
 
     const verification = checkVerifiedPurchaseLocal(userEmail, cleanProdId, productName);
@@ -4044,14 +4045,12 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
 
     const { rating, title, body } = req.body || {};
     const numRating = Number(rating);
-    const cleanTitle = String(title || '').trim().substring(0, 120);
+    const cleanTitle = String(title || '').trim().substring(0, 120) || `${numRating} Star Review`;
     const cleanBody = String(body || '').trim().substring(0, 3000);
 
     if (!numRating || numRating < 1 || numRating > 5 || !Number.isInteger(numRating)) {
       return res.status(400).json({ success: false, error: 'Rating must be an integer between 1 and 5' });
     }
-    if (!cleanTitle) return res.status(400).json({ success: false, error: 'Review title is required' });
-    if (!cleanBody || cleanBody.length < 10) return res.status(400).json({ success: false, error: 'Review text must be at least 10 characters' });
 
     existing.rating = numRating;
     existing.title = cleanTitle;
@@ -4571,31 +4570,39 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   });
 
 async function startServer() {
-  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  console.log('[START SERVER] Starting OMOVE TECH server initialization...');
+  try {
+    const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-  // Vite development middleware or production static server
-  if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`OMOVE TECH Server running on http://0.0.0.0:${PORT}`);
     });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+
+    // Vite development middleware or production static server
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[START SERVER] Initializing Vite middleware...');
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        root: process.cwd(),
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+      console.log('[START SERVER] Vite middleware ready.');
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
+  } catch (err) {
+    console.error('[START SERVER ERROR]', err);
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`OMOVE TECH Server running on http://0.0.0.0:${PORT}`);
-  });
 }
 
 if (!process.env.VERCEL) {
-  startServer();
+  startServer().catch(err => console.error('[START SERVER PROMISE ERROR]', err));
 }
 
 export default app;

@@ -396,9 +396,11 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
               <span className="text-xs font-bold text-slate-800 ml-1">{userReview.title}</span>
             </div>
 
-            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans">
-              {userReview.body}
-            </p>
+            {userReview.body && (
+              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans">
+                {userReview.body}
+              </p>
+            )}
           </div>
 
           <div className="text-[10px] text-slate-400 flex items-center gap-2">
@@ -576,9 +578,11 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                     </div>
 
                     {/* Review Body */}
-                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans pt-0.5 break-words [overflow-wrap:anywhere]">
-                      {rev.body}
-                    </p>
+                    {rev.body && (
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans pt-0.5 break-words [overflow-wrap:anywhere]">
+                        {rev.body}
+                      </p>
+                    )}
                   </div>
 
                   {/* Bottom Actions: Helpful & Report */}
