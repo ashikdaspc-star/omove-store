@@ -4408,20 +4408,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               : ('guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
           }
 
-          // Check if already reviewed (One review per customer per product)
-          if (env.DB) {
-            try {
-              await ensureD1ReviewTables(env);
-              if (userEmail) {
-                const duplicate = await env.DB.prepare(
-                  `SELECT id FROM reviews WHERE (user_id = ? OR (user_email IS NOT NULL AND LOWER(TRIM(user_email)) = ?)) AND product_id = ?`
-                ).bind(userId, userEmail, productId).first();
-                if (duplicate) {
-                  return jsonResponse({
-                    success: false,
-                    error: 'DUPLICATE_REVIEW',
-                    message: 'You have already submitted a review for this product.'
-                  }, 400);
           const reviewId = `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
           const now = new Date().toISOString();
 
