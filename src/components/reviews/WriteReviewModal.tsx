@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ProductReview } from '../../types';
 import { Star, X, AlertCircle, Loader2, Sparkles, User, Mail, ShieldCheck } from 'lucide-react';
 
@@ -39,6 +40,16 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const isAuthenticated = Boolean(currentUser?.authenticated || (currentUser?.email && currentUser.email.includes('@')));
+
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (currentUser?.name && !name) setName(currentUser.name);
@@ -138,10 +149,30 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn font-sans">
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-xs font-sans box-border"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100dvh',
+        zIndex: 99999
+      }}
+      onClick={onClose}
+    >
       <div 
-        className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]"
+        className="relative w-full bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col box-border"
+        style={{
+          width: '100%',
+          maxWidth: 'min(600px, calc(100vw - 24px))',
+          maxHeight: 'min(850px, calc(100dvh - 28px))',
+          margin: 'auto',
+          transform: 'none'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -166,11 +197,11 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-4.5">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-4.5 flex-1 overscroll-contain">
           {error && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2 animate-shake">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-              <span>{error}</span>
+              <span className="break-words leading-relaxed">{error}</span>
             </div>
           )}
 
@@ -313,7 +344,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
               placeholder="What did you like or find helpful? How did this product perform for you? What should other buyers know?"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-600 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-colors leading-relaxed"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-600 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-colors leading-relaxed resize-y"
             />
             <p className="text-[10px] text-slate-400">
               Optional. Please avoid sharing personal private keys or phone numbers.
@@ -321,7 +352,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
@@ -353,4 +384,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
+

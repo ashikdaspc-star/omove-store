@@ -44,11 +44,13 @@ export const useGlobalScrollReveal = () => {
     const observeAll = () => {
       const elements = document.querySelectorAll('.scroll-reveal, [data-scroll-reveal]');
       elements.forEach((el) => {
-        // Exclude interactive modals, checkout, and admin panel from scroll animation
+        // Exclude product detail page, interactive modals, checkout, and admin panel from scroll animation
         if (
           el.closest('#admin-root') ||
           el.closest('.admin-portal') ||
-          el.closest('[role="dialog"]')
+          el.closest('[role="dialog"]') ||
+          el.closest('.product-detail-view') ||
+          el.closest('#product-detail-page')
         ) {
           el.classList.add('is-revealed');
           return;

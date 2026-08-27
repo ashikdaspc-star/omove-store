@@ -198,7 +198,7 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
   };
 
   return (
-    <div className="bg-white min-h-screen text-slate-900 font-sans pb-[calc(76px+env(safe-area-inset-bottom,16px))] sm:pb-20 w-full max-w-full overflow-x-hidden box-border">
+    <div id="product-detail-page" className="product-detail-view bg-white min-h-screen text-slate-900 font-sans pb-[calc(76px+env(safe-area-inset-bottom,16px))] sm:pb-20 w-full max-w-full overflow-x-hidden box-border">
       <div className="max-w-[1240px] mx-auto px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 space-y-3 sm:space-y-6 w-full max-w-full min-w-0 box-border">
         
         {/* Breadcrumb Navigation */}
@@ -235,7 +235,7 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
           {/* ========================================================================= */}
           {/* LEFT COLUMN: PRODUCT IMAGE GALLERY & ACTIONS (lg:col-span-4)              */}
           {/* ========================================================================= */}
-          <div className="scroll-reveal lg:col-span-4 xl:col-span-4 space-y-3 sm:space-y-4 w-full max-w-full min-w-0">
+          <div className="lg:col-span-4 xl:col-span-4 space-y-3 sm:space-y-4 w-full max-w-full min-w-0">
             {/* Interactive Image Gallery */}
             <ProductImageGallery
               images={productGalleryImages}
@@ -313,7 +313,7 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
           {/* ========================================================================= */}
           {/* CENTER COLUMN: TITLE, METADATA, SYNOPSIS & SPECS (approx 42% | lg:col-span-5) */}
           {/* ========================================================================= */}
-          <div className="scroll-reveal lg:col-span-5 xl:col-span-5 space-y-4 sm:space-y-6 w-full max-w-full min-w-0" style={{ '--reveal-delay': '120ms' } as React.CSSProperties}>
+          <div className="lg:col-span-5 xl:col-span-5 space-y-4 sm:space-y-6 w-full max-w-full min-w-0">
             
             {/* Title & Author Info */}
             <div className="space-y-1 w-full min-w-0">
@@ -592,7 +592,7 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
           {/* ========================================================================= */}
           {/* RIGHT COLUMN: STICKY PURCHASE PANEL (approx 25% | Desktop Only)            */}
           {/* ========================================================================= */}
-          <div className="scroll-reveal hidden lg:block lg:col-span-3 lg:sticky lg:top-24 space-y-4" style={{ '--reveal-delay': '240ms' } as React.CSSProperties}>
+          <div className="hidden lg:block lg:col-span-3 lg:sticky lg:top-24 space-y-4">
             <div className="rounded-lg bg-white border border-slate-200 p-5 shadow-xs space-y-4">
               
               <div className="space-y-1">

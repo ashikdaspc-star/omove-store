@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Flag, X, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 
 interface ReportReviewModalProps {
@@ -29,10 +30,21 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     setLoading(true);
 
@@ -60,10 +72,30 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn font-sans">
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-xs font-sans box-border"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100dvh',
+        zIndex: 99999
+      }}
+      onClick={onClose}
+    >
       <div 
-        className="relative w-full max-w-md bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
+        className="relative w-full bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col box-border"
+        style={{
+          width: '100%',
+          maxWidth: 'min(480px, calc(100vw - 24px))',
+          maxHeight: 'min(800px, calc(100dvh - 28px))',
+          margin: 'auto',
+          transform: 'none'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -92,11 +124,11 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 overscroll-contain">
           {error && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2 animate-shake">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <span className="break-words leading-relaxed">{error}</span>
             </div>
           )}
 
@@ -154,7 +186,7 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
             />
           </div>
 
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
@@ -183,4 +215,7 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
+
