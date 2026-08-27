@@ -25,6 +25,7 @@ import {
   Package
 } from 'lucide-react';
 import { useOnlineStatus } from './OfflineBanner';
+import { trackInitiateCheckout, trackPurchase } from '../utils/metaPixel';
 
 // Custom Razorpay SVG Logo / Icon
 const RazorpayIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
@@ -192,6 +193,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const previewUsd = finalTotal > 0 ? finalTotal / 95 : 0;
   const previewUsdDisplay = previewUsd > 0 ? (Math.round(previewUsd * 100) / 100).toFixed(2) : '0.00';
 
+  // Meta Pixel InitiateCheckout Event Tracking
+  useEffect(() => {
+    if (isOpen && cart.length > 0) {
+      trackInitiateCheckout(cart, finalTotal);
+    }
+  }, [isOpen, cart, finalTotal]);
+
   // Country-aware Phone Validation
   const isPhoneValid = phoneValidation.isValid;
   const normalizedE164 = phoneValidation.e164;
@@ -317,6 +325,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 setCreatedOrder(verifiedOrder);
                 onOrderSuccess(verifiedOrder);
                 onClearCart();
+                trackPurchase(verifiedOrder);
                 const curr = paypalStateRef.current;
                 const e164Phone = curr.phoneValidation.e164;
                 const cleanDigitsOnly = e164Phone.replace(/\D/g, '');
@@ -524,6 +533,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         setCreatedOrder(verifiedOrder);
         onOrderSuccess(verifiedOrder);
         onClearCart();
+        trackPurchase(verifiedOrder);
         sendAdminOrderNotificationEmail({
           type: 'PRODUCT_PURCHASE',
           customerName: generatedName,
@@ -595,6 +605,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 setCreatedOrder(verifiedOrder);
                 onOrderSuccess(verifiedOrder);
                 onClearCart();
+                trackPurchase(verifiedOrder);
                 sendAdminOrderNotificationEmail({
                   type: 'PRODUCT_PURCHASE',
                   customerName: generatedName,

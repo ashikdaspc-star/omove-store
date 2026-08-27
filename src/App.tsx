@@ -23,6 +23,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { OfflineBanner } from './components/OfflineBanner';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
 import { useGlobalScrollReveal } from './utils/useGlobalScrollReveal';
+import { trackPageView } from './utils/metaPixel';
 
 // Lazy-loaded Views & Modals (Code Splitting for Optimal Performance)
 const DashboardView = React.lazy(() => import('./views/DashboardView').then((m) => ({ default: m.DashboardView })));
@@ -47,8 +48,9 @@ export default function App() {
   // Global Scroll Reveal for all public website pages and sections
   useGlobalScrollReveal();
 
-  // Real-time Traffic Tracking
+  // Real-time Traffic & Meta Pixel PageView Tracking
   useEffect(() => {
+    trackPageView(location.pathname + location.search);
     const isSupport = location.pathname === '/support';
     const pageName = location.pathname.substring(1) || 'home';
     recordPageViewHit(pageName);
@@ -57,7 +59,7 @@ export default function App() {
       sendVisitorHeartbeat();
     }, 15000);
     return () => clearInterval(interval);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   const [products, setProducts] = useState<Product[]>(() => {
     try {

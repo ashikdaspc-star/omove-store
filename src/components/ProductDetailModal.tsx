@@ -20,6 +20,7 @@ import {
 
 import { useOnlineStatus } from './OfflineBanner';
 import { ProductImageGallery } from './ProductImageGallery';
+import { trackViewContent } from '../utils/metaPixel';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -44,6 +45,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   useEffect(() => {
     if (product) {
+      trackViewContent({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        category: product.category,
+        currency: 'INR'
+      });
       setActiveTab('overview');
       setReviews([
         {

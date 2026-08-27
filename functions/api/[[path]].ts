@@ -43,6 +43,9 @@ export interface Env {
   SMTP_USER?: string;
   SMTP_PASS?: string;
   EMAIL_FROM?: string;
+  META_PIXEL_ID?: string;
+  META_CONVERSIONS_API_TOKEN?: string;
+  META_ACCESS_TOKEN?: string;
 }
 
 // ─── CLOUDFLARE D1 DATABASE HELPERS ───
@@ -1781,6 +1784,63 @@ function generateLicenseKey(): string {
   return `OMV-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
 }
 
+// ─── META CONVERSIONS API (CAPI) SERVER TRACKING ───
+async function sha256Hex(str: string): Promise<string> {
+  if (!str) return '';
+  const enc = new TextEncoder();
+  const digest = await crypto.subtle.digest('SHA-256', enc.encode(str));
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function sendMetaConversionsApiPurchase(env: Env, order: any, request: Request): Promise<void> {
+  const token = env.META_CONVERSIONS_API_TOKEN || env.META_ACCESS_TOKEN;
+  if (!token) return;
+  const pixelId = env.META_PIXEL_ID || '1292055219560879';
+
+  try {
+    const rawEmail = (order.customerEmail || '').toLowerCase().trim();
+    const rawPhone = (order.customerPhone || '').replace(/\D/g, '');
+    const emailHash = rawEmail ? await sha256Hex(rawEmail) : undefined;
+    const phoneHash = rawPhone ? await sha256Hex(rawPhone) : undefined;
+
+    const eventId = `purchase_${order.id || order.orderNumber}`;
+    const payload = {
+      data: [
+        {
+          event_name: 'Purchase',
+          event_time: Math.floor(Date.now() / 1000),
+          event_id: eventId,
+          action_source: 'website',
+          event_source_url: request.url || 'https://www.omovestore.shop',
+          user_data: {
+            em: emailHash ? [emailHash] : undefined,
+            ph: phoneHash ? [phoneHash] : undefined,
+            client_ip_address: request.headers.get('cf-connecting-ip') || request.headers.get('x-real-ip') || undefined,
+            client_user_agent: request.headers.get('user-agent') || undefined
+          },
+          custom_data: {
+            value: Number(order.total || order.totalAmount || 0),
+            currency: order.paymentCurrency || 'INR',
+            content_type: 'product',
+            content_ids: (order.items || []).map((i: any) => i.productId).filter(Boolean),
+            order_id: order.id || order.orderNumber
+          }
+        }
+      ]
+    };
+
+    fetch(`https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${encodeURIComponent(token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch((err) => {
+      console.warn('[Meta CAPI WARN]', err?.message);
+    });
+  } catch (err: any) {
+    console.warn('[Meta CAPI Error]', err?.message);
+  }
+}
+
 // Session Cookie Parser
 function getSessionFromRequest(request: Request): any | null {
   const cookieHeader = request.headers.get('Cookie') || '';
@@ -2744,7 +2804,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === '/api/orders/create' && method === 'POST') {
       try {
         const body: any = await request.json().catch(() => ({}));
-        const orderId = body.id || `ord-${Date.now()}`;
+        const orderId = `ord-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
         if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
           return jsonResponse({
@@ -2834,7 +2894,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const nowIso = new Date().toISOString();
         const newOrder = {
           id: orderId,
-          orderNumber: body.orderNumber || `OMV-ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+          orderNumber: `OMV-ORD-${Math.floor(10000 + Math.random() * 90000)}`,
           razorpayOrderId: rzpOrderId,
           razorpayPaymentId: isZeroTotal ? `FREE_COUPON_${appliedCouponCode || '100PCT'}` : null,
           customerName: body.customerName || 'Customer',
@@ -2856,6 +2916,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         };
 
         await saveD1Order(env, newOrder);
+        if (isZeroTotal) {
+          sendMetaConversionsApiPurchase(env, newOrder, request).catch(() => {});
+        }
 
         return jsonResponse({
           success: true,
@@ -3011,6 +3074,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       await saveD1Order(env, order);
+      sendMetaConversionsApiPurchase(env, order, request).catch(() => {});
 
       return jsonResponse({
         success: true,
@@ -3507,6 +3571,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
 
         await saveD1Order(env, order);
+        sendMetaConversionsApiPurchase(env, order, request).catch(() => {});
 
         return jsonResponse({
           success: true,

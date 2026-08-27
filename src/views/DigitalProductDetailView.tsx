@@ -5,6 +5,7 @@ import { matchProductBySlugOrId } from '../utils/productMatcher';
 import { isEbookProduct } from '../utils/categoryMatcher';
 import { ProductReviewsSection } from '../components/reviews/ProductReviewsSection';
 import { ProductImageGallery } from '../components/ProductImageGallery';
+import { trackViewContent } from '../utils/metaPixel';
 import {
   Sparkles,
   DownloadCloud,
@@ -140,6 +141,19 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
   };
 
   const isEbook = isEbookProduct(product, categories);
+
+  // Meta Pixel ViewContent Event Tracking
+  useEffect(() => {
+    if (product && product.id) {
+      trackViewContent({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        category: category?.name || 'Digital Products',
+        currency: 'INR'
+      });
+    }
+  }, [product?.id, category?.name]);
 
   // Compute all available preview images for gallery
   const productGalleryImages = React.useMemo(() => {
