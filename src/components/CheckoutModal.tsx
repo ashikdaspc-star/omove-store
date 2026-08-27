@@ -175,16 +175,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   }, [isOpen]);
 
-  // Reset transaction whenever cart items change (e.g. user selects a different product)
+  // Reset transaction whenever buyer switches to a different non-empty product cart
   const prevCartHashRef = useRef<string>('');
   useEffect(() => {
-    const currentHash = cart.map(i => `${i.product.id}:${i.quantity}:${i.product.price}`).join('|');
-    if (prevCartHashRef.current !== currentHash) {
+    if (cart.length > 0) {
+      const currentHash = cart.map(i => `${i.product.id}:${i.quantity}:${i.product.price}`).sort().join('|');
+      if (prevCartHashRef.current && prevCartHashRef.current !== currentHash) {
+        setCreatedOrder(null);
+        createdOrderRef.current = null;
+        setPaymentFailedNotice('');
+        setIsProcessing(false);
+      }
       prevCartHashRef.current = currentHash;
-      setCreatedOrder(null);
-      createdOrderRef.current = null;
-      setPaymentFailedNotice('');
-      setIsProcessing(false);
     }
   }, [cart]);
 
@@ -297,12 +299,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               body: JSON.stringify(payload)
             });
 
-            const createData = await createRes.json();
-            if (!createRes.ok || !createData.success || !createData.paypalOrderId) {
-              const errMsg = createData.message || createData.error || 'Failed to create PayPal order.';
-              setPaymentFailedNotice(errMsg);
+            let createData: any = null;
+            try {
+              const text = await createRes.text();
+              if (text) createData = JSON.parse(text);
+            } catch (e) {}
+
+            if (!createRes.ok || !createData || !createData.success || !createData.paypalOrderId) {
+              const errMsg = createData?.message || createData?.error || 'Failed to create PayPal order.';
+              setPaymentFailedNotice(typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg));
               setIsProcessing(false);
-              throw new Error(errMsg);
+              throw new Error(typeof errMsg === 'string' ? errMsg : 'Failed to create PayPal order.');
             }
 
             createdOrderRef.current = createData.order;
@@ -318,9 +325,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ paypalOrderId: data.orderID })
               });
-              const captureData = await captureRes.json();
+              let captureData: any = null;
+              try {
+                const cText = await captureRes.text();
+                if (cText) captureData = JSON.parse(cText);
+              } catch (e) {}
 
-              if (captureRes.ok && captureData.success && captureData.verified) {
+              if (captureRes.ok && captureData && (captureData.success || captureData.verified)) {
                 const verifiedOrder = captureData.order || createdOrderRef.current;
                 setCreatedOrder(verifiedOrder);
                 onOrderSuccess(verifiedOrder);
@@ -341,10 +352,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 });
                 confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
               } else {
-                setPaymentFailedNotice(captureData.message || captureData.error || 'PayPal payment verification failed.');
+                const errMsg = captureData?.message || captureData?.error || 'PayPal payment verification failed.';
+                setPaymentFailedNotice(typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg));
               }
             } catch (err: any) {
-              setPaymentFailedNotice('PayPal payment capture network error.');
+              setPaymentFailedNotice(err?.message || 'PayPal payment capture network error.');
             } finally {
               setIsProcessing(false);
             }
@@ -440,6 +452,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
+    if (isProcessing) return;
+
     setIsProcessing(true);
     setPaymentFailedNotice('');
 
@@ -480,27 +494,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          if (data.success && data.order) {
-            orderObj = data.order;
-            if (data.order.discount !== undefined) {
-              setAppliedDiscount(data.order.discount);
-            }
-            if (data.razorpayKeyId) rzpKey = data.razorpayKeyId;
-          } else {
-            setPaymentFailedNotice(data.message || data.error || 'Failed to create order on server.');
-            setIsProcessing(false);
-            return;
+        let data: any = null;
+        try {
+          const text = await res.text();
+          if (text) data = JSON.parse(text);
+        } catch (parseErr) {
+          console.warn('Non-JSON response from /api/orders/create:', parseErr);
+        }
+
+        if (res.ok && data && (data.success || data.order)) {
+          orderObj = data.order;
+          if (data.order?.discount !== undefined) {
+            setAppliedDiscount(data.order.discount);
           }
+          if (data.razorpayKeyId) rzpKey = data.razorpayKeyId;
         } else {
-          const errData = await res.json().catch(() => ({}));
-          setPaymentFailedNotice(errData.message || errData.error || 'Server error creating order. Please try again.');
+          const rawErr = data?.message || data?.error || `Server returned error (${res.status}). Please try again.`;
+          const displayErr = typeof rawErr === 'string' ? rawErr : JSON.stringify(rawErr);
+          setPaymentFailedNotice(displayErr);
           setIsProcessing(false);
           return;
         }
-      } catch (e) {
-        setPaymentFailedNotice('Network error creating order. Please check your connection.');
+      } catch (e: any) {
+        setPaymentFailedNotice(e?.message || 'Network error creating order. Please check your connection.');
         setIsProcessing(false);
         return;
       }
@@ -599,9 +615,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   razorpaySignature: response.razorpay_signature
                 })
               });
-              const verifyData = await verifyRes.json();
-              if (verifyRes.ok && verifyData.success && verifyData.verified) {
-                const verifiedOrder = verifyData.order || orderObj;
+
+              let verifyData: any = null;
+              try {
+                const vText = await verifyRes.text();
+                if (vText) verifyData = JSON.parse(vText);
+              } catch (parseErr) {
+                console.warn('Non-JSON response from /api/orders/verify:', parseErr);
+              }
+
+              if (verifyRes.ok && verifyData && (verifyData.success || verifyData.verified)) {
+                const verifiedOrder = verifyData.order || orderObj!;
                 setCreatedOrder(verifiedOrder);
                 onOrderSuccess(verifiedOrder);
                 onClearCart();
@@ -618,10 +642,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 });
                 confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
               } else {
-                setPaymentFailedNotice(verifyData.message || verifyData.error || 'Server payment verification failed. Access denied.');
+                const rawMsg = verifyData?.message || verifyData?.error || 'Server payment verification failed. Access denied.';
+                setPaymentFailedNotice(typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg));
               }
-            } catch (vErr) {
-              setPaymentFailedNotice('Payment verification network error. Access denied.');
+            } catch (vErr: any) {
+              setPaymentFailedNotice(vErr?.message || 'Payment verification network error. Access denied.');
             } finally {
               setIsProcessing(false);
             }

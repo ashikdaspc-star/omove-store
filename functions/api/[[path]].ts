@@ -111,6 +111,72 @@ async function getD1Orders(env: Env): Promise<any[]> {
   return Array.from(ordersStore.values());
 }
 
+async function getD1OrderById(env: Env, orderId: string): Promise<any | null> {
+  if (!orderId) return null;
+  const inMem = ordersStore.get(orderId);
+  if (inMem) return inMem;
+  if (!env.DB) return null;
+
+  try {
+    const o = await env.DB.prepare(`
+      SELECT * FROM orders 
+      WHERE id = ? OR order_number = ? OR razorpay_order_id = ? OR paypal_order_id = ? 
+      LIMIT 1
+    `).bind(orderId, orderId, orderId, orderId).first();
+
+    if (!o) return null;
+
+    const itemsRes = await env.DB.prepare(`SELECT * FROM order_items WHERE order_id = ?`).bind(o.id).all();
+    const items = (itemsRes.results || []).map((it: any) => ({
+      productId: it.product_id,
+      productName: it.product_name,
+      price: it.price,
+      quantity: it.quantity,
+      fileSize: it.file_size,
+      fileUrl: it.file_url,
+      googleDriveUrl: it.google_drive_url,
+      licenseKey: it.license_key,
+      downloadLimit: it.download_limit,
+      downloadsCount: it.downloads_count
+    }));
+
+    const formattedOrder = {
+      id: o.id,
+      orderNumber: o.order_number,
+      razorpayOrderId: o.razorpay_order_id,
+      razorpayPaymentId: o.razorpay_payment_id,
+      paymentId: o.razorpay_payment_id,
+      paypalOrderId: o.paypal_order_id || null,
+      paypalCaptureId: o.paypal_capture_id || null,
+      paymentProvider: o.payment_provider || 'razorpay',
+      paymentCurrency: o.payment_currency || 'INR',
+      paymentAmountUsd: o.payment_amount_usd || null,
+      customerName: o.customer_name,
+      customerEmail: o.customer_email,
+      customerPhone: o.customer_phone,
+      subtotal: o.subtotal,
+      discount: o.discount,
+      couponCode: o.coupon_code,
+      tax: o.tax,
+      total: o.total,
+      totalAmount: o.total_amount,
+      paymentMethod: o.payment_method,
+      paymentStatus: o.payment_status,
+      status: o.status,
+      paymentVerifiedAt: o.payment_verified_at,
+      createdAt: o.created_at,
+      updatedAt: o.updated_at,
+      items
+    };
+
+    ordersStore.set(formattedOrder.id, formattedOrder);
+    return formattedOrder;
+  } catch (e: any) {
+    console.warn(`[D1 GET ORDER BY ID ERROR] ${e.message}`);
+    return null;
+  }
+}
+
 let d1OrderTablesEnsured = false;
 
 async function ensureD1OrderTables(env: Env): Promise<void> {
@@ -1927,16 +1993,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     // 2. Query D1 for order
-    const d1Orders = await getD1Orders(env);
-    const matchedOrder = (d1Orders || []).find((o: any) =>
-      o && (
-        o.id === targetOrderId ||
-        o.orderNumber === targetOrderId ||
-        o.razorpayOrderId === targetOrderId ||
-        (o.id && o.id.toLowerCase() === targetOrderId.toLowerCase()) ||
-        (o.orderNumber && o.orderNumber.toLowerCase() === targetOrderId.toLowerCase())
-      )
-    );
+    let matchedOrder = await getD1OrderById(env, targetOrderId);
+    if (!matchedOrder) {
+      const d1Orders = await getD1Orders(env);
+      matchedOrder = (d1Orders || []).find((o: any) =>
+        o && (
+          o.id === targetOrderId ||
+          o.orderNumber === targetOrderId ||
+          o.razorpayOrderId === targetOrderId ||
+          (o.id && o.id.toLowerCase() === targetOrderId.toLowerCase()) ||
+          (o.orderNumber && o.orderNumber.toLowerCase() === targetOrderId.toLowerCase())
+        )
+      );
+    }
 
     if (!matchedOrder) {
       return jsonResponse({
@@ -2952,24 +3021,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const rzpKeyId = getRazorpayKeyId(env);
       const secret = getRazorpayKeySecret(env);
 
-      let order = orderId ? ordersStore.get(orderId) : null;
+      let order = await getD1OrderById(env, orderId || bodyRzpOrderId);
       if (!order && body.order?.id) {
-        order = ordersStore.get(body.order.id);
+        order = await getD1OrderById(env, body.order.id);
       }
-
-      if (!order) {
-        const freshOrders = await getD1Orders(env);
-        if (Array.isArray(freshOrders)) {
-          freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
-          if (orderId) order = ordersStore.get(orderId);
-        }
+      if (!order && bodyRzpOrderId) {
+        order = await getD1OrderById(env, bodyRzpOrderId);
       }
-
-      if (!order) {
-        const allOrders = Array.from(ordersStore.values());
-        order = allOrders.find(o => o.id === orderId || (bodyRzpOrderId && o.razorpayOrderId === bodyRzpOrderId));
-      }
-
       if (!order && body.order) {
         order = body.order;
       }
