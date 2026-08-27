@@ -446,6 +446,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
+    const invalidItem = cart.find(
+      (it) => !it.product || !it.product.id || typeof it.product.price !== 'number' || isNaN(it.product.price) || it.product.price < 0
+    );
+    if (invalidItem) {
+      setPaymentFailedNotice('Product information is incomplete or invalid. Please refresh the page and select the product again.');
+      return;
+    }
+
     // ── Razorpay Flow (unchanged) ──
     if (PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal') {
       // If PayPal is selected, PayPal smart buttons handle click directly

@@ -3036,6 +3036,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       let isVerified = false;
 
+      // Idempotent Check: If already verified in D1, immediately succeed
+      if (order && (order.paymentStatus === 'SUCCESS' || order.status === 'completed')) {
+        isVerified = true;
+      }
+
       // HMAC Signature Verification
       if (rzpSignature && secret) {
         if (canonicalRzpOrderId) {
