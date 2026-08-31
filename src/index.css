@@ -321,6 +321,97 @@
 }
 
 /* ========================================================================= */
+/* Buy Me a Coffee Ambient Steam & Shimmer Animations                        */
+/* ========================================================================= */
+@keyframes coffeeSteamWisp1 {
+  0% {
+    opacity: 0;
+    transform: translateY(2px) scaleX(0.7) scaleY(0.8);
+  }
+  20% {
+    opacity: 0.6;
+    transform: translateY(-3px) scaleX(1.0) translateX(1px);
+  }
+  60% {
+    opacity: 0.35;
+    transform: translateY(-9px) scaleX(1.2) translateX(-1.5px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-15px) scaleX(1.4) translateX(1.5px);
+  }
+}
+
+@keyframes coffeeSteamWisp2 {
+  0% {
+    opacity: 0;
+    transform: translateY(2px) scaleX(0.75) scaleY(0.8);
+  }
+  25% {
+    opacity: 0.7;
+    transform: translateY(-4px) scaleX(1.1) translateX(-1px);
+  }
+  65% {
+    opacity: 0.4;
+    transform: translateY(-11px) scaleX(1.3) translateX(2px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-17px) scaleX(1.5) translateX(-1px);
+  }
+}
+
+@keyframes coffeeSteamWisp3 {
+  0% {
+    opacity: 0;
+    transform: translateY(2px) scaleX(0.7) scaleY(0.8);
+  }
+  30% {
+    opacity: 0.55;
+    transform: translateY(-3.5px) scaleX(1.05) translateX(1.5px);
+  }
+  70% {
+    opacity: 0.3;
+    transform: translateY(-10px) scaleX(1.25) translateX(-1px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scaleX(1.45) translateX(1px);
+  }
+}
+
+.coffee-steam-1 {
+  animation: coffeeSteamWisp1 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform, opacity;
+}
+
+.coffee-steam-2 {
+  animation: coffeeSteamWisp2 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation-delay: 1.1s;
+  will-change: transform, opacity;
+}
+
+.coffee-steam-3 {
+  animation: coffeeSteamWisp3 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation-delay: 2.2s;
+  will-change: transform, opacity;
+}
+
+@keyframes buttonContinuousShimmer {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  30%, 100% {
+    transform: translateX(250%) skewX(-20deg);
+  }
+}
+
+.button-shimmer-beam {
+  animation: buttonContinuousShimmer 5s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ========================================================================= */
 /* Mobile Responsive Protections & Touch Target Safety (max-width: 767px)    */
 /* ========================================================================= */
 @media (max-width: 767px) {

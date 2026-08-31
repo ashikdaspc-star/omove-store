@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Coffee, ShieldCheck, Heart, ArrowLeft, ArrowRight, RefreshCw, AlertCircle, Sparkles, CheckCircle2, Lock } from 'lucide-react';
+import { Coffee, ShieldCheck, Heart, ArrowLeft, ArrowRight, RefreshCw, AlertCircle, Sparkles, CheckCircle2, Lock, User, Mail } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PaymentMethodCards } from '../components/PaymentMethodCards';
+import { CoffeeOrbitCanvas } from '../components/CoffeeOrbitCanvas';
 import { loadPayPalSDK } from '../utils/paypalLoader';
 import { PAYPAL_CHECKOUT_ENABLED } from '../config/paymentConfig';
 
@@ -16,6 +17,24 @@ export const SupportView: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // 3D Card micro-tilt state for desktop interaction
+  const [cardTilt, setCardTilt] = useState({ rx: 0, ry: 0 });
+
+  const handleContainerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    setCardTilt({
+      rx: -y * 3.0,
+      ry: x * 3.0
+    });
+  };
+
+  const handleContainerMouseLeave = () => {
+    setCardTilt({ rx: 0, ry: 0 });
+  };
 
   // Payment Method: 'razorpay' | 'paypal'
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'paypal'>('razorpay');
@@ -380,45 +399,83 @@ export const SupportView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8] text-slate-900 flex flex-col font-sans relative">
-      {/* Top Minimal Header */}
-      <header className="relative z-10 p-4 sm:p-6 border-b border-slate-200/90 bg-white/90 backdrop-blur-md">
+    <div
+      onMouseMove={handleContainerMouseMove}
+      onMouseLeave={handleContainerMouseLeave}
+      className="min-h-screen bg-[#FCFBFA] text-slate-900 flex flex-col font-sans relative overflow-hidden select-none"
+    >
+      {/* Background Interactive Coffee Energy Orbit & Particle Canvas */}
+      <CoffeeOrbitCanvas />
+
+      {/* Top Minimal Clean Header matching reference */}
+      <header className="relative z-10 p-4 sm:p-6 bg-transparent">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-slate-600 hover:text-emerald-700 transition-colors text-xs tracking-wider font-semibold cursor-pointer bg-transparent border-0 p-0"
+            className="flex items-center gap-2 text-slate-800 hover:text-emerald-700 transition-colors text-xs font-bold tracking-wider cursor-pointer bg-transparent border-0 p-0 select-none"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>BACK TO OMOVE STORE</span>
+            <ArrowLeft className="w-4 h-4 text-emerald-700 stroke-[2.5]" />
+            <span>BACK TO STORE</span>
           </button>
 
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-600" />
-            <span className="text-xs font-bold tracking-wider text-slate-800">BUY ME A COFFEE</span>
+          <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs tracking-wider">
+            <Coffee className="w-4 h-4 text-emerald-700" />
+            <span className="text-slate-800">BUY ME A COFFEE</span>
           </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6 my-auto">
-        <div className="w-full max-w-lg">
+      <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 my-auto">
+        <div
+          className="w-full max-w-[500px]"
+          style={{
+            transform: `perspective(1000px) rotateX(${cardTilt.rx}deg) rotateY(${cardTilt.ry}deg)`,
+            transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+        >
           
           {/* ========================================================================= */}
-          {/* WINDOW 1: DETAILS & COFFEE SELECTION */}
+          {/* WINDOW 1: DETAILS & COFFEE SELECTION (REFERENCE DESIGN MATCH) */}
           {/* ========================================================================= */}
           {viewState === 'FORM' && (
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-xs animate-fadeIn">
-              {/* Heading Area */}
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center mx-auto mb-3 text-emerald-600 shadow-xs">
-                  <Coffee className="w-7 h-7" />
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-1.5">
+            <div className="bg-white/95 backdrop-blur-2xl border border-slate-100/90 rounded-[28px] p-6 sm:p-9 shadow-[0_25px_80px_-15px_rgba(5,150,105,0.08),0_20px_60px_-15px_rgba(245,158,11,0.08),0_4px_20px_rgba(0,0,0,0.03)] ring-1 ring-slate-900/5 animate-fadeIn">
+              
+              {/* Top Creator Avatar with YouTube Badge */}
+              <div className="flex justify-center mb-5">
+                <a
+                  href="https://www.youtube.com/@omove_tech_shorts"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative inline-block cursor-pointer transition-transform duration-200 hover:scale-105 select-none"
+                  title="Visit YouTube Channel: @omove_tech_shorts"
+                >
+                  {/* Prismatic Border Ring */}
+                  <div className="w-24 h-24 sm:w-26 sm:h-26 rounded-full p-[2.5px] bg-gradient-to-tr from-emerald-400 via-amber-300 to-rose-400 shadow-md">
+                    <img
+                      src="/creator-avatar.jpg"
+                      alt="Omove Tech Shorts - Creator Profile"
+                      className="w-full h-full rounded-full object-cover bg-slate-900"
+                    />
+                  </div>
+
+                  {/* Red YouTube Badge at bottom-right of avatar */}
+                  <div className="absolute bottom-0.5 right-0.5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-600 border-2 border-white flex items-center justify-center shadow-md group-hover:bg-red-700 transition-colors">
+                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-white ml-0.5" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
+                </a>
+              </div>
+
+              {/* Title & Subtitle */}
+              <div className="text-center mb-6 sm:mb-7">
+                <h1 className="text-3xl sm:text-[34px] font-extrabold text-slate-900 tracking-tight mb-1.5 leading-tight">
                   Buy Me a Coffee
                 </h1>
-                <p className="text-slate-600 text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
-                  If Omove Store helped you, support our independent work ☕
+                <p className="text-slate-600 text-sm font-medium">
+                  Your support keeps me creating ☕
                 </p>
               </div>
 
@@ -430,12 +487,12 @@ export const SupportView: React.FC = () => {
               )}
 
               <form onSubmit={handleProceedToPayment} className="space-y-4 sm:space-y-5">
-                {/* 1. Preset Amount Grid */}
+                {/* 1. Choose Your Coffee Amount */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  <label className="block text-xs font-bold text-[#059669] uppercase tracking-wider mb-2.5">
                     CHOOSE YOUR COFFEE AMOUNT
                   </label>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-4 gap-2.5 sm:gap-3">
                     {PRESET_AMOUNTS.map((amt) => (
                       <button
                         key={amt}
@@ -444,10 +501,10 @@ export const SupportView: React.FC = () => {
                           setSelectedPreset(amt);
                           setCustomAmount('');
                         }}
-                        className={`py-2.5 rounded-xl font-extrabold text-sm transition-colors border cursor-pointer ${
+                        className={`py-3 rounded-xl font-bold text-sm sm:text-base transition-all duration-200 border cursor-pointer select-none ${
                           selectedPreset === amt
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                            : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100'
+                            ? 'bg-[#059669] text-white border-[#059669] shadow-[0_4px_14px_rgba(5,150,105,0.35)]'
+                            : 'bg-white text-slate-800 border-slate-200/90 hover:bg-slate-50 hover:border-slate-300 hover:-translate-y-0.5'
                         }`}
                       >
                         ₹{amt}
@@ -461,10 +518,10 @@ export const SupportView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedPreset('custom')}
-                    className={`w-full py-2 rounded-xl text-xs font-bold transition-colors border cursor-pointer ${
+                    className={`w-full py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 border cursor-pointer ${
                       selectedPreset === 'custom'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-400 font-bold shadow-xs'
+                        : 'bg-[#f8faf9] text-slate-500 hover:text-slate-800 border-slate-200/90 hover:bg-slate-100'
                     }`}
                   >
                     Custom Amount
@@ -488,41 +545,49 @@ export const SupportView: React.FC = () => {
                   )}
                 </div>
 
-                {/* 2. Contributor Name & Email in 2 Columns */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 2. Contributor Name & Email in 2 Columns with Clean Modern Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      YOUR NAME <span className="text-emerald-600">*</span>
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                      YOUR NAME <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter your name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none transition-colors"
-                    />
+                    <div className="relative">
+                      <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="Enter your name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full pl-10 pr-3.5 py-3 bg-[#f8faf9] border border-slate-200/90 focus:border-emerald-600 focus:bg-white rounded-xl text-slate-900 text-sm focus:outline-none transition-colors"
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
                       YOUR EMAIL <span className="text-slate-400 font-normal lowercase text-[10px]">(optional)</span>
                     </label>
-                    <input
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none transition-colors"
-                    />
+                    <div className="relative">
+                      <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        type="email"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-10 pr-3.5 py-3 bg-[#f8faf9] border border-slate-200/90 focus:border-emerald-600 focus:bg-white rounded-xl text-slate-900 text-sm focus:outline-none transition-colors"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 {/* Total & Proceed Button */}
-                <div className="pt-3 border-t border-slate-100 space-y-3">
+                <div className="pt-3.5 border-t border-slate-100/90 space-y-3">
                   <div className="flex items-center justify-between px-1">
-                    <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">COFFEE AMOUNT:</span>
-                    <span className="text-2xl font-black text-emerald-700">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                      COFFEE AMOUNT:
+                    </span>
+                    <span className="text-2xl sm:text-3xl font-extrabold text-[#059669] font-sans">
                       ₹{activeAmount || 0}
                     </span>
                   </div>
@@ -530,16 +595,21 @@ export const SupportView: React.FC = () => {
                   <button
                     type="submit"
                     disabled={!activeAmount || activeAmount < 1}
-                    className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm tracking-wide shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer active:scale-98"
+                    className="relative overflow-hidden group w-full py-4 rounded-xl bg-[#059669] hover:bg-[#047857] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm tracking-wide shadow-[0_12px_28px_-6px_rgba(5,150,105,0.42)] flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-98 hover:-translate-y-0.5"
                   >
-                    <span>CONTINUE TO PAYMENT (₹{activeAmount || 0})</span>
-                    <ArrowRight className="w-4 h-4" />
+                    {/* Continuous subtle shimmer beam */}
+                    <div className="button-shimmer-beam absolute inset-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
+                    
+                    <Coffee className="w-5 h-5 relative z-1" />
+                    <span className="relative z-1 font-extrabold tracking-wide">CONTINUE TO PAYMENT (₹{activeAmount || 0})</span>
+                    <ArrowRight className="w-4 h-4 relative z-1 group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
               </form>
 
-              <div className="mt-5 text-center flex items-center justify-center gap-2 text-xs text-slate-500">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              {/* Security Text */}
+              <div className="mt-5 text-center flex items-center justify-center gap-1.5 text-xs text-slate-600 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 <span>100% Direct Support • 256-Bit SSL Encrypted</span>
               </div>
             </div>
@@ -549,7 +619,7 @@ export const SupportView: React.FC = () => {
           {/* WINDOW 2: DEDICATED PAYMENT WINDOW */}
           {/* ========================================================================= */}
           {viewState === 'PAYMENT' && (
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-xs animate-fadeIn">
+            <div className="bg-white/95 backdrop-blur-2xl border border-slate-100/90 rounded-[28px] p-6 sm:p-9 shadow-[0_25px_80px_-15px_rgba(5,150,105,0.08),0_20px_60px_-15px_rgba(245,158,11,0.08),0_4px_20px_rgba(0,0,0,0.03)] ring-1 ring-slate-900/5 animate-fadeIn">
               {/* Window Header */}
               <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-100">
                 <button
@@ -567,7 +637,7 @@ export const SupportView: React.FC = () => {
               </div>
 
               {/* Supporter Summary Pill */}
-              <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 flex items-center justify-between mb-5">
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-50/80 to-amber-50/40 border border-emerald-200/80 flex items-center justify-between mb-5 shadow-xs">
                 <div className="space-y-0.5">
                   <span className="text-[10px] text-emerald-800 uppercase tracking-wider block font-bold">
                     ☕ BUY ME A COFFEE
@@ -611,23 +681,24 @@ export const SupportView: React.FC = () => {
                   layout="stack"
                 />
 
-                {/* Razorpay Submit Button */}
+                {/* Razorpay Submit Button with Shimmer */}
                 {(!PAYPAL_CHECKOUT_ENABLED || paymentMethod === 'razorpay') && (
                   <button
                     type="button"
                     onClick={handleRazorpayPayment}
                     disabled={isSubmitting}
-                    className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm tracking-wide shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer mt-2 active:scale-98"
+                    className="relative overflow-hidden group w-full py-4 rounded-xl bg-[#059669] hover:bg-[#047857] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm tracking-wide shadow-[0_12px_28px_-6px_rgba(5,150,105,0.42)] flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer mt-2 active:scale-98 hover:-translate-y-0.5"
                   >
+                    <div className="button-shimmer-beam absolute inset-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
                     {isSubmitting ? (
                       <>
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                        <span>PROCESSING RAZORPAY...</span>
+                        <RefreshCw className="w-5 h-5 animate-spin relative z-1" />
+                        <span className="relative z-1">PROCESSING RAZORPAY...</span>
                       </>
                     ) : (
                       <>
-                        <Coffee className="w-5 h-5" />
-                        <span>PAY ₹{activeAmount} VIA RAZORPAY</span>
+                        <Coffee className="w-5 h-5 relative z-1" />
+                        <span className="relative z-1 font-extrabold tracking-wide">PAY ₹{activeAmount} VIA RAZORPAY</span>
                       </>
                     )}
                   </button>
@@ -645,8 +716,8 @@ export const SupportView: React.FC = () => {
           {/* WINDOW 3: SUCCESS CONFIRMATION */}
           {/* ========================================================================= */}
           {viewState === 'SUCCESS' && completedPaymentDetails && (
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-10 shadow-xs text-center animate-fadeIn">
-              <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-5 text-emerald-600">
+            <div className="bg-white/95 backdrop-blur-2xl border border-slate-100/90 rounded-[28px] p-6 sm:p-10 shadow-[0_25px_80px_-15px_rgba(5,150,105,0.08),0_20px_60px_-15px_rgba(245,158,11,0.08),0_4px_20px_rgba(0,0,0,0.03)] ring-1 ring-slate-900/5 text-center animate-fadeIn">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-5 text-emerald-600 shadow-xs">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
 
@@ -658,18 +729,18 @@ export const SupportView: React.FC = () => {
                 Thank you for the coffee ☕ Your support helps Omove Store continue growing.
               </p>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-6 text-left space-y-3 text-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-5 mb-6 text-left space-y-3 text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
                   <span className="text-slate-500">Name:</span>
                   <span className="font-bold text-slate-900">{completedPaymentDetails.name}</span>
                 </div>
 
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
                   <span className="text-slate-500">Coffee Total (INR):</span>
                   <span className="font-extrabold text-emerald-700">₹{completedPaymentDetails.amount}</span>
                 </div>
 
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
                   <span className="text-slate-500">Payment Method:</span>
                   <span className="font-semibold text-slate-800">{completedPaymentDetails.paymentMethod || 'Verified Gateway'}</span>
                 </div>
@@ -684,14 +755,14 @@ export const SupportView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="flex-1 py-3 px-4 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                  className="flex-1 py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
                 >
                   SEND ANOTHER COFFEE
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/')}
-                  className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                 >
                   <span>RETURN TO STORE</span>
                   <ArrowRight className="w-4 h-4" />
@@ -704,7 +775,7 @@ export const SupportView: React.FC = () => {
           {/* WINDOW 4: FAILED STATE */}
           {/* ========================================================================= */}
           {viewState === 'FAILED' && (
-            <div className="bg-white border border-rose-200 rounded-2xl p-6 sm:p-10 shadow-xs text-center animate-fadeIn">
+            <div className="bg-white/95 backdrop-blur-2xl border border-rose-200 rounded-[28px] p-6 sm:p-10 shadow-[0_25px_70px_-15px_rgba(244,63,94,0.08)] text-center animate-fadeIn">
               <div className="w-16 h-16 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center mx-auto mb-5 text-rose-600">
                 <AlertCircle className="w-8 h-8" />
               </div>
@@ -731,9 +802,9 @@ export const SupportView: React.FC = () => {
         </div>
       </main>
 
-      {/* Minimal Footer */}
-      <footer className="relative z-10 p-4 text-center text-xs text-slate-500 border-t border-slate-200">
-        <span>© {new Date().getFullYear()} Omove Store • Powered by {PAYPAL_CHECKOUT_ENABLED ? 'Razorpay & PayPal' : 'Razorpay'}</span>
+      {/* Minimal Footer matching reference */}
+      <footer className="relative z-10 p-5 text-center text-xs font-medium text-slate-500">
+        <span>© 2026 • Powered by Razorpay</span>
       </footer>
     </div>
   );
