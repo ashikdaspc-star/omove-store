@@ -27,8 +27,8 @@ export const SupportView: React.FC = () => {
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
     setCardTilt({
-      rx: -y * 3.0,
-      ry: x * 3.0
+      rx: -y * 1.4,
+      ry: x * 1.4
     });
   };
 
@@ -407,21 +407,21 @@ export const SupportView: React.FC = () => {
       {/* Background Interactive Coffee Energy Orbit & Particle Canvas */}
       <CoffeeOrbitCanvas />
 
-      {/* Top Minimal Clean Header matching reference */}
-      <header className="relative z-10 p-4 sm:p-6 bg-transparent">
+      {/* Top Transparent Minimal Header */}
+      <header className="relative z-10 p-4 sm:p-6 bg-transparent border-b border-slate-200/40">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <button
             type="button"
             onClick={() => navigate('/')}
             className="flex items-center gap-2 text-slate-800 hover:text-emerald-700 transition-colors text-xs font-bold tracking-wider cursor-pointer bg-transparent border-0 p-0 select-none"
           >
-            <ArrowLeft className="w-4 h-4 text-emerald-700 stroke-[2.5]" />
-            <span>BACK TO STORE</span>
+            <ArrowLeft className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+            <span>BACK TO OMOVE STORE</span>
           </button>
 
-          <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs tracking-wider">
-            <Coffee className="w-4 h-4 text-emerald-700" />
-            <span className="text-slate-800">BUY ME A COFFEE</span>
+          <div className="flex items-center gap-2">
+            <Coffee className="w-4 h-4 text-emerald-600 stroke-[2.2]" />
+            <span className="text-xs font-bold tracking-wider text-slate-800">BUY ME A COFFEE</span>
           </div>
         </div>
       </header>
@@ -429,39 +429,48 @@ export const SupportView: React.FC = () => {
       {/* Main Content Area */}
       <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 my-auto">
         <div
-          className="w-full max-w-[500px]"
+          className="w-full max-w-[500px] relative"
           style={{
             transform: `perspective(1000px) rotateX(${cardTilt.rx}deg) rotateY(${cardTilt.ry}deg)`,
             transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
         >
+          {/* Ambient Multi-Hue Halo Glow Behind Payment Card */}
+          <div className="absolute -inset-3 bg-gradient-to-tr from-emerald-400/25 via-amber-300/20 to-teal-400/25 rounded-[36px] blur-2xl payment-glow-pulse pointer-events-none -z-10" />
+
+          {/* Floating Card Wrapper */}
+          <div className="payment-card-float">
           
           {/* ========================================================================= */}
           {/* WINDOW 1: DETAILS & COFFEE SELECTION (REFERENCE DESIGN MATCH) */}
           {/* ========================================================================= */}
           {viewState === 'FORM' && (
-            <div className="bg-white/95 backdrop-blur-2xl border border-slate-100/90 rounded-[28px] p-6 sm:p-9 shadow-[0_25px_80px_-15px_rgba(5,150,105,0.08),0_20px_60px_-15px_rgba(245,158,11,0.08),0_4px_20px_rgba(0,0,0,0.03)] ring-1 ring-slate-900/5 animate-fadeIn">
+            <div className="relative overflow-hidden bg-white/95 backdrop-blur-2xl border border-slate-100/90 rounded-[28px] p-6 sm:p-9 shadow-[0_25px_80px_-15px_rgba(5,150,105,0.10),0_20px_60px_-15px_rgba(245,158,11,0.08),0_4px_20px_rgba(0,0,0,0.03)] ring-1 ring-slate-900/5 animate-fadeIn">
               
+              {/* Subtle Specular Sheen Sweep */}
+              <div className="absolute -top-32 -left-32 w-48 h-[200%] bg-gradient-to-r from-transparent via-white/35 to-transparent card-shimmer-sheen pointer-events-none" />
+
               {/* Top Creator Avatar with YouTube Badge */}
-              <div className="flex justify-center mb-5">
+              <div className="flex justify-center mb-5 relative z-1">
                 <a
                   href="https://www.youtube.com/@omove_tech_shorts"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group relative inline-block cursor-pointer transition-transform duration-200 hover:scale-105 select-none"
+                  className="group relative inline-block cursor-pointer transition-transform duration-300 hover:scale-105 select-none"
                   title="Visit YouTube Channel: @omove_tech_shorts"
                 >
-                  {/* Prismatic Border Ring */}
-                  <div className="w-24 h-24 sm:w-26 sm:h-26 rounded-full p-[2.5px] bg-gradient-to-tr from-emerald-400 via-amber-300 to-rose-400 shadow-md">
+                  {/* Rotating Prismatic Gradient Border Ring */}
+                  <div className="relative w-24 h-24 sm:w-26 sm:h-26 rounded-full p-[3px] overflow-hidden flex items-center justify-center shadow-md">
+                    <div className="absolute -inset-3 bg-gradient-to-r from-emerald-400 via-amber-300 to-rose-400 creator-ring-spin" />
                     <img
                       src="/creator-avatar.jpg"
                       alt="Omove Tech Shorts - Creator Profile"
-                      className="w-full h-full rounded-full object-cover bg-slate-900"
+                      className="relative z-1 w-full h-full rounded-full object-cover bg-slate-900"
                     />
                   </div>
 
                   {/* Red YouTube Badge at bottom-right of avatar */}
-                  <div className="absolute bottom-0.5 right-0.5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-600 border-2 border-white flex items-center justify-center shadow-md group-hover:bg-red-700 transition-colors">
+                  <div className="absolute bottom-0.5 right-0.5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-600 border-2 border-white flex items-center justify-center shadow-md group-hover:bg-red-700 transition-colors z-2">
                     <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-white ml-0.5" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z" />
                     </svg>
@@ -470,7 +479,7 @@ export const SupportView: React.FC = () => {
               </div>
 
               {/* Title & Subtitle */}
-              <div className="text-center mb-6 sm:mb-7">
+              <div className="text-center mb-6 sm:mb-7 relative z-1">
                 <h1 className="text-3xl sm:text-[34px] font-extrabold text-slate-900 tracking-tight mb-1.5 leading-tight">
                   Buy Me a Coffee
                 </h1>
@@ -503,7 +512,7 @@ export const SupportView: React.FC = () => {
                         }}
                         className={`py-3 rounded-xl font-bold text-sm sm:text-base transition-all duration-200 border cursor-pointer select-none ${
                           selectedPreset === amt
-                            ? 'bg-[#059669] text-white border-[#059669] shadow-[0_4px_14px_rgba(5,150,105,0.35)]'
+                            ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white border-emerald-600 shadow-[0_6px_20px_rgba(5,150,105,0.35)] scale-[1.02]'
                             : 'bg-white text-slate-800 border-slate-200/90 hover:bg-slate-50 hover:border-slate-300 hover:-translate-y-0.5'
                         }`}
                       >
@@ -595,22 +604,21 @@ export const SupportView: React.FC = () => {
                   <button
                     type="submit"
                     disabled={!activeAmount || activeAmount < 1}
-                    className="relative overflow-hidden group w-full py-4 rounded-xl bg-[#059669] hover:bg-[#047857] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm tracking-wide shadow-[0_12px_28px_-6px_rgba(5,150,105,0.42)] flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-98 hover:-translate-y-0.5"
+                    className="relative overflow-hidden group w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm tracking-wide shadow-[0_12px_28px_-6px_rgba(5,150,105,0.42)] flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-98 hover:-translate-y-0.5"
                   >
                     {/* Continuous subtle shimmer beam */}
                     <div className="button-shimmer-beam absolute inset-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
                     
                     <Coffee className="w-5 h-5 relative z-1" />
-                    <span className="relative z-1 font-extrabold tracking-wide">CONTINUE TO PAYMENT (₹{activeAmount || 0})</span>
-                    <ArrowRight className="w-4 h-4 relative z-1 group-hover:translate-x-1 transition-transform" />
+                    <span className="relative z-1 font-extrabold tracking-wide">CONTINUE TO PAYMENT (₹{activeAmount || 0})  →</span>
                   </button>
                 </div>
               </form>
 
               {/* Security Text */}
               <div className="mt-5 text-center flex items-center justify-center gap-1.5 text-xs text-slate-600 font-medium">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>100% Direct Support • 256-Bit SSL Encrypted</span>
+                <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>Secure & Trusted Payment</span>
               </div>
             </div>
           )}
@@ -687,7 +695,7 @@ export const SupportView: React.FC = () => {
                     type="button"
                     onClick={handleRazorpayPayment}
                     disabled={isSubmitting}
-                    className="relative overflow-hidden group w-full py-4 rounded-xl bg-[#059669] hover:bg-[#047857] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm tracking-wide shadow-[0_12px_28px_-6px_rgba(5,150,105,0.42)] flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer mt-2 active:scale-98 hover:-translate-y-0.5"
+                    className="relative overflow-hidden group w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm tracking-wide shadow-[0_12px_28px_-6px_rgba(5,150,105,0.42)] flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer mt-2 active:scale-98 hover:-translate-y-0.5"
                   >
                     <div className="button-shimmer-beam absolute inset-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
                     {isSubmitting ? (
@@ -799,12 +807,13 @@ export const SupportView: React.FC = () => {
             </div>
           )}
 
+          </div>
         </div>
       </main>
 
       {/* Minimal Footer matching reference */}
       <footer className="relative z-10 p-5 text-center text-xs font-medium text-slate-500">
-        <span>© 2026 • Powered by Razorpay</span>
+        <span>© 2026 Omove Store • Powered by Razorpay</span>
       </footer>
     </div>
   );

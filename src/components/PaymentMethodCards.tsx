@@ -158,13 +158,13 @@ export const PaymentMethodCards: React.FC<PaymentMethodCardsProps> = ({
             </div>
 
             {/* Radio Indicator */}
-            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ${
               paymentMethod === 'razorpay'
-                ? (isDark ? 'border-emerald-400 bg-emerald-950' : 'border-emerald-600 bg-emerald-50')
+                ? (isDark ? 'border-emerald-400 bg-emerald-950/80 shadow-xs shadow-emerald-400' : 'border-emerald-600 bg-emerald-50 shadow-xs shadow-emerald-600')
                 : (isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white')
             }`}>
               {paymentMethod === 'razorpay' && (
-                <div className={`w-2.5 h-2.5 rounded-full ${isDark ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-emerald-600'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full animate-radio-spring ${isDark ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-emerald-600'}`} />
               )}
             </div>
           </div>
@@ -219,13 +219,13 @@ export const PaymentMethodCards: React.FC<PaymentMethodCardsProps> = ({
               </div>
 
               {/* Radio Indicator */}
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ${
                 paymentMethod === 'paypal'
-                  ? (isDark ? 'border-blue-400 bg-blue-950' : 'border-blue-600 bg-blue-50')
+                  ? (isDark ? 'border-blue-400 bg-blue-950/80 shadow-xs shadow-blue-400' : 'border-blue-600 bg-blue-50 shadow-xs shadow-blue-600')
                   : (isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white')
               }`}>
                 {paymentMethod === 'paypal' && (
-                  <div className={`w-2.5 h-2.5 rounded-full ${isDark ? 'bg-blue-400 shadow-sm shadow-blue-400' : 'bg-blue-600'}`} />
+                  <div className={`w-2.5 h-2.5 rounded-full animate-radio-spring ${isDark ? 'bg-blue-400 shadow-sm shadow-blue-400' : 'bg-blue-600'}`} />
                 )}
               </div>
             </div>

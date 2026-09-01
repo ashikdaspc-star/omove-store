@@ -9,7 +9,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Lock,
-  MessageSquare
+  MessageSquare,
+  Coffee
 } from 'lucide-react';
 
 interface FooterProps {
@@ -69,13 +70,23 @@ export const Footer: React.FC<FooterProps> = () => {
               </div>
             </div>
 
-            <Link
-              to="/contact"
-              className="px-4 py-2 rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap cursor-pointer"
-            >
-              <span>Contact Support</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+              <Link
+                to="/support"
+                className="px-3 py-2 rounded-lg sm:rounded-xl bg-amber-50 hover:bg-amber-100/80 text-amber-900 border border-amber-200/90 font-bold text-xs shadow-2xs flex items-center gap-1.5 transition-all duration-200 shrink-0 whitespace-nowrap cursor-pointer hover:border-amber-300 hover:scale-[1.02] active:scale-95 group"
+              >
+                <Coffee className="w-3.5 h-3.5 text-amber-600 group-hover:rotate-12 transition-transform" />
+                <span>Buy a Coffee ☕</span>
+              </Link>
+
+              <Link
+                to="/contact"
+                className="px-4 py-2 rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap cursor-pointer"
+              >
+                <span>Contact Support</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -205,6 +216,12 @@ export const Footer: React.FC<FooterProps> = () => {
                 <li>
                   <Link to="/contact" className="hover:text-emerald-700 transition-colors block whitespace-nowrap">
                     Contact Support
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/support" className="hover:text-amber-700 transition-colors flex items-center gap-1.5 whitespace-nowrap font-medium text-amber-800/90">
+                    <Coffee className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Buy Me a Coffee ☕</span>
                   </Link>
                 </li>
                 <li>
