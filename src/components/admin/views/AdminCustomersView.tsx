@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Mail, Phone, MapPin, Package, ShieldCheck, Trash2, Eye, Calendar, Key, AlertTriangle, RefreshCw, X, CheckCircle2 } from 'lucide-react';
 import { Order } from '../../../types';
+import { CONTACT_CONFIG } from '../../../config/contactConfig';
 
 export interface ServerCustomer {
   id?: string;
@@ -48,7 +49,7 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
               id: u.id || `usr_local_${u.email}`,
               name: u.name || u.email.split('@')[0],
               email: u.email,
-              phone: u.phone || '+91 8345968169',
+              phone: u.phone || CONTACT_CONFIG.whatsapp.display,
               location: u.location || 'Kolkata, West Bengal, India',
               createdAt: u.createdAt || new Date().toISOString(),
               authProvider: 'email',
@@ -67,7 +68,7 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
             id: u.id || `usr_active_${u.email}`,
             name: u.name || u.email.split('@')[0],
             email: u.email,
-            phone: u.phone || '+91 8345968169',
+            phone: u.phone || CONTACT_CONFIG.whatsapp.display,
             location: u.location || 'Kolkata, West Bengal, India',
             createdAt: u.createdAt || new Date().toISOString(),
             authProvider: 'email',
@@ -156,7 +157,7 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
       id: 'usr_demo_101',
       email: 'ad1824110@gmail.com',
       name: 'ad1824110',
-      phone: '+91 8345968169',
+      phone: CONTACT_CONFIG.whatsapp.display,
       location: 'Kolkata, West Bengal, India',
       createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
       authProvider: 'email',
@@ -174,7 +175,7 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
         id: `usr_ord_${Date.now()}`,
         email: ord.customerEmail,
         name: ord.customerName || ord.customerEmail.split('@')[0],
-        phone: ord.customerPhone || '+91 8345968169',
+        phone: ord.customerPhone || CONTACT_CONFIG.whatsapp.display,
         location: 'Kolkata, West Bengal, India',
         createdAt: ord.createdAt || new Date().toISOString(),
         authProvider: 'order-guest',

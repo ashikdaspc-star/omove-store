@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Globe, Check } from 'lucide-react';
+import { CONTACT_CONFIG } from '../../../config/contactConfig';
 
 export const AdminWebsiteContentView: React.FC = () => {
   const [heroHeading, setHeroHeading] = useState('Official Software & Digital Products');
   const [heroSubheading, setHeroSubheading] = useState('Instant Digital Product Delivery & Certified Remote Computer Repairs');
-  const [whatsappNumber, setWhatsappNumber] = useState('+91 8345968169');
-  const [supportEmail, setSupportEmail] = useState('omovetech@gmail.com');
+  const [whatsappNumber, setWhatsappNumber] = useState(CONTACT_CONFIG.whatsapp.display);
+  const [supportEmail, setSupportEmail] = useState(CONTACT_CONFIG.email);
   const [savedNotice, setSavedNotice] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {

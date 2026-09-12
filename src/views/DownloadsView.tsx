@@ -16,6 +16,7 @@ import {
   WifiOff
 } from 'lucide-react';
 import { useOnlineStatus } from '../components/OfflineBanner';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 
 interface DownloadsViewProps {
   products: Product[];
@@ -264,9 +265,9 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                         </div>
 
                         <a
-                          href={`https://wa.me/918345968169?text=${encodeURIComponent(
+                          href={CONTACT_CONFIG.whatsapp.getLink(
                             `Hi, I have completed the payment for ${item.productName}. My Order ID is #${item.orderNumber || item.orderId}.`
-                          )}`}
+                          )}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-mono text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all shrink-0"

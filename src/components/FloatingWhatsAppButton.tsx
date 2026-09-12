@@ -1,4 +1,5 @@
 import React from 'react';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 
 const WhatsAppIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg
@@ -12,7 +13,7 @@ const WhatsAppIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' 
 );
 
 export const FloatingWhatsAppButton: React.FC = () => {
-  const whatsappUrl = `https://wa.me/918345968169?text=${encodeURIComponent('Hello Omove Store, I have a question regarding your products and services.')}`;
+  const whatsappUrl = CONTACT_CONFIG.whatsapp.getLink('Hello Omove Store, I have a question regarding your products and services.');
 
   return (
     <aside className="fixed bottom-[calc(58px+env(safe-area-inset-bottom,8px))] sm:bottom-6 right-3 sm:right-6 z-40" aria-label="WhatsApp Support">

@@ -7,6 +7,7 @@ import { useOnlineStatus } from '../components/OfflineBanner';
 import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
 import { loadPayPalSDK } from '../utils/paypalLoader';
 import { PAYPAL_CHECKOUT_ENABLED } from '../config/paymentConfig';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 import { InternationalPhoneInput } from '../components/InternationalPhoneInput';
 import { PaymentMethodCards } from '../components/PaymentMethodCards';
 import {
@@ -567,9 +568,9 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 Click below to start your live 1-on-1 remote PC inspection chat directly on WhatsApp!
               </p>
               <a
-                href={`https://wa.me/918345968169?text=${encodeURIComponent(
+                href={CONTACT_CONFIG.whatsapp.getLink(
                   `Hello OMOVE Expert! I completed my booking.\nBooking ID: ${confirmedBooking.bookingNumber}\nName: ${confirmedBooking.customerName}\nService: ${confirmedBooking.serviceTitle}`
-                )}`}
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-sm font-extrabold inline-flex items-center gap-2.5 shadow-lg shadow-emerald-600/25 transition-all hover:scale-105"

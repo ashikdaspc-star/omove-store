@@ -9,6 +9,7 @@ import { MOCK_PRODUCTS } from '../data/mockData';
 import { isDigitalProduct } from '../utils/productClassifier';
 import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
 import { PAYPAL_CHECKOUT_ENABLED } from '../config/paymentConfig';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 import { loadPayPalSDK } from '../utils/paypalLoader';
 import { InternationalPhoneInput } from '../components/InternationalPhoneInput';
 import { PaymentMethodCards } from '../components/PaymentMethodCards';
@@ -1349,9 +1350,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     Click below to start live 1-on-1 remote PC inspection chat directly on WhatsApp!
                   </p>
                   <a
-                    href={`https://wa.me/918345968169?text=${encodeURIComponent(
+                    href={CONTACT_CONFIG.whatsapp.getLink(
                       `Hello OMOVE Expert! I paid ₹${activeBookingService.price} for PC Inspection.\nBooking ID: ${confirmedBooking.bookingNumber}\nName: ${confirmedBooking.customerName}\nPhone: ${confirmedBooking.phone}`
-                    )}`}
+                    )}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold inline-flex items-center justify-center gap-2.5 shadow-md shadow-emerald-600/20 transition-all hover:scale-105"

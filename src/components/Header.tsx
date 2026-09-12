@@ -21,6 +21,7 @@ import {
   Settings
 } from 'lucide-react';
 import { CartItem } from '../types';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 
 interface HeaderProps {
   cart: CartItem[];
@@ -173,7 +174,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* 2. WhatsApp Support Button (Desktop / Tablet Only — hidden on mobile header) */}
           <a
-            href="https://wa.me/918345968169"
+            href={CONTACT_CONFIG.whatsapp.getLink()}
             target="_blank"
             rel="noopener noreferrer"
             className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 font-semibold text-xs transition-all shadow-2xs min-h-[44px]"
@@ -363,7 +364,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
             <a
-              href="https://wa.me/918345968169"
+              href={CONTACT_CONFIG.whatsapp.getLink()}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-xs min-h-[44px]"

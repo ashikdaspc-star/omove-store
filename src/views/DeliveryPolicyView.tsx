@@ -1,5 +1,6 @@
 import React from 'react';
 import { Download, Zap, ShieldCheck } from 'lucide-react';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 
 export const DeliveryPolicyView: React.FC = () => {
   return (
@@ -64,7 +65,7 @@ export const DeliveryPolicyView: React.FC = () => {
             If payment is completed but you have not received your digital key within 15 minutes, please check your spam folder or contact support with your Order ID:
           </p>
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-800">
-            Email: <strong>omovetech@gmail.com</strong> | WhatsApp: <strong>+91 8345968169</strong>
+            Email: <strong>omovetech@gmail.com</strong> | WhatsApp: <strong>{CONTACT_CONFIG.whatsapp.display}</strong>
           </div>
         </section>
       </div>

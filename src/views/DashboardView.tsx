@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Order, RemoteBooking, Product } from '../types';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 import { ProductCard } from '../components/ProductCard';
 import {
   User,
@@ -262,7 +263,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
               <span className="flex items-center gap-1">
                 <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
-                <span>{customerProfile.phone || '+91 8345968169'}</span>
+                <span>{customerProfile.phone || CONTACT_CONFIG.whatsapp.display}</span>
               </span>
             </div>
           </div>
@@ -425,7 +426,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
                 <span className="text-slate-400 block text-[11px]">WhatsApp Contact Phone</span>
-                <strong className="text-slate-900 text-sm block font-sans">{customerProfile.phone || '+91 8345968169'}</strong>
+                <strong className="text-slate-900 text-sm block font-sans">{customerProfile.phone || CONTACT_CONFIG.whatsapp.display}</strong>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
@@ -605,9 +606,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                   <div className="pt-2">
                     <a
-                      href={`https://wa.me/918345968169?text=${encodeURIComponent(
+                      href={CONTACT_CONFIG.whatsapp.getLink(
                         `Hello OMOVE Expert! I need remote support.\nBooking Ref: ${bk.bookingNumber}\nService: ${bk.serviceTitle}\nCustomer: ${bk.customerName}`
-                      )}`}
+                      )}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm font-mono tracking-wider shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"

@@ -13,6 +13,7 @@ import {
   Info
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 
 export const RefundPolicyView: React.FC = () => {
   return (
@@ -218,7 +219,7 @@ export const RefundPolicyView: React.FC = () => {
             </div>
             <div className="space-y-0.5">
               <span className="text-slate-500 uppercase block text-[10px] font-bold">WhatsApp Support</span>
-              <span className="font-bold text-emerald-800">+91 8345968169</span>
+              <span className="font-bold text-emerald-800">{CONTACT_CONFIG.whatsapp.display}</span>
             </div>
             <Link
               to="/contact"

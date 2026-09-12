@@ -1,5 +1,6 @@
 import React from 'react';
 import { FileText, ShieldCheck } from 'lucide-react';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 
 export const TermsView: React.FC = () => {
   const sections = [
@@ -17,7 +18,7 @@ export const TermsView: React.FC = () => {
     { num: 12, title: 'Service Availability', body: 'While we strive for 99.9% uptime, website availability may experience brief maintenance windows.' },
     { num: 13, title: 'Limitation of Liability', body: 'Omove Store shall not be liable for indirect damages, OS corruptions caused by third-party malware, or user error.' },
     { num: 14, title: 'Changes to Terms', body: 'We reserve the right to modify these Terms at any time. Continued use of Omove Store constitutes acceptance of updated terms.' },
-    { num: 15, title: 'Contact Information', body: 'For inquiries regarding these Terms, contact support at omovetech@gmail.com or +91 8345968169.' }
+    { num: 15, title: 'Contact Information', body: `For inquiries regarding these Terms, contact support at ${CONTACT_CONFIG.email} or ${CONTACT_CONFIG.whatsapp.display}.` }
   ];
 
   return (

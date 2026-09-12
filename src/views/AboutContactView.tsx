@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Mail, MessageSquare, MapPin, Send, CheckCircle2, Lock } from 'lucide-react';
 import { sendContactInquiryEmail } from '../utils/emailNotifier';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 
 export const AboutContactView: React.FC = () => {
   const [contactName, setContactName] = useState('');
@@ -83,7 +84,7 @@ export const AboutContactView: React.FC = () => {
 
                 {/* WhatsApp */}
                 <a
-                  href="https://wa.me/918345968169"
+                  href={CONTACT_CONFIG.whatsapp.getLink()}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group flex items-start gap-3.5 p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors"
@@ -96,7 +97,7 @@ export const AboutContactView: React.FC = () => {
                       WhatsApp
                     </span>
                     <span className="text-slate-900 font-semibold group-hover:text-emerald-700 transition-colors">
-                      +91 8345986169
+                      {CONTACT_CONFIG.whatsapp.display}
                     </span>
                   </div>
                 </a>

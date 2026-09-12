@@ -8,6 +8,7 @@ import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countr
 import { loadPayPalSDK } from '../utils/paypalLoader';
 import { InternationalPhoneInput } from '../components/InternationalPhoneInput';
 import { PaymentMethodCards } from '../components/PaymentMethodCards';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 import {
   Zap,
   Check,
@@ -676,9 +677,9 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ services, onBookingS
                     Click below to start live 1-on-1 remote PC inspection chat directly on WhatsApp!
                   </p>
                   <a
-                    href={`https://wa.me/918345968169?text=${encodeURIComponent(
+                    href={CONTACT_CONFIG.whatsapp.getLink(
                       `Hello OMOVE Expert! I paid for PC Inspection.\nBooking ID: ${confirmedBooking.bookingNumber}\nName: ${confirmedBooking.customerName}\nPhone: ${confirmedBooking.phone}\nService: ${confirmedBooking.serviceTitle}`
-                    )}`}
+                    )}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-sm font-extrabold inline-flex items-center justify-center gap-2.5 shadow-md shadow-emerald-600/20 transition-all hover:scale-105"

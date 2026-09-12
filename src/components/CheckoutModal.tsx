@@ -7,6 +7,7 @@ import { validateAndApplyCouponAsync, fetchAndCacheCoupons } from '../utils/coup
 import { Country, getDefaultCountry, validatePhoneNumber } from '../utils/countryData';
 import { loadPayPalSDK } from '../utils/paypalLoader';
 import { PAYPAL_CHECKOUT_ENABLED } from '../config/paymentConfig';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 import { InternationalPhoneInput } from './InternationalPhoneInput';
 import { PaymentMethodCards } from './PaymentMethodCards';
 import {
@@ -737,9 +738,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
               {createdOrder.items.map((item, idx) => {
                 const isDigitalItem = item.productType === 'DIGITAL' || (item.productId && item.productId.startsWith('dig'));
-                const itemWhatsappUrl = `https://wa.me/918345968169?text=${encodeURIComponent(
+                const itemWhatsappUrl = CONTACT_CONFIG.whatsapp.getLink(
                   `Hi, I have completed the payment for ${item.productName}. My Order ID is #${createdOrder.orderNumber || createdOrder.id}.`
-                )}`;
+                );
 
                 return (
                   <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
@@ -788,9 +789,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   Your payment has been received. Contact us on WhatsApp with your Order ID (<strong className="text-emerald-700">#{createdOrder.orderNumber || createdOrder.id}</strong>) to proceed with your setup.
                 </p>
                 <a
-                  href={`https://wa.me/918345968169?text=${encodeURIComponent(
+                  href={CONTACT_CONFIG.whatsapp.getLink(
                     `Hi, I have completed the payment for ${createdOrder.items.map((i) => i.productName).join(', ')}. My Order ID is #${createdOrder.orderNumber || createdOrder.id}.`
-                  )}`}
+                  )}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
