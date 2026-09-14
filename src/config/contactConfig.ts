@@ -3,12 +3,12 @@
  */
 export const CONTACT_CONFIG = {
   whatsapp: {
-    display: '+91 7719108841',
-    rawNumber: '917719108841',
-    numberOnly: '7719108841',
+    display: '+91 9242899827',
+    rawNumber: '919242899827',
+    numberOnly: '9242899827',
     countryCode: '+91',
     getLink: (message?: string) => {
-      const baseUrl = 'https://wa.me/917719108841';
+      const baseUrl = 'https://wa.me/919242899827';
       return message ? `${baseUrl}?text=${encodeURIComponent(message)}` : baseUrl;
     },
   },

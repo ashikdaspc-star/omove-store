@@ -8,6 +8,7 @@ import { ProductDetailModal } from './components/ProductDetailModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { FloatingWhatsAppButton } from './components/FloatingWhatsAppButton';
+import { OfficialNumberNoticeModal } from './components/OfficialNumberNoticeModal';
 import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 
@@ -1316,6 +1317,7 @@ export default function App() {
 
       {/* Floating Widgets & Modals */}
       <FloatingWhatsAppButton />
+      <OfficialNumberNoticeModal />
 
       <CartDrawer
         isOpen={isCartOpen}
