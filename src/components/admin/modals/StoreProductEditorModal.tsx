@@ -100,7 +100,7 @@ export const StoreProductEditorModal: React.FC<StoreProductEditorModalProps> = (
         setShortDescription('');
         setDescription('');
         setTags(['Software', 'Store Card']);
-        setImage('https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80');
+        setImage('/logo.png');
         setOriginalPrice(5000);
         setDiscountPercent(20);
         setIsFree(false);
@@ -167,43 +167,42 @@ export const StoreProductEditorModal: React.FC<StoreProductEditorModalProps> = (
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 12 * 1024 * 1024) {
-      setUploadNotice('File size exceeds 12MB limit.');
+    if (file.size > 15 * 1024 * 1024) {
+      setUploadNotice('File size exceeds 15MB limit.');
       return;
     }
 
     setIsUploadingImage(true);
-    setUploadNotice('Uploading image...');
+    setUploadNotice('Uploading image to R2...');
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64Data = reader.result as string;
-      try {
-        const res = await fetch('/api/admin/upload-media', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: file.name, fileData: base64Data })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.url) {
-            setImage(data.url);
-            setUploadNotice('Image updated successfully!');
-            setIsUploadingImage(false);
-            setTimeout(() => setUploadNotice(''), 2500);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('Server media upload fallback:', err);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('productId', product?.id || `prod-${Date.now()}`);
+      formData.append('folder', 'products');
+      formData.append('targetType', 'image');
+
+      const res = await fetch('/api/admin/upload-media', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        setImage(data.url);
+        setUploadNotice('Image uploaded successfully to R2!');
+        setIsUploadingImage(false);
+        setTimeout(() => setUploadNotice(''), 3000);
+        return;
+      } else {
+        throw new Error(data?.message || 'Upload failed');
       }
-
-      setImage(base64Data);
-      setUploadNotice('Image attached!');
+    } catch (err: any) {
+      console.error('[STORE PRODUCT IMAGE UPLOAD ERROR]', err);
+      setUploadNotice(`Upload failed: ${err?.message || 'Network error'}. Previous image preserved.`);
       setIsUploadingImage(false);
-      setTimeout(() => setUploadNotice(''), 2500);
-    };
-    reader.readAsDataURL(file);
+      setTimeout(() => setUploadNotice(''), 4000);
+    }
   };
 
   // Readiness Checklist checks
@@ -253,8 +252,8 @@ export const StoreProductEditorModal: React.FC<StoreProductEditorModalProps> = (
       fullDescription: description.trim() || shortDescription.trim(),
       description: description.trim() || shortDescription.trim(),
       tags: tags.length > 0 ? tags : ['Software', 'Store Card'],
-      image: image.trim() || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
-      screenshots: [image.trim()],
+      image: image.trim() || (product?.image && !product.image.startsWith('data:') ? product.image : '/logo.png'),
+      screenshots: [image.trim() || (product?.image && !product.image.startsWith('data:') ? product.image : '/logo.png')],
       originalPrice: isFree ? 0 : Number(originalPrice || 0),
       price: isFree ? 0 : Number(calculatedFinalPrice || 0),
       discountPercent: isFree ? 0 : Number(discountPercent || 0),

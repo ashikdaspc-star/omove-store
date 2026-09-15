@@ -1013,6 +1013,51 @@ export default function App() {
     );
   }
 
+  // Dedicated Admin Panel Control Center Route (Zero public chrome leaks)
+  const isAdminRoute = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
+
+  if (isAdminRoute) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-emerald-500 selection:text-white">
+        <OfflineBanner />
+        <React.Suspense
+          fallback={
+            <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] text-slate-400 font-sans text-xs">
+              Loading Admin Control Center...
+            </div>
+          }
+        >
+          {isAdminAuthenticated ? (
+            <AdminView
+              products={products}
+              services={services}
+              blogs={blogs}
+              orders={orders}
+              bookings={bookings}
+              onAddProduct={handleAddProduct}
+              onUpdateProduct={handleUpdateProduct}
+              onDeleteProduct={handleDeleteProduct}
+              onAddService={handleAddService}
+              onUpdateService={handleUpdateService}
+              onDeleteService={handleDeleteService}
+              onAddBlog={handleAddBlog}
+              onDeleteBlog={handleDeleteBlog}
+              onUpdateBooking={handleUpdateBooking}
+              onDeleteBooking={handleDeleteBooking}
+              onExitAdmin={() => {
+                handleToggleAdminMode(false);
+                navigate('/');
+              }}
+              onPublishCatalog={handlePublishCatalog}
+            />
+          ) : (
+            <AdminLoginPage onSuccess={handleAdminAuthSuccess} />
+          )}
+        </React.Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white font-sans">
       <OfflineBanner />
@@ -1281,34 +1326,6 @@ export default function App() {
               }
             />
 
-          <Route
-            path="/admin"
-            element={
-              isAdminAuthenticated ? (
-                <AdminView
-                  products={products}
-                  services={services}
-                  blogs={blogs}
-                  orders={orders}
-                  bookings={bookings}
-                  onAddProduct={handleAddProduct}
-                  onUpdateProduct={handleUpdateProduct}
-                  onDeleteProduct={handleDeleteProduct}
-                  onAddService={handleAddService}
-                  onUpdateService={handleUpdateService}
-                  onDeleteService={handleDeleteService}
-                  onAddBlog={handleAddBlog}
-                  onDeleteBlog={handleDeleteBlog}
-                  onUpdateBooking={handleUpdateBooking}
-                  onDeleteBooking={handleDeleteBooking}
-                  onExitAdmin={() => handleToggleAdminMode(false)}
-                  onPublishCatalog={handlePublishCatalog}
-                />
-              ) : (
-                <AdminLoginPage onSuccess={handleAdminAuthSuccess} />
-              )
-            }
-          />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -107,8 +107,8 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
         const prodCatId = product.categoryId || product.category || '';
         setCategoryId(prodCatId);
         setTags(Array.isArray(product.tags) ? product.tags : ['Digital Product']);
-        setImage(product.previewImage || product.image || '');
-        setScreenshots(Array.isArray(product.screenshots) ? product.screenshots : []);
+        setImage(product.image || product.previewImage || '');
+        setScreenshots(Array.isArray(product.screenshots) ? product.screenshots.filter(s => s && typeof s === 'string' && !s.startsWith('data:')) : []);
         
         // eBook specs initialization
         setEbookFileType(product.ebookSpecs?.fileType || product.fileType || 'PDF / EPUB');
@@ -141,7 +141,7 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
         const defaultCat = categories.length > 0 ? categories[0].id : '';
         setCategoryId(defaultCat);
         setTags(['Digital Product']);
-        setImage('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80');
+        setImage('/logo.png');
         setScreenshots([]);
         setOriginalPrice(499);
         setDiscountPercent(20);
@@ -216,42 +216,42 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 12 * 1024 * 1024) {
-      setUploadNotice('File size is larger than 12MB limit.');
+    if (file.size > 15 * 1024 * 1024) {
+      setUploadNotice('File size exceeds 15MB limit.');
       return;
     }
 
     setIsUploadingCover(true);
-    setUploadNotice('Uploading cover image...');
+    setUploadNotice('Uploading cover image to R2...');
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64Data = reader.result as string;
-      try {
-        const res = await fetch('/api/admin/upload-media', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: file.name, fileData: base64Data })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.url) {
-            setImage(data.url);
-            setUploadNotice('Cover image updated successfully!');
-            setIsUploadingCover(false);
-            setTimeout(() => setUploadNotice(''), 2500);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('Server upload fallback to data URI:', err);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('productId', product?.id || `dig-${Date.now()}`);
+      formData.append('folder', 'digital-products');
+      formData.append('targetType', 'image');
+
+      const res = await fetch('/api/admin/upload-media', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        setImage(data.url);
+        setUploadNotice('Cover image uploaded successfully to R2!');
+        setIsUploadingCover(false);
+        setTimeout(() => setUploadNotice(''), 3000);
+        return;
+      } else {
+        throw new Error(data?.message || 'Upload failed');
       }
-      setImage(base64Data);
-      setUploadNotice('Cover image attached!');
+    } catch (err: any) {
+      console.error('[COVER UPLOAD ERROR]', err);
+      setUploadNotice(`Upload failed: ${err?.message || 'Network error'}. Previous image preserved.`);
       setIsUploadingCover(false);
-      setTimeout(() => setUploadNotice(''), 2500);
-    };
-    reader.readAsDataURL(file);
+      setTimeout(() => setUploadNotice(''), 4000);
+    }
   };
 
   // Gallery preview upload
@@ -260,37 +260,48 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
     if (!files || files.length === 0) return;
 
     setIsUploadingGallery(true);
+    setUploadNotice('Uploading gallery screenshots to R2...');
     const newImages: string[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (file.size > 12 * 1024 * 1024) continue;
-
-      const base64 = await new Promise<string>((resolve) => {
-        const r = new FileReader();
-        r.onload = () => resolve(r.result as string);
-        r.readAsDataURL(file);
-      });
+      if (file.size > 15 * 1024 * 1024) {
+        console.warn(`File ${file.name} exceeds 15MB limit`);
+        continue;
+      }
 
       try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('productId', product?.id || `dig-${Date.now()}`);
+        formData.append('folder', 'digital-products');
+        formData.append('targetType', 'screenshot');
+        formData.append('arrayIndex', String(screenshots.length + newImages.length));
+
         const res = await fetch('/api/admin/upload-media', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: file.name, fileData: base64 })
+          body: formData
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.url) {
-            newImages.push(data.url);
-            continue;
-          }
+
+        const data = await res.json();
+        if (res.ok && data.success && data.url) {
+          newImages.push(data.url);
+        } else {
+          console.error(`Failed to upload ${file.name}:`, data?.message);
         }
-      } catch (err) {}
-      newImages.push(base64);
+      } catch (err: any) {
+        console.error(`[GALLERY UPLOAD ERROR] ${file.name}:`, err);
+      }
     }
 
-    setScreenshots((prev) => [...prev, ...newImages]);
+    if (newImages.length > 0) {
+      setScreenshots((prev) => [...prev, ...newImages]);
+      setUploadNotice(`Successfully added ${newImages.length} screenshot(s) to R2!`);
+    } else {
+      setUploadNotice('Failed to upload gallery images. Please try again.');
+    }
     setIsUploadingGallery(false);
+    setTimeout(() => setUploadNotice(''), 3000);
   };
 
   // Gallery reorder & remove
@@ -363,9 +374,9 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
       fullDescription: description.trim() || shortDescription.trim(),
       description: description.trim() || shortDescription.trim(),
       tags: tags.length > 0 ? tags : ['Digital Product'],
-      image: image.trim() || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
-      previewImage: image.trim() || undefined,
-      screenshots: screenshots,
+      image: image.trim() || (product?.image && !product.image.startsWith('data:') ? product.image : '/logo.png'),
+      previewImage: (product?.previewImage && !product.previewImage.startsWith('data:') ? product.previewImage : (image.trim() || '/logo.png')),
+      screenshots: screenshots.filter(s => s && typeof s === 'string' && !s.startsWith('data:')),
       originalPrice: isFree ? 0 : Number(originalPrice || 0),
       price: isFree ? 0 : Number(calculatedFinalPrice || 0),
       discountPercent: isFree ? 0 : Number(discountPercent || 0),
@@ -577,7 +588,7 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 onError={(e) => {
                                   e.currentTarget.onerror = null;
-                                  e.currentTarget.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&auto=format&fit=crop&q=80';
+                                  e.currentTarget.src = '/logo.png';
                                 }}
                               />
                               <div className="absolute top-2 left-2 bg-slate-950/80 text-emerald-400 border border-emerald-500/30 text-[9px] font-mono font-bold px-2 py-0.5 rounded-md backdrop-blur-md">
@@ -1337,7 +1348,7 @@ export const DigitalProductEditorModal: React.FC<DigitalProductEditorModalProps>
                       <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
                         <Plus className="w-5 h-5" />
                       </div>
-                      <span>+ Add Download Link</span>
+                      <span>Add Download Link</span>
                       <span className="text-[11px] text-slate-500 font-normal">
                         Configure Google Drive shareable link for instant customer delivery
                       </span>

@@ -36,14 +36,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* Thumbnail & Badges */}
         <div className="relative aspect-video w-full overflow-hidden bg-slate-100 cursor-pointer" onClick={() => onSelect(product)}>
           <img
-            src={product.image}
+            src={product.image || product.previewImage || '/logo.png'}
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             loading="lazy"
             decoding="async"
             onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80';
+              const target = e.currentTarget;
+              if (product.previewImage && target.src !== product.previewImage && product.image && target.src.includes(product.image)) {
+                target.src = product.previewImage;
+                return;
+              }
+              target.onerror = null;
+              target.src = '/logo.png';
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent opacity-60" />

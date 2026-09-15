@@ -23,8 +23,54 @@ const BUNDLED_STATIC_DATA: Record<string, any[]> = {
 const ordersData: any[] = [];
 const bookingsData: any[] = [];
 
+export interface R2PutOptions {
+  httpMetadata?: {
+    contentType?: string;
+    contentLanguage?: string;
+    contentDisposition?: string;
+    contentEncoding?: string;
+    cacheControl?: string;
+    cacheExpiry?: Date;
+  };
+  customMetadata?: Record<string, string>;
+  md5?: ArrayBuffer | string;
+  sha1?: ArrayBuffer | string;
+  sha256?: ArrayBuffer | string;
+  sha384?: ArrayBuffer | string;
+  sha512?: ArrayBuffer | string;
+}
+
+export interface R2Object {
+  key: string;
+  version: string;
+  size: number;
+  etag: string;
+  httpEtag: string;
+  uploaded: Date;
+  httpMetadata?: Record<string, any>;
+  customMetadata?: Record<string, string>;
+}
+
+export interface R2ObjectBody extends R2Object {
+  body: ReadableStream;
+  bodyUsed: boolean;
+  arrayBuffer(): Promise<ArrayBuffer>;
+  text(): Promise<string>;
+  json<T = any>(): Promise<T>;
+  blob(): Promise<Blob>;
+}
+
+export interface R2Bucket {
+  head(key: string): Promise<R2Object | null>;
+  get(key: string, options?: any): Promise<R2ObjectBody | null>;
+  put(key: string, value: ReadableStream | ArrayBuffer | ArrayBufferView | string | null | Blob, options?: R2PutOptions): Promise<R2Object | null>;
+  delete(keys: string | string[]): Promise<void>;
+  list(options?: any): Promise<any>;
+}
+
 export interface Env {
   DB?: any;
+  FILES?: R2Bucket;
   GITHUB_TOKEN?: string;
   VITE_GITHUB_TOKEN?: string;
   GITHUB_OWNER?: string;
@@ -47,6 +93,88 @@ export interface Env {
   META_CONVERSIONS_API_TOKEN?: string;
   META_ACCESS_TOKEN?: string;
 }
+
+// ─── CLOUDFLARE R2 STORAGE HELPERS ───
+export async function r2Exists(env: Env, key: string): Promise<boolean> {
+  if (!env || !env.FILES) return false;
+  try {
+    const obj = await env.FILES.head(key);
+    return obj !== null;
+  } catch (err: any) {
+    console.warn(`[R2 HEAD ERROR] ${err?.message || err}`);
+    return false;
+  }
+}
+
+export async function r2Get(env: Env, key: string): Promise<R2ObjectBody | null> {
+  if (!env || !env.FILES) return null;
+  try {
+    return await env.FILES.get(key);
+  } catch (err: any) {
+    console.warn(`[R2 GET ERROR] ${err?.message || err}`);
+    return null;
+  }
+}
+
+export async function r2Put(
+  env: Env,
+  key: string,
+  value: ReadableStream | ArrayBuffer | ArrayBufferView | string | Blob | null,
+  options?: {
+    contentType?: string;
+    customMetadata?: Record<string, string>;
+    cacheControl?: string;
+    contentDisposition?: string;
+  }
+): Promise<R2Object | null> {
+  if (!env || !env.FILES) return null;
+  try {
+    const putOptions: R2PutOptions = {};
+    if (options?.contentType || options?.cacheControl || options?.contentDisposition) {
+      putOptions.httpMetadata = {
+        contentType: options?.contentType,
+        cacheControl: options?.cacheControl,
+        contentDisposition: options?.contentDisposition,
+      };
+    }
+    if (options?.customMetadata) {
+      putOptions.customMetadata = options.customMetadata;
+    }
+    return await env.FILES.put(key, value, putOptions);
+  } catch (err: any) {
+    console.warn(`[R2 PUT ERROR] ${err?.message || err}`);
+    return null;
+  }
+}
+
+export async function r2Delete(env: Env, key: string): Promise<boolean> {
+  if (!env || !env.FILES) return false;
+  try {
+    await env.FILES.delete(key);
+    return true;
+  } catch (err: any) {
+    console.warn(`[R2 DELETE ERROR] ${err?.message || err}`);
+    return false;
+  }
+}
+
+export const r2Storage = {
+  exists: (env: Env, key: string) => r2Exists(env, key),
+  get: (env: Env, key: string) => r2Get(env, key),
+  put: (
+    env: Env,
+    key: string,
+    value: ReadableStream | ArrayBuffer | ArrayBufferView | string | Blob | null,
+    options?: {
+      contentType?: string;
+      customMetadata?: Record<string, string>;
+      cacheControl?: string;
+      contentDisposition?: string;
+    }
+  ) => r2Put(env, key, value, options),
+  delete: (env: Env, key: string) => r2Delete(env, key),
+};
+
 
 // ─── CLOUDFLARE D1 DATABASE HELPERS ───
 async function getD1Orders(env: Env): Promise<any[]> {
@@ -975,6 +1103,613 @@ async function sendSupportEmails(
   }
 
   return { customerSent, adminSent };
+}
+
+// ─── CLOUDFLARE D1 CATALOG REPOSITORY HELPERS ───
+function parseJsonField<T = any>(val: any, defaultValue: T): T {
+  if (val === null || val === undefined || val === '') return defaultValue;
+  if (typeof val === 'object') return val as T;
+  try {
+    const parsed = JSON.parse(val);
+    return parsed ?? defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+function parseBoolField(val: any, defaultVal = false): boolean {
+  if (val === null || val === undefined) return defaultVal;
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') return val !== 0;
+  if (typeof val === 'string') return val === '1' || val.toLowerCase() === 'true';
+  return defaultVal;
+}
+
+function parseInstantAccess(val: any): boolean {
+  if (val === true || val === 1 || val === '1') return true;
+  if (typeof val === 'string') {
+    const s = val.trim().toLowerCase();
+    return s === 'yes' || s === 'true';
+  }
+  return false;
+}
+
+function mapD1Product(p: any): any {
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    productType: p.product_type || 'STORE',
+    category: p.category || 'Software',
+    categoryId: p.category_id || undefined,
+    shortDescription: p.short_description || '',
+    fullDescription: p.full_description || p.short_description || '',
+    description: p.full_description || p.short_description || '',
+    image: p.image || null,
+    previewImage: p.image || null,
+    price: Number(p.price ?? 0),
+    originalPrice: p.original_price != null ? Number(p.original_price) : Number(p.price ?? 0),
+    discountPercent: Number(p.discount_percent ?? 0),
+    licenseType: p.license_type || 'Lifetime License',
+    version: p.version || 'v1.0',
+    downloadSize: p.download_size || 'Instant Access',
+    compatibility: parseJsonField(p.compatibility, ['Windows 11', 'Windows 10']),
+    features: parseJsonField(p.features, []),
+    screenshots: parseJsonField(p.screenshots, []),
+    requirements: parseJsonField(p.requirements, ['Windows 10/11']),
+    versionHistory: parseJsonField(p.version_history, []),
+    tags: parseJsonField(p.tags, ['PC Software']),
+    googleDriveUrl: p.google_drive_url || null,
+    fileUrl: p.file_url || null,
+    instantKeyAvailable: parseBoolField(p.instant_key_available, true),
+    rating: Number(p.rating ?? 5.0),
+    reviewCount: Number(p.review_count ?? 0),
+    salesCount: Number(p.sales_count ?? 0),
+    isBestSeller: parseBoolField(p.is_best_seller, false),
+    isFeatured: parseBoolField(p.is_featured, false),
+    featured: parseBoolField(p.is_featured, false),
+    status: p.status === 'active' ? 'PUBLISHED' : (p.status || 'PUBLISHED'),
+    createdAt: p.created_at || new Date().toISOString(),
+    updatedAt: p.updated_at || p.created_at || new Date().toISOString()
+  };
+}
+
+function mapD1DigitalProduct(p: any): any {
+  const ebookSpecs = parseJsonField(p.ebook_specs, null);
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    productType: p.product_type || 'DIGITAL',
+    category: p.category || 'Ebooks',
+    categoryId: p.category_id || '',
+    subcategoryId: p.subcategory_id || '',
+    shortDescription: p.short_description || '',
+    fullDescription: p.full_description || p.description || '',
+    description: p.description || p.full_description || '',
+    price: Number(p.price ?? 0),
+    originalPrice: p.original_price != null ? Number(p.original_price) : Number(p.price ?? 0),
+    discountPercent: Number(p.discount_percent ?? 0),
+    image: p.image || null,
+    previewImage: p.preview_image || p.image || null,
+    screenshots: parseJsonField(p.screenshots, []),
+    tags: parseJsonField(p.tags, ['Digital Product']),
+    fileUrl: p.file_url || null,
+    fileSize: p.file_size || p.download_size || 'Instant Access',
+    downloadSize: p.download_size || p.file_size || 'Instant Access',
+    fileType: p.file_type || 'PDF',
+    pages: p.pages != null ? p.pages : (ebookSpecs?.pages || null),
+    language: p.language || (ebookSpecs?.language || null),
+    edition: p.edition || (ebookSpecs?.edition || null),
+    instantAccess: parseInstantAccess(
+      (p.instant_access != null && p.instant_access !== '') ? p.instant_access : ebookSpecs?.instantAccess
+    ),
+    ebookSpecs: ebookSpecs,
+    licenseType: p.license_type || 'Instant Digital Download',
+    version: p.version || 'v1.0',
+    compatibility: parseJsonField(p.compatibility, []),
+    features: parseJsonField(p.features, []),
+    requirements: parseJsonField(p.requirements, []),
+    versionHistory: parseJsonField(p.version_history, []),
+    status: p.status === 'active' ? 'PUBLISHED' : (p.status || 'PUBLISHED'),
+    featured: parseBoolField(p.featured, false),
+    isBestSeller: parseBoolField(p.is_best_seller, false),
+    instantKeyAvailable: parseBoolField(p.instant_key_available, true),
+    rating: Number(p.rating ?? 5.0),
+    reviewCount: Number(p.review_count ?? 0),
+    salesCount: Number(p.sales_count ?? 0),
+    createdAt: p.created_at || new Date().toISOString(),
+    updatedAt: p.updated_at || p.created_at || new Date().toISOString()
+  };
+}
+
+function mapD1DigitalCategory(c: any): any {
+  return {
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    parentId: c.parent_id || null,
+    description: c.description || '',
+    image: c.image || '',
+    sortOrder: Number(c.sort_order ?? 0),
+    active: parseBoolField(c.active, true),
+    createdAt: c.created_at || new Date().toISOString(),
+    updatedAt: c.updated_at || c.created_at || new Date().toISOString()
+  };
+}
+
+function mapD1Service(s: any): any {
+  return {
+    id: s.id,
+    title: s.title,
+    description: s.description || '',
+    price: Number(s.price ?? 0),
+    originalPrice: s.original_price != null ? Number(s.original_price) : Number(s.price ?? 0),
+    category: s.category || 'Windows Fix',
+    estimatedTime: s.estimated_time || '30-60 mins',
+    iconName: s.icon_name || 'Wrench',
+    popular: parseBoolField(s.popular, false),
+    features: parseJsonField(s.features, [])
+  };
+}
+
+function mapD1Coupon(c: any): any {
+  return {
+    id: c.id,
+    code: (c.code || '').trim().toUpperCase(),
+    discountType: c.discount_type === 'fixed' ? 'fixed' : 'percentage',
+    discountValue: Number(c.discount_value ?? 0),
+    minOrderAmount: Number(c.min_order_amount ?? 0),
+    description: c.description || '',
+    isActive: parseBoolField(c.is_active, true),
+    usageCount: Number(c.usage_count ?? 0)
+  };
+}
+
+function mapD1Blog(b: any): any {
+  return {
+    id: b.id,
+    title: b.title,
+    slug: b.slug,
+    excerpt: b.excerpt || '',
+    content: b.content || '',
+    author: b.author || 'Omove Team',
+    authorRole: b.author_role || 'Staff Writer',
+    category: b.category || 'Tech Guide',
+    readTime: b.read_time || '5 min read',
+    publishedAt: b.published_at || new Date().toISOString(),
+    image: b.image || '',
+    tags: parseJsonField(b.tags, []),
+    likes: Number(b.likes ?? 0)
+  };
+}
+
+async function getD1Products(env: Env): Promise<any[]> {
+  if (env && env.DB) {
+    try {
+      const res = await env.DB.prepare(`SELECT * FROM products ORDER BY created_at DESC`).all();
+      if (res && Array.isArray(res.results)) {
+        return res.results.map(mapD1Product);
+      }
+    } catch (e: any) {
+      console.warn(`[D1 GET PRODUCTS ERROR] ${e.message}`);
+    }
+  }
+  return [];
+}
+
+async function getD1DigitalProducts(env: Env): Promise<any[]> {
+  if (env && env.DB) {
+    try {
+      const res = await env.DB.prepare(`SELECT * FROM digital_products ORDER BY created_at DESC`).all();
+      if (res && Array.isArray(res.results)) {
+        return res.results.map(mapD1DigitalProduct);
+      }
+    } catch (e: any) {
+      console.warn(`[D1 GET DIGITAL PRODUCTS ERROR] ${e.message}`);
+    }
+  }
+  return [];
+}
+
+async function getD1DigitalCategories(env: Env): Promise<any[]> {
+  if (env && env.DB) {
+    try {
+      const res = await env.DB.prepare(`SELECT * FROM digital_categories ORDER BY sort_order ASC, created_at DESC`).all();
+      const rows = (res && Array.isArray(res.results)) ? res.results : [];
+      let catRows: any[] = [];
+      try {
+        const catRes = await env.DB.prepare(`SELECT * FROM categories ORDER BY sort_order ASC, created_at DESC`).all();
+        catRows = (catRes && Array.isArray(catRes.results)) ? catRes.results : [];
+      } catch {}
+
+      const combined = [...rows, ...catRows];
+      const map = new Map<string, any>();
+      combined.forEach(r => {
+        const mapped = mapD1DigitalCategory(r);
+        if (mapped && mapped.id && !map.has(mapped.id)) {
+          map.set(mapped.id, mapped);
+        }
+      });
+      return Array.from(map.values());
+    } catch (e: any) {
+      console.warn(`[D1 GET DIGITAL CATEGORIES ERROR] ${e.message}`);
+    }
+  }
+  return [];
+}
+
+async function getD1Categories(env: Env): Promise<any[]> {
+  return getD1DigitalCategories(env);
+}
+
+async function getD1Services(env: Env): Promise<any[]> {
+  if (env && env.DB) {
+    try {
+      const res = await env.DB.prepare(`SELECT * FROM services`).all();
+      if (res && Array.isArray(res.results)) {
+        return res.results.map(mapD1Service);
+      }
+    } catch (e: any) {
+      console.warn(`[D1 GET SERVICES ERROR] ${e.message}`);
+    }
+  }
+  return [];
+}
+
+async function getD1Coupons(env: Env): Promise<any[]> {
+  if (env && env.DB) {
+    try {
+      const res = await env.DB.prepare(`SELECT * FROM coupons`).all();
+      if (res && Array.isArray(res.results)) {
+        return res.results.map(mapD1Coupon);
+      }
+    } catch (e: any) {
+      console.warn(`[D1 GET COUPONS ERROR] ${e.message}`);
+    }
+  }
+  return [];
+}
+
+async function getD1Blogs(env: Env): Promise<any[]> {
+  if (env && env.DB) {
+    try {
+      const res = await env.DB.prepare(`SELECT * FROM blogs ORDER BY published_at DESC`).all();
+      if (res && Array.isArray(res.results)) {
+        return res.results.map(mapD1Blog);
+      }
+    } catch (e: any) {
+      console.warn(`[D1 GET BLOGS ERROR] ${e.message}`);
+    }
+  }
+  return [];
+}
+
+// ─── IMAGE & ASSET SANITIZATION HELPERS ───
+// Enforces clean URLs, rejects base64 data URIs, and preserves existing valid assets.
+function cleanImageField(incoming: any, fallback: string | null = null): string | null {
+  if (incoming === null || incoming === undefined) return fallback;
+  if (typeof incoming !== 'string') return fallback;
+  const trimmed = incoming.trim();
+  if (!trimmed) return fallback;
+  const lower = trimmed.toLowerCase();
+  // Reject base64 data URIs from being written to D1
+  if (lower.startsWith('data:image/') || lower.startsWith('data:application/') || trimmed.length > 50000) {
+    return fallback;
+  }
+  return trimmed;
+}
+
+function cleanScreenshotsField(incoming: any, fallback: any = []): string {
+  let arr: any[] = [];
+  if (Array.isArray(incoming)) {
+    arr = incoming;
+  } else if (typeof incoming === 'string' && incoming.trim()) {
+    try {
+      arr = JSON.parse(incoming);
+    } catch {
+      arr = [];
+    }
+  } else if (fallback) {
+    if (Array.isArray(fallback)) arr = fallback;
+    else if (typeof fallback === 'string' && fallback.trim()) {
+      try { arr = JSON.parse(fallback); } catch { arr = []; }
+    }
+  }
+  if (!Array.isArray(arr)) arr = [];
+  const valid = arr.filter(item => {
+    if (typeof item !== 'string') return false;
+    const trimmed = item.trim();
+    if (!trimmed) return false;
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith('data:image/') || lower.startsWith('data:application/') || trimmed.length > 50000) {
+      return false;
+    }
+    return true;
+  });
+  return JSON.stringify(valid);
+}
+
+async function saveD1Product(env: Env, p: any, existingProduct?: any): Promise<void> {
+  if (!env || !env.DB) return;
+  const now = new Date().toISOString();
+
+  let existing = existingProduct;
+  if (!existing && p.id) {
+    try {
+      const row = await env.DB.prepare('SELECT image, screenshots, file_url FROM products WHERE id = ?').bind(p.id).first();
+      if (row) existing = row;
+    } catch (e: any) {
+      console.warn(`[D1 GET EXISTING PRODUCT ERROR] ${e?.message || e}`);
+    }
+  }
+
+  const existingImage = existing?.image || null;
+  const existingScreenshots = existing?.screenshots || [];
+
+  const finalImage = cleanImageField(p.image, existingImage);
+  const finalScreenshots = cleanScreenshotsField(p.screenshots, existingScreenshots);
+
+  await env.DB.prepare(`
+    INSERT OR REPLACE INTO products (
+      id, name, slug, product_type, category, category_id, short_description,
+      full_description, image, price, original_price, discount_percent, license_type,
+      version, download_size, compatibility, features, screenshots, requirements,
+      version_history, tags, google_drive_url, file_url, instant_key_available,
+      rating, review_count, sales_count, is_best_seller, is_featured, status,
+      created_at, updated_at
+    ) VALUES (
+      ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?
+    )
+  `).bind(
+    p.id,
+    p.name || 'Store Product',
+    p.slug || `prod-${Date.now()}`,
+    p.productType || 'STORE',
+    p.category || 'Software',
+    p.categoryId || null,
+    p.shortDescription || '',
+    p.fullDescription || p.description || '',
+    finalImage,
+    Number(p.price ?? 0),
+    p.originalPrice != null ? Number(p.originalPrice) : null,
+    Number(p.discountPercent ?? 0),
+    p.licenseType || 'Lifetime License',
+    p.version || 'v1.0',
+    p.downloadSize || 'Instant Access',
+    JSON.stringify(Array.isArray(p.compatibility) ? p.compatibility : ['Windows 11', 'Windows 10']),
+    JSON.stringify(Array.isArray(p.features) ? p.features : []),
+    finalScreenshots,
+    JSON.stringify(Array.isArray(p.requirements) ? p.requirements : ['Windows 10/11']),
+    JSON.stringify(Array.isArray(p.versionHistory) ? p.versionHistory : []),
+    JSON.stringify(Array.isArray(p.tags) ? p.tags : ['PC Software']),
+    p.googleDriveUrl || null,
+    p.fileUrl || existing?.file_url || null,
+    p.instantKeyAvailable ? 1 : 0,
+    Number(p.rating ?? 5.0),
+    Number(p.reviewCount ?? 0),
+    Number(p.salesCount ?? 0),
+    p.isBestSeller ? 1 : 0,
+    (p.isFeatured || p.featured) ? 1 : 0,
+    p.status || 'PUBLISHED',
+    p.createdAt || now,
+    now
+  ).run();
+}
+
+async function deleteD1Product(env: Env, id: string): Promise<void> {
+  if (!env || !env.DB) return;
+  await env.DB.prepare(`DELETE FROM products WHERE id = ?`).bind(id).run();
+}
+
+async function saveD1DigitalProduct(env: Env, p: any, existingProduct?: any): Promise<void> {
+  if (!env || !env.DB) return;
+  const now = new Date().toISOString();
+
+  let existing = existingProduct;
+  if (!existing && p.id) {
+    try {
+      const row = await env.DB.prepare('SELECT image, preview_image, screenshots, file_url FROM digital_products WHERE id = ?').bind(p.id).first();
+      if (row) existing = row;
+    } catch (e: any) {
+      console.warn(`[D1 GET EXISTING DIGITAL PRODUCT ERROR] ${e?.message || e}`);
+    }
+  }
+
+  const existingImage = existing?.image || null;
+  const existingPreview = existing?.preview_image || existing?.previewImage || null;
+  const existingScreenshots = existing?.screenshots || [];
+
+  const finalImage = cleanImageField(p.image, existingImage);
+  const finalPreview = cleanImageField(p.previewImage, existingPreview || finalImage);
+  const finalScreenshots = cleanScreenshotsField(p.screenshots, existingScreenshots);
+
+  await env.DB.prepare(`
+    INSERT OR REPLACE INTO digital_products (
+      id, name, slug, product_type, category, category_id, subcategory_id,
+      short_description, full_description, description, price, original_price,
+      discount_percent, image, preview_image, screenshots, tags, file_url,
+      file_size, download_size, file_type, pages, language, edition, instant_access,
+      ebook_specs, license_type, version, compatibility, features, requirements,
+      version_history, status, featured, is_best_seller, instant_key_available,
+      rating, review_count, sales_count, created_at
+    ) VALUES (
+      ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
+      ?, ?, ?, ?
+    )
+  `).bind(
+    p.id,
+    p.name || 'Digital Product',
+    p.slug || `dig-${Date.now()}`,
+    p.productType || 'DIGITAL',
+    p.category || 'Ebooks',
+    p.categoryId || null,
+    p.subcategoryId || null,
+    p.shortDescription || '',
+    p.fullDescription || p.description || '',
+    p.description || p.fullDescription || '',
+    Number(p.price ?? 0),
+    p.originalPrice != null ? Number(p.originalPrice) : null,
+    Number(p.discountPercent ?? 0),
+    finalImage,
+    finalPreview,
+    finalScreenshots,
+    JSON.stringify(Array.isArray(p.tags) ? p.tags : ['Digital Product']),
+    p.fileUrl || existing?.file_url || null,
+    p.fileSize || p.downloadSize || 'Instant Access',
+    p.downloadSize || p.fileSize || 'Instant Access',
+    p.fileType || 'PDF',
+    p.pages || p.ebookSpecs?.pages || null,
+    p.language || p.ebookSpecs?.language || null,
+    p.edition || p.ebookSpecs?.edition || null,
+    p.instantAccess || p.ebookSpecs?.instantAccess || null,
+    p.ebookSpecs ? JSON.stringify(p.ebookSpecs) : null,
+    p.licenseType || 'Instant Digital Download',
+    p.version || 'v1.0',
+    JSON.stringify(Array.isArray(p.compatibility) ? p.compatibility : []),
+    JSON.stringify(Array.isArray(p.features) ? p.features : []),
+    JSON.stringify(Array.isArray(p.requirements) ? p.requirements : []),
+    JSON.stringify(Array.isArray(p.versionHistory) ? p.versionHistory : []),
+    p.status || 'PUBLISHED',
+    (p.featured || p.isFeatured) ? 1 : 0,
+    p.isBestSeller ? 1 : 0,
+    p.instantKeyAvailable ? 1 : 0,
+    Number(p.rating ?? 5.0),
+    Number(p.reviewCount ?? 0),
+    Number(p.salesCount ?? 0),
+    p.createdAt || now
+  ).run();
+}
+
+async function deleteD1DigitalProduct(env: Env, id: string): Promise<void> {
+  if (!env || !env.DB) return;
+  await env.DB.prepare(`DELETE FROM digital_products WHERE id = ?`).bind(id).run();
+}
+
+async function saveD1DigitalCategory(env: Env, c: any): Promise<void> {
+  if (!env || !env.DB) return;
+  const now = new Date().toISOString();
+  await env.DB.prepare(`
+    INSERT OR REPLACE INTO digital_categories (
+      id, name, slug, parent_id, description, image, sort_order, active, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    c.id,
+    c.name || 'Category',
+    c.slug || `cat-${Date.now()}`,
+    c.parentId || null,
+    c.description || null,
+    cleanImageField(c.image, null),
+    Number(c.sortOrder ?? 0),
+    c.active !== false ? 1 : 0,
+    c.createdAt || now,
+    now
+  ).run();
+}
+
+async function deleteD1DigitalCategory(env: Env, id: string): Promise<void> {
+  if (!env || !env.DB) return;
+  await env.DB.prepare(`DELETE FROM digital_categories WHERE id = ? OR parent_id = ?`).bind(id, id).run();
+}
+
+async function saveD1Service(env: Env, s: any): Promise<void> {
+  if (!env || !env.DB) return;
+  await env.DB.prepare(`
+    INSERT OR REPLACE INTO services (
+      id, title, description, price, original_price, category, estimated_time, icon_name, popular, features
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    s.id,
+    s.title,
+    s.description || null,
+    Number(s.price ?? 0),
+    s.originalPrice != null ? Number(s.originalPrice) : null,
+    s.category || null,
+    s.estimatedTime || null,
+    s.iconName || null,
+    s.popular ? 1 : 0,
+    JSON.stringify(Array.isArray(s.features) ? s.features : [])
+  ).run();
+}
+
+async function deleteD1Service(env: Env, id: string): Promise<void> {
+  if (!env || !env.DB) return;
+  await env.DB.prepare(`DELETE FROM services WHERE id = ?`).bind(id).run();
+}
+
+async function saveD1Coupon(env: Env, c: any): Promise<void> {
+  if (!env || !env.DB) return;
+  await env.DB.prepare(`
+    INSERT OR REPLACE INTO coupons (
+      id, code, discount_type, discount_value, min_order_amount, description, is_active, usage_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    c.id,
+    (c.code || '').trim().toUpperCase(),
+    c.discountType === 'fixed' ? 'fixed' : 'percentage',
+    Number(c.discountValue ?? 0),
+    Number(c.minOrderAmount ?? 0),
+    c.description || null,
+    c.isActive !== false ? 1 : 0,
+    Number(c.usageCount ?? 0)
+  ).run();
+}
+
+async function deleteD1Coupon(env: Env, idOrCode: string): Promise<void> {
+  if (!env || !env.DB) return;
+  await env.DB.prepare(`DELETE FROM coupons WHERE id = ? OR code = ?`).bind(idOrCode, idOrCode).run();
+}
+
+async function saveD1Blog(env: Env, b: any, existingBlog?: any): Promise<void> {
+  if (!env || !env.DB) return;
+  const now = new Date().toISOString();
+
+  let existing = existingBlog;
+  if (!existing && b.id) {
+    try {
+      const row = await env.DB.prepare('SELECT image FROM blogs WHERE id = ?').bind(b.id).first();
+      if (row) existing = row;
+    } catch (e: any) {
+      console.warn(`[D1 GET EXISTING BLOG ERROR] ${e?.message || e}`);
+    }
+  }
+
+  const finalImage = cleanImageField(b.image, existing?.image || null);
+
+  await env.DB.prepare(`
+    INSERT OR REPLACE INTO blogs (
+      id, title, slug, excerpt, content, author, author_role, category, read_time, published_at, image, tags, likes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    b.id,
+    b.title,
+    b.slug,
+    b.excerpt || null,
+    b.content || null,
+    b.author || null,
+    b.authorRole || null,
+    b.category || null,
+    b.readTime || null,
+    b.publishedAt || now,
+    finalImage,
+    JSON.stringify(Array.isArray(b.tags) ? b.tags : []),
+    Number(b.likes ?? 0)
+  ).run();
+}
+
+async function deleteD1Blog(env: Env, id: string): Promise<void> {
+  if (!env || !env.DB) return;
+  await env.DB.prepare(`DELETE FROM blogs WHERE id = ?`).bind(id).run();
 }
 
 export type PagesFunction<Env = any> = (context: {
@@ -1926,6 +2661,8 @@ function getSessionFromRequest(request: Request): any | null {
 
 // Product Construction Helper
 function buildProductObject(body: any, isDigital = false): any {
+  const cleanImg = cleanImageField(body.image || body.imageUrl, '/logo.png') || '/logo.png';
+  const cleanPrev = cleanImageField(body.previewImage, cleanImg) || cleanImg;
   return {
     id: body.id || `${isDigital ? 'dig' : 'prod'}-${Date.now()}`,
     name: body.name || (isDigital ? 'New Digital Product' : 'New Store Product'),
@@ -1935,7 +2672,8 @@ function buildProductObject(body: any, isDigital = false): any {
     tags: Array.isArray(body.tags) ? body.tags : (isDigital ? ['Digital Key', 'Instant Download'] : ['Store Card', 'Software']),
     shortDescription: body.shortDescription || '',
     fullDescription: body.fullDescription || body.shortDescription || '',
-    image: body.image || body.imageUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80',
+    image: cleanImg,
+    previewImage: cleanPrev,
     price: Number(body.price) || 0,
     originalPrice: Number(body.originalPrice) || Number(body.price) || 0,
     discountPercent: Number(body.discountPercent) || 0,
@@ -1944,7 +2682,7 @@ function buildProductObject(body: any, isDigital = false): any {
     downloadSize: body.downloadSize || '50 MB',
     compatibility: Array.isArray(body.compatibility) ? body.compatibility : ['Windows 11', 'Windows 10'],
     features: Array.isArray(body.features) ? body.features : ['Instant Product Access Key', 'Official Setup Package'],
-    screenshots: Array.isArray(body.screenshots) ? body.screenshots : [],
+    screenshots: typeof body.screenshots === 'string' ? JSON.parse(cleanScreenshotsField(body.screenshots)) : (Array.isArray(body.screenshots) ? JSON.parse(cleanScreenshotsField(body.screenshots)) : []),
     requirements: Array.isArray(body.requirements) ? body.requirements : ['Windows 10/11'],
     versionHistory: Array.isArray(body.versionHistory) ? body.versionHistory : [],
     googleDriveUrl: body.googleDriveUrl || body.fileUrl || '',
@@ -1967,6 +2705,42 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const url = new URL(request.url);
   const path = url.pathname;
   const method = request.method.toUpperCase();
+
+  // ----------------------------------------------------
+  // PRIVATE R2 ASSET DELIVERY ENDPOINT (/api/r2/*)
+  // ----------------------------------------------------
+  if (path.startsWith('/api/r2/')) {
+    const key = decodeURIComponent(path.replace(/^\/api\/r2\//, '')).trim();
+    if (!key) {
+      return jsonResponse({ success: false, error: 'MISSING_KEY', message: 'R2 object key is required.' }, 400);
+    }
+
+    if (method === 'HEAD') {
+      const exists = await r2Exists(env, key);
+      return new Response(null, { status: exists ? 200 : 404 });
+    }
+
+    if (method === 'GET') {
+      const obj = await r2Get(env, key);
+      if (!obj) {
+        return jsonResponse({ success: false, error: 'NOT_FOUND', message: 'Asset not found in R2.' }, 404);
+      }
+
+      const headers = new Headers();
+      headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+      headers.set('ETag', obj.httpEtag);
+      if (obj.httpMetadata?.cacheControl) {
+        headers.set('Cache-Control', obj.httpMetadata.cacheControl);
+      } else {
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+      if (obj.httpMetadata?.contentDisposition) {
+        headers.set('Content-Disposition', obj.httpMetadata.contentDisposition);
+      }
+
+      return new Response(obj.body, { status: 200, headers });
+    }
+  }
 
   // ----------------------------------------------------
   // SECURE DIGITAL DOWNLOAD AUTHORIZATION ENDPOINT (/api/downloads/setup or /api/downloads/digital or /api/downloads/:orderId/:productId)
@@ -2057,8 +2831,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // 5. Lookup authoritative Google Drive download link from order item or catalog
     let downloadUrl = matchedItem.googleDriveUrl || matchedItem.fileUrl || '';
     if (!downloadUrl || downloadUrl === '/api/downloads/setup' || downloadUrl === '/api/downloads/digital' || !downloadUrl.startsWith('http')) {
-      const digitalList = await getWorkingData('src/data/digital_products.json', env);
-      const storeList = await getWorkingData('src/data/products.json', env);
+      const digitalList = await getD1DigitalProducts(env);
+      const storeList = await getD1Products(env);
       const allProds = [...(Array.isArray(digitalList) ? digitalList : []), ...(Array.isArray(storeList) ? storeList : [])];
 
       const catalogProd = allProds.find((p: any) =>
@@ -2131,8 +2905,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const freshOrders = await getD1Orders(env);
       const freshUsers = await getD1Users(env);
       const freshBookings = await getD1Bookings(env);
-      const storeProducts = await getWorkingData('src/data/products.json', env);
-      const digitalProducts = await getWorkingData('src/data/digital_products.json', env);
+      const storeProducts = await getD1Products(env);
+      const digitalProducts = await getD1DigitalProducts(env);
 
       const publishedDigital = (Array.isArray(digitalProducts) ? digitalProducts : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
       const publishedStore = (Array.isArray(storeProducts) ? storeProducts : []).filter((p: any) => p && (p.status || 'PUBLISHED') === 'PUBLISHED');
@@ -2177,16 +2951,218 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     // ----------------------------------------------------
-    // DIGITAL CATEGORIES API (/api/digital-categories)
+    // ADMIN MEDIA UPLOAD ENDPOINT (/api/admin/upload-media, /api/upload-media)
+    // Uploads files directly to Private Cloudflare R2 ('omove-store-files' binding: env.FILES)
     // ----------------------------------------------------
-    if (path.startsWith('/api/digital-categories') || path.startsWith('/api/admin/digital-categories')) {
+    if ((path === '/api/admin/upload-media' || path === '/api/upload-media') && method === 'POST') {
+      try {
+        if (!env || !env.FILES) {
+          return jsonResponse({
+            success: false,
+            error: 'STORAGE_UNAVAILABLE',
+            message: 'R2 storage binding FILES is not configured in environment.'
+          }, 500);
+        }
+
+        const contentType = request.headers.get('content-type') || '';
+        let fileBuffer: ArrayBuffer | null = null;
+        let originalFileName = '';
+        let mimeType = '';
+        let productId = '';
+        let folder = '';
+        let targetType = 'image';
+        let arrayIndex = '0';
+
+        if (contentType.includes('multipart/form-data')) {
+          const formData = await request.formData();
+          const fileEntry = formData.get('file');
+          if (!fileEntry || !(fileEntry instanceof Blob)) {
+            return jsonResponse({ success: false, error: 'MISSING_FILE', message: 'No file found in multipart upload.' }, 400);
+          }
+          fileBuffer = await fileEntry.arrayBuffer();
+          originalFileName = (fileEntry instanceof File ? fileEntry.name : '') || (formData.get('fileName') as string) || 'image.png';
+          mimeType = fileEntry.type || 'image/png';
+          productId = (formData.get('productId') as string) || (formData.get('id') as string) || '';
+          folder = (formData.get('folder') as string) || '';
+          targetType = (formData.get('targetType') as string) || (formData.get('type') as string) || 'image';
+          arrayIndex = (formData.get('arrayIndex') as string) || (formData.get('index') as string) || '0';
+        } else if (contentType.includes('application/json')) {
+          const body: any = await request.json().catch(() => ({}));
+          const { fileName: bName, fileData, productId: bProdId, folder: bFolder, targetType: bTarget, arrayIndex: bIdx } = body || {};
+          if (!fileData) {
+            return jsonResponse({ success: false, error: 'MISSING_FILE_DATA', message: 'No fileData provided in JSON payload.' }, 400);
+          }
+          originalFileName = bName || 'image.png';
+          productId = bProdId || '';
+          folder = bFolder || '';
+          targetType = bTarget || 'image';
+          arrayIndex = bIdx !== undefined ? String(bIdx) : '0';
+
+          const matches = fileData.match(/^data:([A-Za-z0-9\/\+\.-]+);base64,(.+)$/);
+          if (matches) {
+            mimeType = matches[1];
+            const binaryStr = atob(matches[2]);
+            const len = binaryStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+            fileBuffer = bytes.buffer;
+          } else {
+            try {
+              const binaryStr = atob(fileData);
+              const len = binaryStr.length;
+              const bytes = new Uint8Array(len);
+              for (let i = 0; i < len; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+              fileBuffer = bytes.buffer;
+              mimeType = 'image/png';
+            } catch {
+              return jsonResponse({ success: false, error: 'INVALID_BASE64', message: 'Failed to decode base64 fileData.' }, 400);
+            }
+          }
+        } else {
+          return jsonResponse({ success: false, error: 'UNSUPPORTED_CONTENT_TYPE', message: 'Content-Type must be multipart/form-data or application/json.' }, 415);
+        }
+
+        if (!fileBuffer || fileBuffer.byteLength === 0) {
+          return jsonResponse({ success: false, error: 'EMPTY_FILE', message: 'File is empty.' }, 400);
+        }
+
+        // File size validation (15MB max)
+        const MAX_SIZE = 15 * 1024 * 1024;
+        if (fileBuffer.byteLength > MAX_SIZE) {
+          return jsonResponse({
+            success: false,
+            error: 'FILE_TOO_LARGE',
+            message: `File exceeds the 15MB limit (received ${Math.round(fileBuffer.byteLength / 1024 / 1024)}MB).`
+          }, 400);
+        }
+
+        // Safe MIME type validation
+        const ALLOWED_MIMES = [
+          'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'image/avif',
+          'application/pdf', 'application/zip', 'application/x-zip-compressed', 'application/octet-stream'
+        ];
+        const normalizedMime = mimeType.toLowerCase().trim();
+        if (!ALLOWED_MIMES.includes(normalizedMime)) {
+          return jsonResponse({
+            success: false,
+            error: 'INVALID_MIME_TYPE',
+            message: `MIME type '${normalizedMime}' is not permitted.`
+          }, 400);
+        }
+
+        // Determine file extension
+        let ext = '.png';
+        const extMatch = originalFileName.match(/\.([a-zA-Z0-9]+)$/);
+        if (extMatch) {
+          ext = `.${extMatch[1].toLowerCase()}`;
+        } else {
+          if (normalizedMime.includes('jpeg') || normalizedMime.includes('jpg')) ext = '.jpg';
+          else if (normalizedMime.includes('png')) ext = '.png';
+          else if (normalizedMime.includes('webp')) ext = '.webp';
+          else if (normalizedMime.includes('gif')) ext = '.gif';
+          else if (normalizedMime.includes('svg')) ext = '.svg';
+          else if (normalizedMime.includes('pdf')) ext = '.pdf';
+          else if (normalizedMime.includes('zip')) ext = '.zip';
+        }
+
+        // Resolve folder and clean entity ID
+        let targetFolder = folder.trim().toLowerCase();
+        let cleanEntityId = productId.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+        if (!targetFolder) {
+          if (cleanEntityId.startsWith('dig')) targetFolder = 'digital-products';
+          else if (cleanEntityId.startsWith('srv')) targetFolder = 'services';
+          else if (cleanEntityId.startsWith('blog')) targetFolder = 'blogs';
+          else targetFolder = 'products';
+        }
+        if (!cleanEntityId) {
+          cleanEntityId = `${targetFolder === 'digital-products' ? 'dig' : 'prod'}-${Date.now()}`;
+        }
+
+        // Safe file basename
+        const safeBaseName = originalFileName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'asset';
+        const timestamp = Date.now();
+
+        // Generate collision-safe, cache-busting R2 key matching architecture rules
+        let r2Key = '';
+        if (targetFolder === 'digital-products') {
+          if (targetType === 'preview') {
+            r2Key = `digital-products/${cleanEntityId}/preview_${timestamp}${ext}`;
+          } else if (targetType === 'screenshot' || targetType === 'gallery') {
+            const cleanIdx = String(arrayIndex || '0').replace(/[^0-9]/g, '') || '0';
+            r2Key = `digital-products/${cleanEntityId}/screenshots/${cleanIdx}_${timestamp}${ext}`;
+          } else if (targetType === 'file') {
+            r2Key = `digital-products/${cleanEntityId}/file/${safeBaseName}${ext}`;
+          } else {
+            r2Key = `digital-products/${cleanEntityId}/image_${timestamp}${ext}`;
+          }
+        } else if (targetFolder === 'services') {
+          r2Key = `services/${cleanEntityId}/image_${timestamp}${ext}`;
+        } else if (targetFolder === 'blogs') {
+          r2Key = `blogs/${cleanEntityId}/image_${timestamp}${ext}`;
+        } else {
+          // products
+          if (targetType === 'screenshot' || targetType === 'gallery') {
+            const cleanIdx = String(arrayIndex || '0').replace(/[^0-9]/g, '') || '0';
+            r2Key = `products/${cleanEntityId}/screenshots/${cleanIdx}_${timestamp}${ext}`;
+          } else {
+            r2Key = `products/${cleanEntityId}/image_${timestamp}${ext}`;
+          }
+        }
+
+        // Upload to Cloudflare R2
+        const uploadedObj = await r2Put(env, r2Key, fileBuffer, {
+          contentType: normalizedMime,
+          cacheControl: 'public, max-age=31536000, immutable'
+        });
+
+        if (!uploadedObj) {
+          return jsonResponse({
+            success: false,
+            error: 'R2_PUT_FAILED',
+            message: 'R2 bucket put operation failed.'
+          }, 500);
+        }
+
+        const publicR2Url = `/api/r2/${r2Key}`;
+        return jsonResponse({
+          success: true,
+          url: publicR2Url,
+          key: r2Key,
+          fileName: `${safeBaseName}${ext}`,
+          size: fileBuffer.byteLength,
+          mimeType: normalizedMime,
+          message: 'Asset uploaded to private R2 bucket successfully.'
+        });
+      } catch (err: any) {
+        console.error('[ADMIN MEDIA UPLOAD ERROR]', err);
+        return jsonResponse({
+          success: false,
+          error: 'UPLOAD_ERROR',
+          message: err?.message || 'Unexpected error during media upload.'
+        }, 500);
+      }
+    }
+
+    // ----------------------------------------------------
+    // DIGITAL CATEGORIES & CATEGORIES API (/api/digital-categories & /api/categories)
+    // ----------------------------------------------------
+    if (
+      path.startsWith('/api/digital-categories') ||
+      path.startsWith('/api/admin/digital-categories') ||
+      path.startsWith('/api/categories') ||
+      path.startsWith('/api/admin/categories')
+    ) {
       const parts = path.split('/').filter(Boolean);
       const isSub = (parts.length > 2 && parts[1] !== 'admin') || (parts.length > 3 && parts[1] === 'admin');
       const catId = isSub ? decodeURIComponent(parts[parts.length - 1]) : null;
 
       if (!catId) {
         if (method === 'GET') {
-          const list = await getWorkingData('src/data/digital_categories.json', env);
+          const list = await getD1DigitalCategories(env);
           const isAdminPath = path.includes('/admin/');
           let filtered = list;
           if (!isAdminPath) {
@@ -2211,39 +3187,43 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             updatedAt: new Date().toISOString()
           };
 
-          const currentList = await getWorkingData('src/data/digital_categories.json', env);
-          const updatedList = [newCat, ...currentList];
-          recordDraftMutation('src/data/digital_categories.json', updatedList);
+          await saveD1DigitalCategory(env, newCat);
 
-          return jsonResponse({ success: true, category: newCat, isDraft: true, message: 'Saved to draft state.' });
+          return jsonResponse({ success: true, category: newCat, isLive: true, message: 'Saved to D1 database.' });
         }
       } else {
+        if (method === 'GET') {
+          const currentList = await getD1DigitalCategories(env);
+          const existing = currentList.find((c: any) => c.id === catId || c.slug === catId);
+          if (!existing) return jsonResponse({ success: false, error: 'Category not found' }, 404);
+          return jsonResponse(existing);
+        }
+
         if (method === 'PUT' || method === 'PATCH') {
           const body: any = await request.json().catch(() => ({}));
-          let updatedCat: any = null;
-          const currentList = await getWorkingData('src/data/digital_categories.json', env);
+          const currentList = await getD1DigitalCategories(env);
+          const existing = currentList.find((c: any) => c.id === catId || c.slug === catId);
 
-          const updatedList = currentList.map((c: any) => {
-            if (c.id === catId || c.slug === catId) {
-              updatedCat = { ...c, ...body, id: c.id, updatedAt: new Date().toISOString() };
-              return updatedCat;
-            }
-            return c;
-          });
-
-          if (updatedCat) {
-            recordDraftMutation('src/data/digital_categories.json', updatedList);
-            return jsonResponse({ success: true, category: updatedCat, isDraft: true });
+          if (!existing) {
+            return jsonResponse({ success: false, error: 'Category not found' }, 404);
           }
-          return jsonResponse({ success: false, error: 'Category not found' }, 404);
+
+          const updatedCat = {
+            ...existing,
+            ...body,
+            id: existing.id,
+            updatedAt: new Date().toISOString()
+          };
+
+          await saveD1DigitalCategory(env, updatedCat);
+
+          return jsonResponse({ success: true, category: updatedCat, isLive: true });
         }
 
         if (method === 'DELETE') {
-          const currentList = await getWorkingData('src/data/digital_categories.json', env);
-          const updatedList = currentList.filter((c: any) => c.id !== catId && c.slug !== catId && c.parentId !== catId);
-          recordDraftMutation('src/data/digital_categories.json', updatedList);
+          await deleteD1DigitalCategory(env, catId);
 
-          return jsonResponse({ success: true, isDraft: true });
+          return jsonResponse({ success: true, isLive: true });
         }
       }
     }
@@ -2265,9 +3245,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         price: Number(body.price ?? 0),
         originalPrice: Number(body.originalPrice ?? body.price ?? 0),
         discountPercent: Number(body.discountPercent ?? 0),
-        image: body.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
-        previewImage: body.previewImage || body.image || undefined,
-        screenshots: Array.isArray(body.screenshots) ? body.screenshots : [],
+        image: cleanImageField(body.image, '/logo.png') || '/logo.png',
+        previewImage: cleanImageField(body.previewImage, cleanImageField(body.image, '/logo.png')) || '/logo.png',
+        screenshots: typeof body.screenshots === 'string' ? JSON.parse(cleanScreenshotsField(body.screenshots)) : (Array.isArray(body.screenshots) ? JSON.parse(cleanScreenshotsField(body.screenshots)) : []),
         tags: Array.isArray(body.tags) && body.tags.length > 0 ? body.tags : (isDigital ? ['Digital Product'] : ['Store Card', 'Software']),
         googleDriveUrl: body.googleDriveUrl || body.fileUrl || '',
         fileUrl: body.fileUrl || body.googleDriveUrl || '/api/downloads/digital',
@@ -2302,7 +3282,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // ----------------------------------------------------
     if (path === '/api/digital-products' || path === '/api/admin/digital-products') {
       if (method === 'GET') {
-        const list = await getWorkingData('src/data/digital_products.json', env);
+        const list = await getD1DigitalProducts(env);
         const isAdminPath = path.includes('/admin/');
         let filtered = list;
         if (!isAdminPath) {
@@ -2317,19 +3297,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const body: any = await request.json().catch(() => ({}));
         const newProd = buildProductObject(body, true);
 
-        const currentList = await getWorkingData('src/data/digital_products.json', env);
-        const existingIdx = currentList.findIndex((p: any) => p.id === newProd.id);
-        let updatedList: any[];
-        if (existingIdx !== -1) {
-          updatedList = [...currentList];
-          updatedList[existingIdx] = newProd;
-        } else {
-          updatedList = [newProd, ...currentList];
-        }
+        await saveD1DigitalProduct(env, newProd);
 
-        await recordDraftMutation('src/data/digital_products.json', updatedList, env);
-
-        return jsonResponse({ success: true, product: newProd, isLive: true, isDraft: false, message: 'Saved and live in D1 database.' });
+        return jsonResponse({ success: true, product: newProd, isLive: true, message: 'Saved and live in D1 database.' });
       }
     }
 
@@ -2338,8 +3308,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // ----------------------------------------------------
     if (path === '/api/products' || path === '/api/admin/products' || path === '/api/store-products' || path === '/api/admin/store-products') {
       if (method === 'GET') {
-        const storeList = await getWorkingData('src/data/products.json', env);
-        const digitalList = await getWorkingData('src/data/digital_products.json', env);
+        const storeList = await getD1Products(env);
+        const digitalList = await getD1DigitalProducts(env);
 
         // Combine store and digital products into unified catalog map
         const map = new Map<string, any>();
@@ -2366,22 +3336,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
         const isDigital = body.productType === 'DIGITAL' || (body.id && body.id.startsWith('dig'));
-        const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
         const newProd = buildProductObject(body, isDigital);
 
-        const currentList = await getWorkingData(fileToMutate, env);
-        const existingIdx = currentList.findIndex((p: any) => p.id === newProd.id);
-        let updatedList: any[];
-        if (existingIdx !== -1) {
-          updatedList = [...currentList];
-          updatedList[existingIdx] = newProd;
+        if (isDigital) {
+          await saveD1DigitalProduct(env, newProd);
         } else {
-          updatedList = [newProd, ...currentList];
+          await saveD1Product(env, newProd);
         }
 
-        await recordDraftMutation(fileToMutate, updatedList, env);
-
-        return jsonResponse({ success: true, product: newProd, isLive: true, isDraft: false, message: 'Saved and live in D1 database.' });
+        return jsonResponse({ success: true, product: newProd, isLive: true, message: 'Saved and live in D1 database.' });
       }
     }
 
@@ -2433,38 +3396,34 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return -1;
     }
 
-    // Single Product Route: GET / PUT / DELETE /api/products/:id or /api/digital-products/:id
-    const prodIdMatch = path.match(/^\/api\/(?:admin\/)?(?:store-products|digital-products|products)\/([^\/]+)$/);
+    // Single Product Route: GET / PUT / DELETE /api/products/:id or /api/digital-products/:id (and /status)
+    const prodIdMatch = path.match(/^\/api\/(?:admin\/)?(?:store-products|digital-products|products)\/([^\/]+)(?:\/status)?$/);
     if (prodIdMatch) {
       const pId = decodeURIComponent(prodIdMatch[1]);
       const isAdminPath = path.includes('/admin/');
-      const isDigitalRoute = path.includes('digital');
 
-      const digitalList = await getWorkingData('src/data/digital_products.json', env);
-      const storeList = await getWorkingData('src/data/products.json', env);
+      const digitalList = await getD1DigitalProducts(env);
+      const storeList = await getD1Products(env);
 
-      let targetFile = 'src/data/products.json';
-      let list = storeList;
-      let idx = findProductIndexInCatalog(storeList, pId);
+      let isDigital = false;
+      let targetProduct: any = null;
 
-      if (idx === -1) {
+      const storeIdx = findProductIndexInCatalog(storeList, pId);
+      if (storeIdx !== -1) {
+        targetProduct = storeList[storeIdx];
+        isDigital = false;
+      } else {
         const digIdx = findProductIndexInCatalog(digitalList, pId);
         if (digIdx !== -1) {
-          targetFile = 'src/data/digital_products.json';
-          list = digitalList;
-          idx = digIdx;
+          targetProduct = digitalList[digIdx];
+          isDigital = true;
         }
       }
 
-      if (idx === -1 && (isDigitalRoute || pId.startsWith('dig'))) {
-        targetFile = 'src/data/digital_products.json';
-        list = digitalList;
-      }
-
       if (method === 'GET') {
-        if (idx === -1) return jsonResponse({ success: false, error: 'Product not found' }, 404);
+        if (!targetProduct) return jsonResponse({ success: false, error: 'Product not found' }, 404);
 
-        const prod = { ...list[idx] };
+        const prod = { ...targetProduct };
         if (!isAdminPath) {
           delete prod.googleDriveUrl;
           delete prod.fileUrl;
@@ -2474,72 +3433,51 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (method === 'PUT' || method === 'PATCH') {
         const body: any = await request.json().catch(() => ({}));
-        if (idx === -1) {
+        if (!targetProduct) {
           return jsonResponse({ success: false, error: 'Product not found' }, 404);
         }
 
+        const cleanImg = cleanImageField(body.image, targetProduct.image);
+        const cleanPrev = cleanImageField(body.previewImage, targetProduct.previewImage || cleanImg);
+        const cleanScreens = body.screenshots !== undefined ? JSON.parse(cleanScreenshotsField(body.screenshots, targetProduct.screenshots)) : (typeof targetProduct.screenshots === 'string' ? JSON.parse(targetProduct.screenshots) : (targetProduct.screenshots || []));
+
         const updatedProduct = {
-          ...list[idx],
+          ...targetProduct,
           ...body,
-          id: list[idx].id, // CRITICAL: Maintain exact product ID
+          image: cleanImg,
+          previewImage: cleanPrev,
+          screenshots: cleanScreens,
+          id: targetProduct.id, // CRITICAL: Maintain exact product ID
           updatedAt: new Date().toISOString()
         };
-        const newList = [...list];
-        newList[idx] = updatedProduct;
 
-        await recordDraftMutation(targetFile, newList, env);
+        if (isDigital) {
+          await saveD1DigitalProduct(env, updatedProduct, targetProduct);
+        } else {
+          await saveD1Product(env, updatedProduct, targetProduct);
+        }
 
-        return jsonResponse({ success: true, product: updatedProduct, isLive: true, isDraft: false, message: 'Product updated live in D1 database.' });
+        return jsonResponse({ success: true, product: updatedProduct, isLive: true, message: 'Product updated live in D1 database.' });
       }
 
       if (method === 'DELETE') {
-        const permanentParam = url.searchParams.get('permanent');
-        const forcePermanent = permanentParam === 'true';
-
-        if (idx === -1) {
+        if (!targetProduct) {
           return jsonResponse({ success: true, deleted: true, message: 'Product already deleted.' });
         }
 
-        const targetProduct = list[idx];
-        let actionTaken = 'DELETED';
-
-        const freshOrders = await getD1Orders(env);
-        if (Array.isArray(freshOrders)) {
-          freshOrders.forEach((o: any) => { if (o.id) ordersStore.set(o.id, o); });
-        }
-
-        const hasOrders = Array.from(ordersStore.values()).some((ord: any) =>
-          Array.isArray(ord.items) && ord.items.some((it: any) =>
-            it.productId === targetProduct.id ||
-            it.productId === pId ||
-            (it.productName || '').toLowerCase() === (targetProduct.name || '').toLowerCase()
-          )
-        );
-
-        let newList = [...list];
-        if (hasOrders && !forcePermanent) {
-          actionTaken = 'ARCHIVED';
-          newList[idx] = {
-            ...targetProduct,
-            status: 'ARCHIVED',
-            updatedAt: new Date().toISOString()
-          };
+        if (isDigital) {
+          await deleteD1DigitalProduct(env, targetProduct.id);
         } else {
-          actionTaken = 'DELETED';
-          newList.splice(idx, 1);
+          await deleteD1Product(env, targetProduct.id);
         }
-
-        await recordDraftMutation(targetFile, newList, env);
 
         return jsonResponse({
           success: true,
-          action: actionTaken,
-          deleted: actionTaken === 'DELETED',
-          archived: actionTaken === 'ARCHIVED',
+          action: 'DELETED',
+          deleted: true,
           product: targetProduct,
           isLive: true,
-          isDraft: false,
-          message: actionTaken === 'ARCHIVED' ? 'Archived live in D1 database.' : 'Deleted live from D1 database.'
+          message: 'Deleted live from D1 database.'
         });
       }
     }
@@ -2548,14 +3486,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const duplicateMatch = path.match(/^\/api\/products\/([^\/]+)\/duplicate$/);
     if (duplicateMatch && method === 'POST') {
       const pId = decodeURIComponent(duplicateMatch[1]);
-      const list = await getWorkingData('src/data/products.json', env);
-      dynamicProductsStore = list;
+      const storeList = await getD1Products(env);
+      const digitalList = await getD1DigitalProducts(env);
 
-      const existing = dynamicProductsStore.find(p => p.id === pId || p.slug === pId);
+      let existing = storeList.find(p => p.id === pId || p.slug === pId);
+      let isDigital = false;
+      if (!existing) {
+        existing = digitalList.find(p => p.id === pId || p.slug === pId);
+        isDigital = true;
+      }
+
       if (!existing) return jsonResponse({ success: false, error: 'Product not found' }, 404);
 
-      const isDigital = existing.productType === 'DIGITAL';
-      const fileToMutate = isDigital ? 'src/data/digital_products.json' : 'src/data/products.json';
       const duplicated = {
         ...existing,
         id: `${isDigital ? 'dig' : 'prod'}-${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -2565,13 +3507,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         updatedAt: new Date().toISOString()
       };
 
-      const currentList = await getWorkingData(fileToMutate, env);
-      const updatedList = [duplicated, ...currentList];
+      if (isDigital) {
+        await saveD1DigitalProduct(env, duplicated);
+      } else {
+        await saveD1Product(env, duplicated);
+      }
 
-      if (!isDigital) dynamicProductsStore = updatedList;
-      await recordDraftMutation(fileToMutate, updatedList, env);
-
-      return jsonResponse({ success: true, product: duplicated, isDraft: true, message: 'Duplicated in draft state.' });
+      return jsonResponse({ success: true, product: duplicated, isLive: true, message: 'Duplicated in D1 database.' });
     }
 
     // Consolidated Publish Catalog Endpoint
@@ -2669,7 +3611,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // 4. Coupons Endpoints
     if (path === '/api/coupons') {
       if (method === 'GET') {
-        const list = await getWorkingData('src/data/coupons.json', env);
+        const list = await getD1Coupons(env);
         dynamicCouponsStore = list;
         return jsonResponse(dynamicCouponsStore);
       }
@@ -2680,7 +3622,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         if (!code) return jsonResponse({ success: false, error: 'Coupon code is required' }, 400);
 
         const newCpn = {
-          id: `cpn-${Date.now()}`,
+          id: body.id || `cpn-${Date.now()}`,
           code,
           discountType: body.discountType === 'fixed' ? 'fixed' : 'percentage',
           discountValue: Number(body.discountValue) || 10,
@@ -2692,12 +3634,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           usageCount: 0
         };
 
-        const currentList = await getWorkingData('src/data/coupons.json', env);
-        const updatedList = [newCpn, ...currentList];
-        dynamicCouponsStore = updatedList;
-        recordDraftMutation('src/data/coupons.json', updatedList);
+        await saveD1Coupon(env, newCpn);
 
-        return jsonResponse({ success: true, coupon: newCpn, isDraft: true, message: 'Coupon saved in draft state.' });
+        return jsonResponse({ success: true, coupon: newCpn, isLive: true, message: 'Coupon saved in D1 database.' });
       }
     }
 
@@ -2706,7 +3645,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const code = (body.code || '').trim().toUpperCase();
       const orderTotal = Number(body.orderTotal) || 0;
 
-      const fresh = await fetchFileFromGitHub('src/data/coupons.json', env);
+      const fresh = await getD1Coupons(env);
       if (Array.isArray(fresh) && fresh.length > 0) dynamicCouponsStore = fresh;
 
       const result = validateCouponServerSide(code, orderTotal, dynamicCouponsStore);
@@ -2721,60 +3660,49 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const cpnToggleMatch = path.match(/^\/api\/coupons\/([^\/]+)\/toggle$/);
     if (cpnToggleMatch && method === 'PATCH') {
       const cId = cpnToggleMatch[1];
-      let toggledCoupon: any = null;
+      const currentList = await getD1Coupons(env);
+      const existing = currentList.find((c: any) => c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase());
 
-      const currentList = await getWorkingData('src/data/coupons.json', env);
-      const updatedList = currentList.map((c: any) => {
-        if (c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase()) {
-          toggledCoupon = { ...c, isActive: !c.isActive };
-          return toggledCoupon;
-        }
-        return c;
-      });
+      if (!existing) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
 
-      if (!toggledCoupon) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
+      const toggledCoupon = { ...existing, isActive: !existing.isActive };
+      await saveD1Coupon(env, toggledCoupon);
 
-      dynamicCouponsStore = updatedList;
-      recordDraftMutation('src/data/coupons.json', updatedList);
+      return jsonResponse({ success: true, coupon: toggledCoupon, isLive: true });
+    }
 
-      return jsonResponse({ success: true, coupon: toggledCoupon, isDraft: true });
+    const cpnDetailMatch = path.match(/^\/api\/coupons\/([^\/]+)$/);
+    if (cpnDetailMatch && method === 'GET' && !path.endsWith('/toggle')) {
+      const cId = cpnDetailMatch[1];
+      const list = await getD1Coupons(env);
+      const item = list.find((c: any) => c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase());
+      if (!item) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
+      return jsonResponse(item);
     }
 
     const cpnDeleteMatch = path.match(/^\/api\/coupons\/([^\/]+)$/);
     if (cpnDeleteMatch && method === 'DELETE') {
       const cId = cpnDeleteMatch[1];
-      const currentList = await getWorkingData('src/data/coupons.json', env);
-      const idx = currentList.findIndex((c: any) => c.id === cId || (c.code || '').toUpperCase() === cId.toUpperCase());
-      if (idx === -1) return jsonResponse({ success: false, error: 'Coupon not found' }, 404);
+      await deleteD1Coupon(env, cId);
 
-      const updatedList = [...currentList];
-      updatedList.splice(idx, 1);
-
-      dynamicCouponsStore = updatedList;
-      recordDraftMutation('src/data/coupons.json', updatedList);
-
-      return jsonResponse({ success: true, deleted: true, isDraft: true });
+      return jsonResponse({ success: true, deleted: true, isLive: true });
     }
 
     // 5. Services Endpoints (GET, POST, PUT, DELETE)
     if (path === '/api/services' || path === '/api/admin/services') {
       if (method === 'GET') {
-        const list = await getWorkingData('src/data/services.json', env);
+        const list = await getD1Services(env);
         dynamicServicesStore = list;
         return path.includes('/admin/') ? jsonResponse(dynamicServicesStore) : cachedJsonResponse(dynamicServicesStore, 200, 60, 300);
       }
 
       if (method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
-        const newSrv = { id: `srv-${Date.now()}`, ...body };
+        const newSrv = { id: body.id || `srv-${Date.now()}`, ...body };
 
-        const currentList = await getWorkingData('src/data/services.json', env);
-        const updatedList = [newSrv, ...currentList];
+        await saveD1Service(env, newSrv);
 
-        dynamicServicesStore = updatedList;
-        recordDraftMutation('src/data/services.json', updatedList);
-
-        return jsonResponse({ success: true, service: newSrv, isDraft: true });
+        return jsonResponse({ success: true, service: newSrv, isLive: true });
       }
     }
 
@@ -2782,53 +3710,48 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (serviceIdMatch) {
       const sId = decodeURIComponent(serviceIdMatch[1]);
 
+      if (method === 'GET') {
+        const currentList = await getD1Services(env);
+        const existing = currentList.find((s: any) => s.id === sId);
+        if (!existing) return jsonResponse({ success: false, error: 'Service not found' }, 404);
+        return jsonResponse(existing);
+      }
+
       if (method === 'PUT') {
         const body: any = await request.json().catch(() => ({}));
-        const currentList = await getWorkingData('src/data/services.json', env);
+        const currentList = await getD1Services(env);
+        const existing = currentList.find((s: any) => s.id === sId);
 
-        const idx = currentList.findIndex((s: any) => s.id === sId);
-        if (idx === -1) return jsonResponse({ success: false, error: 'Service not found' }, 404);
+        if (!existing) return jsonResponse({ success: false, error: 'Service not found' }, 404);
 
-        const updatedService = { ...currentList[idx], ...body, id: sId };
-        const updatedList = [...currentList];
-        updatedList[idx] = updatedService;
+        const updatedService = { ...existing, ...body, id: sId };
+        await saveD1Service(env, updatedService);
 
-        dynamicServicesStore = updatedList;
-        recordDraftMutation('src/data/services.json', updatedList);
-
-        return jsonResponse({ success: true, service: updatedService, isDraft: true });
+        return jsonResponse({ success: true, service: updatedService, isLive: true });
       }
 
       if (method === 'DELETE') {
-        const currentList = await getWorkingData('src/data/services.json', env);
-        const updatedList = currentList.filter((s: any) => s.id !== sId);
+        await deleteD1Service(env, sId);
 
-        dynamicServicesStore = updatedList;
-        recordDraftMutation('src/data/services.json', updatedList);
-
-        return jsonResponse({ success: true, deleted: true, isDraft: true });
+        return jsonResponse({ success: true, deleted: true, isLive: true });
       }
     }
 
     // 6. Blogs Endpoints (GET, POST, PUT, DELETE)
     if (path === '/api/blogs' || path === '/api/admin/blogs') {
       if (method === 'GET') {
-        const list = await getWorkingData('src/data/blogs.json', env);
+        const list = await getD1Blogs(env);
         dynamicBlogsStore = list;
         return path.includes('/admin/') ? jsonResponse(dynamicBlogsStore) : cachedJsonResponse(dynamicBlogsStore, 200, 60, 300);
       }
 
       if (method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
-        const newBlog = { id: `blog-${Date.now()}`, ...body };
+        const newBlog = { id: body.id || `blog-${Date.now()}`, ...body };
 
-        const currentList = await getWorkingData('src/data/blogs.json', env);
-        const updatedList = [newBlog, ...currentList];
+        await saveD1Blog(env, newBlog);
 
-        dynamicBlogsStore = updatedList;
-        recordDraftMutation('src/data/blogs.json', updatedList);
-
-        return jsonResponse({ success: true, blog: newBlog, isDraft: true });
+        return jsonResponse({ success: true, blog: newBlog, isLive: true });
       }
     }
 
@@ -2836,14 +3759,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (blogIdMatch) {
       const bId = decodeURIComponent(blogIdMatch[1]);
 
+      if (method === 'GET') {
+        const currentList = await getD1Blogs(env);
+        const existing = currentList.find((b: any) => b.id === bId || b.slug === bId);
+        if (!existing) return jsonResponse({ success: false, error: 'Blog not found' }, 404);
+        return jsonResponse(existing);
+      }
+
       if (method === 'DELETE') {
-        const currentList = await getWorkingData('src/data/blogs.json', env);
-        const updatedList = currentList.filter((b: any) => b.id !== bId);
+        await deleteD1Blog(env, bId);
 
-        dynamicBlogsStore = updatedList;
-        recordDraftMutation('src/data/blogs.json', updatedList);
-
-        return jsonResponse({ success: true, deleted: true, isDraft: true });
+        return jsonResponse({ success: true, deleted: true, isLive: true });
       }
     }
 
@@ -2883,8 +3809,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           }, 400);
         }
 
-        const storeProds = await getWorkingData('src/data/products.json', env);
-        const digProds = await getWorkingData('src/data/digital_products.json', env);
+        const storeProds = await getD1Products(env);
+        const digProds = await getD1DigitalProducts(env);
         const allProds = [...(Array.isArray(storeProds) ? storeProds : []), ...(Array.isArray(digProds) ? digProds : [])];
 
         let subtotal = 0;
@@ -2928,7 +3854,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         let appliedCouponCode = '';
         const couponCode = (body.couponCode || '').trim().toUpperCase();
         if (couponCode) {
-          const freshCoupons = await getWorkingData('src/data/coupons.json', env);
+          const freshCoupons = await getD1Coupons(env);
           if (Array.isArray(freshCoupons) && freshCoupons.length > 0) dynamicCouponsStore = freshCoupons;
 
           const couponResult = validateCouponServerSide(couponCode, subtotal, dynamicCouponsStore);
@@ -3107,8 +4033,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       order.paymentVerifiedAt = new Date().toISOString();
       order.updatedAt = new Date().toISOString();
 
-      const storeList = await getWorkingData('src/data/products.json', env);
-      const digitalList = await getWorkingData('src/data/digital_products.json', env);
+      const storeList = await getD1Products(env);
+      const digitalList = await getD1DigitalProducts(env);
       const allProdsList = [...(Array.isArray(storeList) ? storeList : []), ...(Array.isArray(digitalList) ? digitalList : [])];
 
       if (Array.isArray(order.items)) {
@@ -3169,7 +4095,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (orderType === 'booking' || booking) {
         const bData = booking || body;
         const srvId = bData.serviceId || 'srv-001';
-        const srvList = await getWorkingData('src/data/services.json', env);
+        const srvList = await getD1Services(env);
         const srv = Array.isArray(srvList) ? srvList.find((s: any) => s && s.id === srvId) : null;
         const basePrice = srv ? Number(srv.price) : 39;
 
@@ -3177,7 +4103,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         let appliedCouponCode = '';
         const cleanCoupon = (bData.couponCode || couponCode || '').trim().toUpperCase();
         if (cleanCoupon) {
-          const freshCoupons = await getWorkingData('src/data/coupons.json', env);
+          const freshCoupons = await getD1Coupons(env);
           if (Array.isArray(freshCoupons) && freshCoupons.length > 0) dynamicCouponsStore = freshCoupons;
           const couponResult = validateCouponServerSide(cleanCoupon, basePrice, dynamicCouponsStore);
           if (couponResult.valid) {
@@ -3318,8 +4244,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const orderId = body.id || `ord-pp-${Date.now()}`;
 
       // Load authoritative product prices from server-side catalog
-      const storeProds = await getWorkingData('src/data/products.json', env);
-      const digProds = await getWorkingData('src/data/digital_products.json', env);
+      const storeProds = await getD1Products(env);
+      const digProds = await getD1DigitalProducts(env);
       const allProds = [...(Array.isArray(storeProds) ? storeProds : []), ...(Array.isArray(digProds) ? digProds : [])];
 
       let subtotal = 0;
@@ -3363,7 +4289,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       let appliedCouponCode = '';
       const cleanCouponCode = (body.couponCode || '').trim().toUpperCase();
       if (cleanCouponCode) {
-        const freshCoupons = await getWorkingData('src/data/coupons.json', env);
+        const freshCoupons = await getD1Coupons(env);
         if (Array.isArray(freshCoupons) && freshCoupons.length > 0) dynamicCouponsStore = freshCoupons;
         const couponResult = validateCouponServerSide(cleanCouponCode, subtotal, dynamicCouponsStore);
         if (couponResult.valid) {
@@ -3604,8 +4530,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         order.updatedAt = new Date().toISOString();
 
         // Re-resolve product items with download URLs
-        const storeList = await getWorkingData('src/data/products.json', env);
-        const digitalList = await getWorkingData('src/data/digital_products.json', env);
+        const storeList = await getD1Products(env);
+        const digitalList = await getD1DigitalProducts(env);
         const allProdsList = [...(Array.isArray(storeList) ? storeList : []), ...(Array.isArray(digitalList) ? digitalList : [])];
 
         if (Array.isArray(order.items)) {

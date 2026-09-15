@@ -13,5 +13,4 @@ dist-test/
 _worker.bundle
 *.sqlite
 scripts/remote-seed.sql
-
-
+.migration-output/

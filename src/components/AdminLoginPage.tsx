@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, User, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Lock, User, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface AdminLoginPageProps {
   onSuccess: () => void;
@@ -9,6 +10,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onSuccess }) => 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const navigate = useNavigate();
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,29 +22,39 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onSuccess }) => 
       setUsername('');
       setPassword('');
     } else {
-      setErrorMessage('Access Denied: Invalid Admin Username or Password.');
+      setErrorMessage('Access Denied: Invalid Administrator Credentials.');
     }
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 py-12 bg-slate-900/5 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl text-slate-900">
-        {/* Header */}
-        <div className="text-center space-y-2 border-b border-slate-100 pb-5">
-          <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-inner">
-            <ShieldCheck className="w-9 h-9 text-emerald-600" />
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-slate-950 text-slate-100 font-sans relative overflow-hidden">
+      {/* Subtle Liquid Gradient Accent Backdrops */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-md bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-xl relative z-10 animate-fadeIn">
+        {/* Header Branding */}
+        <div className="text-center space-y-3 border-b border-slate-800/80 pb-6">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-inner">
+            <ShieldCheck className="w-8 h-8 text-emerald-400" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-mono tracking-tight pt-2">
-            ADMIN PORTAL LOGIN
-          </h2>
-          <p className="text-xs text-slate-500 font-mono">
-            Enter Administrator ID & Password to access Admin Command Center
-          </p>
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono font-bold mb-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>AUTHENTICATED ACCESS ONLY</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight font-sans">
+              Omove Control Center
+            </h2>
+            <p className="text-xs text-slate-400 font-mono mt-1">
+              Enter Administrator credentials to unlock management portal
+            </p>
+          </div>
         </div>
 
         {errorMessage && (
-          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-mono flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-mono flex items-center gap-2.5 animate-fadeIn">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
             <span>{errorMessage}</span>
           </div>
         )}
@@ -50,9 +62,11 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onSuccess }) => 
         {/* Form */}
         <form onSubmit={handleAdminLogin} className="space-y-4 text-xs font-sans">
           <div>
-            <label className="text-slate-700 font-semibold block mb-1.5 font-mono">Admin Username *</label>
+            <label className="text-slate-300 font-semibold block mb-1.5 font-mono text-[11px]">
+              ADMINISTRATOR ID *
+            </label>
             <div className="relative">
-              <User className="w-4 h-4 text-emerald-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <User className="w-4 h-4 text-emerald-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 required
@@ -60,34 +74,48 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onSuccess }) => 
                 placeholder="Enter Admin Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono font-bold text-xs focus:outline-none focus:border-emerald-600 focus:bg-white transition-all min-h-[44px]"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950/60 border border-slate-700/80 text-white font-mono font-bold text-xs placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all min-h-[44px]"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-slate-700 font-semibold block mb-1.5 font-mono">Admin Password *</label>
+            <label className="text-slate-300 font-semibold block mb-1.5 font-mono text-[11px]">
+              SECURITY KEY / PASSWORD *
+            </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-emerald-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-emerald-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="password"
                 required
-                placeholder="••••••••"
+                placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-emerald-600 focus:bg-white transition-all min-h-[44px]"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950/60 border border-slate-700/80 text-white font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all min-h-[44px]"
               />
             </div>
           </div>
 
           <button
             type="submit"
-            className="w-full py-4 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs font-mono tracking-wider shadow-lg shadow-emerald-700/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99] min-h-[48px]"
+            className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs font-mono tracking-wider shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all active:scale-[0.99] min-h-[46px] cursor-pointer"
           >
             <ShieldCheck className="w-4 h-4" />
-            <span>UNLOCK ADMIN COMMAND CENTER</span>
+            <span>UNLOCK CONTROL CENTER</span>
           </button>
         </form>
+
+        {/* Back to public store link */}
+        <div className="pt-2 text-center border-t border-slate-800/60">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Return to Public Storefront</span>
+          </button>
+        </div>
       </div>
     </div>
   );

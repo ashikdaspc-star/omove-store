@@ -172,11 +172,7 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
       });
     }
     if (list.length === 0) {
-      list.push(
-        isEbook
-          ? 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&auto=format&fit=crop&q=80'
-          : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'
-      );
+      list.push('/logo.png');
     }
     return list;
   }, [product, isEbook]);

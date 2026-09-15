@@ -276,8 +276,13 @@ export const StoreView: React.FC<StoreViewProps> = ({
                         loading="lazy"
                         decoding="async"
                         onError={(e) => {
-                          e.currentTarget.onerror = null;
-                          e.currentTarget.src = 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80';
+                          const target = e.currentTarget;
+                          if (product.previewImage && target.src !== product.previewImage && product.image && target.src.includes(product.image)) {
+                            target.src = product.previewImage;
+                            return;
+                          }
+                          target.onerror = null;
+                          target.src = '/logo.png';
                         }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent opacity-40" />

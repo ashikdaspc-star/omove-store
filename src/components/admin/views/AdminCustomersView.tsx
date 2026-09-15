@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, Search, Mail, Phone, MapPin, Package, ShieldCheck, Trash2, Eye, Calendar, Key, AlertTriangle, RefreshCw, X, CheckCircle2 } from 'lucide-react';
 import { Order } from '../../../types';
 import { CONTACT_CONFIG } from '../../../config/contactConfig';
+import { AdminConfirmDialog } from '../ui/AdminConfirmDialog';
 
 export interface ServerCustomer {
   id?: string;
@@ -27,19 +28,13 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
   const [searchQuery, setSearchQuery] = useState('');
   const [customers, setCustomers] = useState<ServerCustomer[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [errorNotice, setErrorNotice] = useState<string>('');
-  const [successNotice, setSuccessNotice] = useState<string>('');
-
-  // Modals state
   const [selectedCustomer, setSelectedCustomer] = useState<ServerCustomer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<ServerCustomer | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  // Helper to read local browser registry users
   const getLocalRegistryUsers = (): ServerCustomer[] => {
     const list: ServerCustomer[] = [];
     try {
-      // 1. Registered users dictionary
       const stored = localStorage.getItem('omove_registered_users');
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -59,7 +54,6 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
         });
       }
 
-      // 2. Currently active local session user
       const activeSess = localStorage.getItem('omove_active_session');
       if (activeSess) {
         const u = JSON.parse(activeSess);
@@ -80,10 +74,8 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
     return list;
   };
 
-  // Fetch registered customers from backend and merge with local storage
   const fetchCustomers = async () => {
     setIsLoading(true);
-    setErrorNotice('');
     try {
       let serverList: ServerCustomer[] = [];
       const res = await fetch('/api/admin/customers');
@@ -92,14 +84,13 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
         serverList = data.customers;
       }
 
-      // Merge backend server accounts + local browser registry accounts
       const mergedMap = new Map<string, ServerCustomer>();
-      serverList.forEach(c => {
+      serverList.forEach((c) => {
         if (c.email) mergedMap.set(c.email.toLowerCase(), c);
       });
 
       const localList = getLocalRegistryUsers();
-      localList.forEach(c => {
+      localList.forEach((c) => {
         if (c.email && !mergedMap.has(c.email.toLowerCase())) {
           mergedMap.set(c.email.toLowerCase(), c);
         }
@@ -107,7 +98,7 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
 
       setCustomers(Array.from(mergedMap.values()));
     } catch (err) {
-      console.warn('Backend customers API note, loading local registry:', err);
+      console.warn('Backend customers API notice:', err);
       setCustomers(getLocalRegistryUsers());
     } finally {
       setIsLoading(false);
@@ -116,20 +107,11 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
 
   useEffect(() => {
     fetchCustomers();
-
-    // Re-sync on window focus or storage update
-    const handleStorageChange = () => {
-      fetchCustomers();
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Merge backend / local customers with order statistics
+  // Compute order statistics per customer
   const customerMap = new Map<string, ServerCustomer>();
-
-  // 1. Add fetched customers (server + local storage)
-  customers.forEach(c => {
+  customers.forEach((c) => {
     if (c.email) {
       customerMap.set(c.email.toLowerCase(), {
         ...c,
@@ -139,371 +121,247 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
     }
   });
 
-  // 2. Also ensure any local storage user is present
-  const localUsers = getLocalRegistryUsers();
-  localUsers.forEach(lu => {
-    if (lu.email && !customerMap.has(lu.email.toLowerCase())) {
-      customerMap.set(lu.email.toLowerCase(), {
-        ...lu,
-        ordersCount: 0,
-        totalSpent: 0
-      });
-    }
-  });
+  (orders || []).forEach((ord) => {
+    if (ord && ord.customerEmail) {
+      const email = ord.customerEmail.toLowerCase();
+      const existing = customerMap.get(email);
+      const isPaid = ord.paymentStatus === 'SUCCESS' || ord.status === 'completed';
+      const amt = Number(ord.total || (ord as any).totalAmount || 0) || 0;
 
-  // 3. Add default fallback demo user if missing
-  if (!customerMap.has('ad1824110@gmail.com') && customerMap.size === 0) {
-    customerMap.set('ad1824110@gmail.com', {
-      id: 'usr_demo_101',
-      email: 'ad1824110@gmail.com',
-      name: 'ad1824110',
-      phone: CONTACT_CONFIG.whatsapp.display,
-      location: 'Kolkata, West Bengal, India',
-      createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      authProvider: 'email',
-      isAdmin: false,
-      ordersCount: 1,
-      totalSpent: 1499
-    });
-  }
-
-  // 3. Compute order counts & spending per customer
-  orders.forEach(ord => {
-    if (ord.customerEmail) {
-      const emailKey = ord.customerEmail.toLowerCase();
-      const existing = customerMap.get(emailKey) || {
-        id: `usr_ord_${Date.now()}`,
-        email: ord.customerEmail,
-        name: ord.customerName || ord.customerEmail.split('@')[0],
-        phone: ord.customerPhone || CONTACT_CONFIG.whatsapp.display,
-        location: 'Kolkata, West Bengal, India',
-        createdAt: ord.createdAt || new Date().toISOString(),
-        authProvider: 'order-guest',
-        isAdmin: false,
-        ordersCount: 0,
-        totalSpent: 0
-      };
-
-      existing.ordersCount = (existing.ordersCount || 0) + 1;
-      if (ord.paymentStatus === 'SUCCESS') {
-        existing.totalSpent = (existing.totalSpent || 0) + (ord.total || 0);
+      if (existing) {
+        existing.ordersCount = (existing.ordersCount || 0) + 1;
+        if (isPaid) {
+          existing.totalSpent = (existing.totalSpent || 0) + amt;
+        }
+      } else {
+        customerMap.set(email, {
+          id: `cust_order_${email}`,
+          name: ord.customerName || email.split('@')[0],
+          email: ord.customerEmail,
+          createdAt: ord.createdAt || new Date().toISOString(),
+          ordersCount: 1,
+          totalSpent: isPaid ? amt : 0
+        });
       }
-
-      customerMap.set(emailKey, existing);
     }
   });
 
-  const customersList = Array.from(customerMap.values()).filter(c => {
-    const q = searchQuery.toLowerCase().trim();
+  const mergedCustomers = Array.from(customerMap.values());
+
+  const filtered = mergedCustomers.filter((c) => {
+    const q = searchQuery.toLowerCase();
     return (
-      !q ||
-      c.email.toLowerCase().includes(q) ||
+      !searchQuery ||
       c.name.toLowerCase().includes(q) ||
-      (c.phone && c.phone.toLowerCase().includes(q)) ||
-      (c.location && c.location.toLowerCase().includes(q))
+      c.email.toLowerCase().includes(q) ||
+      (c.phone && c.phone.toLowerCase().includes(q))
     );
   });
 
-  // Handle Deleting Customer Account Data
   const handleDeleteCustomer = async () => {
     if (!customerToDelete) return;
     setIsDeleting(true);
-    setErrorNotice('');
-    setSuccessNotice('');
-
-    const targetEmail = customerToDelete.email.toLowerCase();
-
     try {
-      // 1. Call server API
-      const res = await fetch(`/api/admin/customers/${encodeURIComponent(targetEmail)}`, {
+      await fetch(`/api/admin/customers/${encodeURIComponent(customerToDelete.email)}`, {
         method: 'DELETE'
       });
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok && data.success) {
-        setSuccessNotice(`Account for ${targetEmail} was permanently deleted.`);
-      } else if (data.error) {
-        setErrorNotice(data.error);
-      }
-    } catch (err) {
-      console.warn('Backend API note during delete:', err);
+      setCustomers((prev) => prev.filter((c) => c.email !== customerToDelete.email));
+      setCustomerToDelete(null);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsDeleting(false);
     }
-
-    // 2. Clear local storage registry
-    try {
-      const stored = localStorage.getItem('omove_registered_users');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed[targetEmail]) {
-          delete parsed[targetEmail];
-          localStorage.setItem('omove_registered_users', JSON.stringify(parsed));
-        }
-      }
-    } catch (e) {}
-
-    // 3. Remove from UI state
-    setCustomers(prev => prev.filter(c => c.email.toLowerCase() !== targetEmail));
-    setIsDeleting(false);
-    setCustomerToDelete(null);
   };
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Top Header Banner */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-              <Users className="w-6 h-6 text-emerald-600" />
-              <span>Customer Accounts Directory</span>
+      {/* Header Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/90">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight font-sans">
+              Customer Directory
             </h2>
-            <p className="text-xs text-slate-500 font-mono mt-0.5">
-              Manage registered users, inspect account details, and delete user data.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={fetchCustomers}
-              disabled={isLoading}
-              className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-xs font-bold border border-slate-200 flex items-center gap-2 transition-all"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-            <span className="px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-800 font-mono text-xs font-bold border border-emerald-200">
-              {customersList.length} Active Accounts
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200">
+              {filtered.length} customers
             </span>
           </div>
+          <p className="text-xs text-slate-500 mt-1 font-sans">
+            CRM records, buyer accounts, total order value, and registered users.
+          </p>
         </div>
 
-        {/* Notices */}
-        {successNotice && (
-          <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono flex items-center justify-between animate-fadeIn">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{successNotice}</span>
-            </div>
-            <button onClick={() => setSuccessNotice('')} className="text-emerald-700 hover:text-emerald-900">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={fetchCustomers}
+          className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center gap-2 shadow-2xs transition-colors self-start sm:self-auto cursor-pointer"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
+      </div>
 
-        {errorNotice && (
-          <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono flex items-center justify-between animate-fadeIn">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{errorNotice}</span>
-            </div>
-            <button onClick={() => setErrorNotice('')} className="text-rose-700 hover:text-rose-900">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Search Bar */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search customer by name, email, or phone..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 font-sans shadow-inner"
-            />
-          </div>
+      {/* Filter Bar */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center justify-between gap-3 text-xs font-sans">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search customers by name, email, or phone..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-sans"
+          />
         </div>
       </div>
 
-      {/* Main Customers Table */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
-        {isLoading ? (
-          <div className="py-12 text-center space-y-3">
-            <RefreshCw className="w-8 h-8 mx-auto text-emerald-600 animate-spin" />
-            <p className="text-xs font-mono text-slate-500">Loading registered accounts...</p>
-          </div>
-        ) : customersList.length === 0 ? (
-          <div className="py-12 text-center space-y-3">
-            <Users className="w-12 h-12 mx-auto text-slate-300" />
-            <p className="text-sm font-bold text-slate-700">No Customer Accounts Found</p>
-            <p className="text-xs font-mono text-slate-400 max-w-xs mx-auto">
-              {searchQuery ? 'Try adjusting your search query.' : 'Customer accounts created via the store will appear here.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead>
-                <tr className="border-b border-slate-200/90 text-slate-400 uppercase tracking-wider">
-                  <th className="pb-3 font-bold">Customer Profile</th>
-                  <th className="pb-3 font-bold">Email Address</th>
-                  <th className="pb-3 font-bold">Phone Number</th>
-                  <th className="pb-3 font-bold">Location</th>
-                  <th className="pb-3 font-bold">Orders</th>
-                  <th className="pb-3 font-bold">Total Spent</th>
-                  <th className="pb-3 font-bold">Role</th>
-                  <th className="pb-3 font-bold text-right">Actions</th>
+      {/* Customers Table */}
+      <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs font-sans">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-400 uppercase text-[11px] font-semibold bg-slate-50/75">
+                <th className="py-3.5 px-4 font-semibold">Customer</th>
+                <th className="py-3.5 px-4 font-semibold">Orders</th>
+                <th className="py-3.5 px-4 font-semibold">Total Spent</th>
+                <th className="py-3.5 px-4 font-semibold">Joined</th>
+                <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-slate-400 font-sans">
+                    No customer records found.
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {customersList.map((cust) => (
-                  <tr key={cust.email} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs uppercase font-mono shadow-xs border border-emerald-700">
-                          {cust.name ? cust.name.charAt(0) : 'U'}
+              ) : (
+                filtered.map((c) => (
+                  <tr key={c.email} className="hover:bg-slate-50/60 transition-colors group">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center font-bold text-xs shrink-0">
+                          {c.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <strong className="text-slate-900 font-sans font-bold text-xs block">{cust.name || 'Unnamed Customer'}</strong>
-                          <span className="text-[10px] text-slate-400 font-mono">ID: {cust.id || 'N/A'}</span>
+                        <div className="min-w-0">
+                          <strong className="block text-slate-900 font-sans text-xs truncate group-hover:text-cyan-700 transition-colors">
+                            {c.name}
+                          </strong>
+                          <span className="text-[11px] text-slate-400 font-mono truncate block">
+                            {c.email}
+                          </span>
                         </div>
                       </div>
                     </td>
 
-                    <td className="py-3.5 text-emerald-700 font-sans font-medium">{cust.email}</td>
-
-                    <td className="py-3.5 text-slate-600 font-mono">{cust.phone || 'N/A'}</td>
-
-                    <td className="py-3.5 text-slate-600 font-sans max-w-[140px] truncate" title={cust.location}>
-                      {cust.location || 'India'}
+                    <td className="py-3.5 px-4 font-bold text-slate-900 font-mono">
+                      {c.ordersCount || 0} orders
                     </td>
 
-                    <td className="py-3.5 font-bold text-slate-900 font-mono">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200">
-                        {cust.ordersCount || 0} Orders
-                      </span>
+                    <td className="py-3.5 px-4 font-bold text-emerald-700 font-mono text-xs">
+                      ₹{(c.totalSpent || 0).toLocaleString()}
                     </td>
 
-                    <td className="py-3.5 font-extrabold text-slate-900 font-mono">
-                      ₹{cust.totalSpent ? cust.totalSpent.toLocaleString() : '0'}
+                    <td className="py-3.5 px-4 text-slate-500 text-[11px]">
+                      {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A'}
                     </td>
 
-                    <td className="py-3.5">
-                      {cust.isAdmin ? (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                          ADMIN
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          CUSTOMER
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-3.5 text-right space-x-1">
-                      <button
-                        onClick={() => setSelectedCustomer(cust)}
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
-                        title="View Full Customer Details"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => setCustomerToDelete(cust)}
-                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors"
-                        title="Delete Customer Account & Data"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCustomer(c)}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 font-semibold text-[11px] transition-colors cursor-pointer"
+                        >
+                          Profile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCustomerToDelete(c)}
+                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                          title="Delete Customer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Customer Full Details Modal */}
+      {/* Customer Profile Modal */}
       {selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn font-sans">
-          <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-6 space-y-6 shadow-2xl relative text-slate-900">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fadeIn"
+          onClick={() => setSelectedCustomer(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-2xl text-xs font-sans text-slate-700"
+          >
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm font-mono shadow-md">
-                  {selectedCustomer.name ? selectedCustomer.name.charAt(0) : 'U'}
+                <div className="w-10 h-10 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center font-bold text-sm">
+                  {selectedCustomer.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-slate-900">{selectedCustomer.name}</h3>
-                  <p className="text-xs font-mono text-slate-400">Account Details & Metadata</p>
+                  <h3 className="font-bold text-slate-900 text-sm font-sans">{selectedCustomer.name}</h3>
+                  <span className="text-[10px] text-slate-400">Customer CRM Profile</span>
                 </div>
               </div>
+
               <button
+                type="button"
                 onClick={() => setSelectedCustomer(null)}
-                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                className="p-1.5 rounded-lg bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-4 text-xs font-mono">
-              <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Account ID</span>
-                  <span className="font-bold text-slate-800 break-all">{selectedCustomer.id || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Account Role</span>
-                  <span className="font-bold text-emerald-700">{selectedCustomer.isAdmin ? 'System Admin' : 'Registered Customer'}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Auth Provider</span>
-                  <span className="font-bold text-slate-800 uppercase">{selectedCustomer.authProvider || 'Email'}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Registered On</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedCustomer.createdAt ? new Date(selectedCustomer.createdAt).toLocaleDateString() : 'N/A'}
-                  </span>
-                </div>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Email:</span>
+                <span className="text-emerald-700 font-semibold font-mono">{selectedCustomer.email}</span>
               </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                  <Mail className="w-4 h-4 text-slate-400 shrink-0" />
-                  <div className="overflow-hidden">
-                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Email Address</span>
-                    <span className="font-bold text-slate-900 font-sans">{selectedCustomer.email}</span>
-                  </div>
+              {selectedCustomer.phone && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Phone:</span>
+                  <span className="text-slate-700 font-mono">{selectedCustomer.phone}</span>
                 </div>
-
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                  <Phone className="w-4 h-4 text-slate-400 shrink-0" />
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Phone Number</span>
-                    <span className="font-bold text-slate-900">{selectedCustomer.phone || 'Not provided'}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                  <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Default Delivery Location</span>
-                    <span className="font-bold text-slate-900 font-sans">{selectedCustomer.location || 'India'}</span>
-                  </div>
-                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total Orders:</span>
+                <span className="font-bold text-slate-900 font-mono">{selectedCustomer.ordersCount || 0}</span>
               </div>
-
-              {/* Purchase stats summary */}
-              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] text-emerald-800 font-bold uppercase block">Completed Orders</span>
-                  <span className="text-base font-extrabold text-emerald-900">{selectedCustomer.ordersCount || 0} Orders</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-emerald-800 font-bold uppercase block">Total Amount Spent</span>
-                  <span className="text-base font-extrabold text-emerald-900">₹{(selectedCustomer.totalSpent || 0).toLocaleString()}</span>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total Spent:</span>
+                <span className="font-extrabold text-slate-900 text-sm font-mono">
+                  ₹{(selectedCustomer.totalSpent || 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Member Since:</span>
+                <span className="text-slate-500">
+                  {selectedCustomer.createdAt
+                    ? new Date(selectedCustomer.createdAt).toLocaleDateString()
+                    : 'Recent'}
+                </span>
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end gap-2">
+            <div className="pt-2 flex justify-end">
               <button
+                type="button"
                 onClick={() => setSelectedCustomer(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono font-bold text-xs transition-colors"
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs cursor-pointer"
               >
                 Close
               </button>
@@ -512,56 +370,18 @@ export const AdminCustomersView: React.FC<AdminCustomersViewProps> = ({ orders =
         </div>
       )}
 
-      {/* Delete Account Confirmation Modal */}
-      {customerToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn font-sans">
-          <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-6 space-y-6 shadow-2xl relative text-slate-900">
-            <div className="w-12 h-12 mx-auto rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shadow-xs">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <div className="space-y-2 text-center">
-              <h3 className="text-lg font-extrabold text-slate-900">Delete Customer Account?</h3>
-              <p className="text-xs text-slate-500 font-mono leading-relaxed">
-                You are about to permanently delete the account data for{' '}
-                <strong className="text-rose-600 font-sans">{customerToDelete.email}</strong>.
-              </p>
-              <p className="text-[11px] text-slate-400 font-mono">
-                This action will delete their profile from the server database, invalidate active sessions, and remove local registry data.
-              </p>
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
-              <button
-                onClick={handleDeleteCustomer}
-                disabled={isDeleting}
-                className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-mono font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all"
-              >
-                {isDeleting ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Deleting Account...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Confirm & Delete Permanently</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={() => setCustomerToDelete(null)}
-                disabled={isDeleting}
-                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono font-bold text-xs border border-slate-200 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete Confirmation */}
+      <AdminConfirmDialog
+        isOpen={Boolean(customerToDelete)}
+        title="Delete Customer Account?"
+        description={`Are you sure you want to remove customer "${customerToDelete?.email}" from the directory?`}
+        confirmLabel="Delete Account"
+        cancelLabel="Keep Customer"
+        isDestructive={true}
+        isLoading={isDeleting}
+        onConfirm={handleDeleteCustomer}
+        onCancel={() => setCustomerToDelete(null)}
+      />
     </div>
   );
 };
-

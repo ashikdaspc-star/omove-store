@@ -1,5 +1,16 @@
-import React, { useState } from 'react';
-import { Menu, Search, Bell, ShieldCheck, LogOut, ChevronDown, CheckCircle2, Globe, Sparkles, Check, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Menu,
+  Search,
+  Bell,
+  ShieldCheck,
+  LogOut,
+  ExternalLink,
+  ChevronDown,
+  Sparkles,
+  CheckCircle2,
+  Command
+} from 'lucide-react';
 import { AdminTab } from './AdminSidebar';
 
 interface AdminHeaderProps {
@@ -24,8 +35,25 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   const [hasPendingDrafts, setHasPendingDrafts] = useState<boolean>(false);
   const [pendingCount, setPendingCount] = useState<number>(0);
 
+  const profileRef = useRef<HTMLDivElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Poll draft status
-  React.useEffect(() => {
+  useEffect(() => {
     let isMounted = true;
     const checkDraftStatus = async () => {
       try {
@@ -40,7 +68,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
       } catch (e) {}
     };
     checkDraftStatus();
-    const interval = setInterval(checkDraftStatus, 10000);
+    const interval = setInterval(checkDraftStatus, 15000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -50,7 +78,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   const handlePublish = async () => {
     if (!onPublishCatalog || publishStatus === 'publishing') return;
     setPublishStatus('publishing');
-    setPublishMessage('Validating & Committing to GitHub main in 1 Consolidated Commit...');
+    setPublishMessage('Publishing changes live to production...');
 
     try {
       const res = await onPublishCatalog();
@@ -77,11 +105,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   const getBreadcrumb = (tab: AdminTab) => {
     switch (tab) {
       case 'dashboard':
-        return { group: 'Overview', title: 'Dashboard Overview' };
+        return { group: 'Overview', title: 'Dashboard' };
       case 'store-products':
-        return { group: 'Commerce', title: 'Store Products Catalog' };
+        return { group: 'Commerce', title: 'Store Products' };
       case 'digital-products':
-        return { group: 'Commerce', title: 'Digital Products Catalog' };
+        return { group: 'Commerce', title: 'Digital Products' };
+      case 'digital-categories':
+        return { group: 'Commerce', title: 'Digital Categories' };
       case 'orders':
         return { group: 'Commerce', title: 'Orders & Fulfillment' };
       case 'payments':
@@ -89,162 +119,165 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
       case 'support-contributions':
         return { group: 'Commerce', title: 'Support Contributions' };
       case 'customers':
-        return { group: 'Commerce', title: 'Registered Customer Directory' };
+        return { group: 'Commerce', title: 'Customer Directory' };
       case 'downloads':
-        return { group: 'Commerce', title: 'Digital Downloads Logs' };
+        return { group: 'Commerce', title: 'Downloads Logs' };
       case 'reviews':
-        return { group: 'Commerce', title: 'Customer Reviews Moderation' };
+        return { group: 'Commerce', title: 'Customer Reviews' };
       case 'services':
         return { group: 'Services', title: 'Services Catalog' };
       case 'remote-support':
-        return { group: 'Services', title: 'Live Remote Support Queue' };
+        return { group: 'Services', title: 'Live Remote Support' };
       case 'support-tickets':
-        return { group: 'Services', title: 'Customer Support Tickets' };
+        return { group: 'Services', title: 'Support Tickets' };
       case 'blog':
-        return { group: 'Content', title: 'Blog Articles Management' };
+        return { group: 'Content', title: 'Blog Articles' };
       case 'categories':
         return { group: 'Content', title: 'Product Categories' };
       case 'website-content':
-        return { group: 'Content', title: 'Website Content & Hero Settings' };
+        return { group: 'Content', title: 'Website Content' };
       case 'announcements':
-        return { group: 'Marketing', title: 'Announcement Banners' };
+        return { group: 'Marketing', title: 'Announcements' };
       case 'coupons':
-        return { group: 'Marketing', title: 'Coupons & Discount Keys' };
+        return { group: 'Marketing', title: 'Coupons & Discounts' };
       case 'newsletter':
         return { group: 'Marketing', title: 'Newsletter Subscribers' };
       case 'analytics':
-        return { group: 'System', title: 'Live Traffic & Analytics' };
+        return { group: 'System', title: 'Traffic & Analytics' };
       case 'activity-logs':
-        return { group: 'System', title: 'Admin Activity Audit Trail' };
+        return { group: 'System', title: 'Activity Logs' };
       case 'settings':
-        return { group: 'System', title: 'Settings & Razorpay Security' };
+        return { group: 'System', title: 'Settings & Security' };
       case 'admin-users':
-        return { group: 'Admin', title: 'Administrator Access' };
+        return { group: 'Administration', title: 'Administrator Access' };
       default:
-        return { group: 'Admin', title: 'Management Dashboard' };
+        return { group: 'Admin', title: 'Control Center' };
     }
   };
 
   const breadcrumb = getBreadcrumb(activeTab);
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200/90 px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30 shadow-xs font-sans">
-      {/* Left Title & Breadcrumb */}
+    <header className="h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30 font-sans shadow-2xs">
+      {/* Left: Mobile Menu & Clean Breadcrumb */}
       <div className="flex items-center gap-3">
         <button
+          type="button"
           onClick={() => setIsOpenMobile(true)}
-          className="lg:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
+          className="lg:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+          aria-label="Open mobile navigation"
         >
           <Menu className="w-5 h-5" />
         </button>
 
         <div>
-          <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-slate-400">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium font-sans">
             <span>Admin</span>
             <span>/</span>
             <span>{breadcrumb.group}</span>
           </div>
-          <h1 className="text-lg font-extrabold text-slate-900 tracking-tight font-sans">
+          <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight font-sans">
             {breadcrumb.title}
           </h1>
         </div>
       </div>
 
-      {/* Right Action Cluster */}
+      {/* Right: Admin Action Cluster */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Save & Publish Live Button */}
+        {/* Save & Publish Live Button (if changes pending) */}
         {onPublishCatalog && (
           <div className="relative">
             <button
+              type="button"
               onClick={handlePublish}
               disabled={publishStatus === 'publishing'}
-              className={`px-3.5 py-2 rounded-xl font-mono text-xs font-bold transition-all shadow-md flex items-center gap-2 relative ${
-                publishStatus === 'publishing'
-                  ? 'bg-slate-800 text-white cursor-wait'
-                  : publishStatus === 'success'
-                  ? 'bg-emerald-600 text-white'
-                  : publishStatus === 'error'
-                  ? 'bg-rose-600 text-white'
-                  : hasPendingDrafts
-                  ? 'bg-amber-600 hover:bg-amber-700 text-white animate-pulse shadow-amber-500/20 hover:scale-105'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105'
+              className={`px-3 py-1.5 rounded-xl font-sans text-xs font-semibold transition-all flex items-center gap-1.5 shadow-xs ${
+                hasPendingDrafts
+                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 animate-pulse'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80'
               }`}
-              title="Consolidate all pending edits & publish live to production"
             >
               {publishStatus === 'publishing' ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span className="hidden sm:inline">PUBLISHING LIVE...</span>
-                </>
-              ) : publishStatus === 'success' ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-200" />
-                  <span className="hidden sm:inline">PUBLISHED LIVE ✓</span>
-                </>
-              ) : publishStatus === 'error' ? (
-                <>
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="hidden sm:inline">PUBLISH FAILED</span>
-                </>
+                <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
               ) : (
-                <>
-                  <Globe className="w-4 h-4 text-white" />
-                  <span>
-                    SAVE & PUBLISH LIVE
-                    {hasPendingDrafts && (
-                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
-                        ● UNSAVED
-                      </span>
-                    )}
-                  </span>
-                </>
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
               )}
+              <span className="hidden md:inline font-sans">
+                {publishStatus === 'publishing'
+                  ? 'Publishing...'
+                  : hasPendingDrafts
+                  ? `Publish (${pendingCount})`
+                  : 'Sync Production'}
+              </span>
             </button>
 
             {publishMessage && (
-              <div className="absolute right-0 top-12 whitespace-nowrap px-3 py-1.5 rounded-xl bg-slate-900 text-white text-[11px] font-mono shadow-xl z-50 border border-slate-800 animate-fadeIn">
+              <div
+                className={`absolute right-0 top-full mt-2 px-3 py-1.5 rounded-xl text-xs font-sans whitespace-nowrap shadow-xl z-50 animate-fadeIn ${
+                  publishStatus === 'success'
+                    ? 'bg-emerald-900 text-white border border-emerald-800'
+                    : 'bg-rose-900 text-white border border-rose-800'
+                }`}
+              >
                 {publishMessage}
               </div>
             )}
           </div>
         )}
 
-        {/* Global Search Button */}
+        {/* Global Admin Search Trigger Button (Ctrl+K) */}
         <button
+          type="button"
           onClick={onOpenGlobalSearch}
-          className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200/90 text-xs font-mono font-medium flex items-center gap-2 transition-all min-h-[40px]"
+          className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200/90 text-xs font-sans flex items-center gap-2 transition-colors cursor-pointer"
         >
-          <Search className="w-4 h-4 text-slate-400" />
-          <span className="hidden xl:inline">Search orders, products, customers...</span>
-          <kbd className="hidden xl:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-white border border-slate-300 rounded text-slate-500">
-            Ctrl+K
-          </kbd>
+          <Search className="w-3.5 h-3.5 text-slate-400" />
+          <span className="hidden sm:inline font-sans text-xs text-slate-500">Search admin...</span>
+          <span className="hidden sm:flex items-center gap-0.5 text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded-md shadow-2xs">
+            <Command className="w-2.5 h-2.5" />
+            <span>K</span>
+          </span>
         </button>
 
-        {/* Notifications Bell */}
-        <div className="relative">
+        {/* Notification Center Popover */}
+        <div className="relative" ref={notificationRef}>
           <button
+            type="button"
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors relative min-h-[40px] min-w-[40px] flex items-center justify-center"
-            title="Notifications"
+            className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200/90 transition-colors relative"
+            aria-label="Admin notifications"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-600" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-slate-200 shadow-xl py-3 z-50 animate-fadeIn text-xs font-sans">
-              <div className="px-4 pb-2 border-b border-slate-100 flex items-center justify-between">
-                <span className="font-bold text-slate-900 font-mono">Notifications</span>
-                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-mono font-bold">System Active</span>
+            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 z-50 text-xs font-sans animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                <span className="font-semibold text-slate-900 font-sans uppercase text-[11px] tracking-wider">
+                  System Notifications
+                </span>
+                <span className="text-[10px] text-emerald-600 font-sans font-semibold">
+                  All Systems Operational
+                </span>
               </div>
-              <div className="p-3 space-y-2">
-                <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200/60 flex items-start gap-2 text-slate-700">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="space-y-2.5">
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="block text-slate-900 font-bold text-[11px]">GitHub Live Sync Active</strong>
-                    <span className="text-[10px] text-slate-500 block font-mono">Main branch deployment sync connected</span>
+                    <strong className="block text-slate-900 font-semibold font-sans">Cloudflare D1 & R2 Active</strong>
+                    <p className="text-slate-500 text-[11px] font-sans">
+                      Database and private R2 storage binding `env.FILES` connected.
+                    </p>
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-slate-900 font-semibold font-sans">Gateways Configured</strong>
+                    <p className="text-slate-500 text-[11px] font-sans">
+                      Razorpay INR & PayPal USD dual-currency checkouts live.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -252,35 +285,64 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           )}
         </div>
 
-        {/* Admin Profile Dropdown */}
-        <div className="relative">
+        {/* Admin Profile Pill & Menu */}
+        <div className="relative" ref={profileRef}>
           <button
+            type="button"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/90 text-xs font-mono font-bold text-slate-800 transition-all min-h-[40px]"
+            className="flex items-center gap-2 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/90 transition-colors"
           >
-            <div className="w-6 h-6 rounded-full bg-slate-900 text-emerald-400 flex items-center justify-center text-[10px] font-extrabold uppercase shrink-0">
+            <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
               A
             </div>
-            <span className="hidden sm:inline text-slate-900">Admin Portal</span>
-            <span className="hidden md:inline px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Super Admin
-            </span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+            <div className="hidden md:block text-left">
+              <span className="text-xs font-semibold text-slate-900 block leading-tight font-sans">
+                Admin
+              </span>
+              <span className="text-[10px] text-emerald-700 font-medium font-sans block leading-none">
+                Super Admin
+              </span>
+            </div>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-white border border-slate-200 shadow-xl py-2 z-50 animate-fadeIn text-xs">
-              <div className="px-4 py-2 border-b border-slate-100">
-                <p className="font-bold text-slate-900 truncate">Super Admin Account</p>
-                <p className="text-[10px] text-slate-500 font-mono">admin@omovestore.shop</p>
+            <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50 text-xs font-sans animate-fadeIn">
+              <div className="p-3 border-b border-slate-100">
+                <span className="text-slate-400 block text-[10px] uppercase font-medium">Logged in as</span>
+                <strong className="text-slate-900 block font-sans text-xs font-semibold mt-0.5">
+                  Omove Administrator
+                </strong>
+                <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                  Full Authorization
+                </span>
               </div>
-              <button
-                onClick={onExitAdmin}
-                className="w-full text-left px-4 py-2.5 hover:bg-rose-50 text-rose-600 font-medium flex items-center gap-2 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Exit Admin</span>
-              </button>
+
+              <div className="p-1 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    onExitAdmin();
+                  }}
+                  className="w-full px-2.5 py-2 rounded-xl text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors font-medium"
+                >
+                  <ExternalLink className="w-4 h-4 text-slate-400" />
+                  <span>Visit Public Storefront</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    onExitAdmin();
+                  }}
+                  className="w-full px-2.5 py-2 rounded-xl text-left text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors font-medium"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out of Admin</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

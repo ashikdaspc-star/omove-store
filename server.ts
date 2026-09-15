@@ -1380,11 +1380,61 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     }
   });
 
-  // Admin Media Upload API (Saves to public/uploads/ for clean persistent URLs)
-  app.post('/api/admin/upload-media', (req: Request, res: Response) => {
+  // Admin Media Upload API (Saves to public/uploads/ for clean persistent URLs in local development)
+  app.post('/api/admin/upload-media', async (req: Request, res: Response) => {
     try {
-      const { fileName, fileData } = req.body || {};
-      if (!fileData) {
+      const contentType = req.headers['content-type'] || '';
+      let fileBuffer: Buffer | null = null;
+      let fileName = '';
+
+      if (contentType.includes('multipart/form-data')) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+        }
+        const fullBody = Buffer.concat(chunks);
+        const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
+        if (boundaryMatch) {
+          const boundary = boundaryMatch[1].trim();
+          const boundaryBuffer = Buffer.from(`--${boundary}`);
+          const parts: Buffer[] = [];
+          let start = 0;
+          while (true) {
+            const idx = fullBody.indexOf(boundaryBuffer, start);
+            if (idx === -1) break;
+            if (start > 0) {
+              parts.push(fullBody.subarray(start, idx));
+            }
+            start = idx + boundaryBuffer.length;
+          }
+
+          for (const part of parts) {
+            const headerEnd = part.indexOf('\r\n\r\n');
+            if (headerEnd !== -1) {
+              const headers = part.subarray(0, headerEnd).toString();
+              const bodyPart = part.subarray(headerEnd + 4, part.length - 2);
+              if (headers.includes('name="file"')) {
+                fileBuffer = bodyPart;
+                const fnMatch = headers.match(/filename="([^"]+)"/);
+                if (fnMatch) fileName = fnMatch[1];
+              }
+            }
+          }
+        }
+      } else {
+        const { fileName: bName, fileData } = req.body || {};
+        fileName = bName || 'image.png';
+        if (fileData) {
+          const base64Match = fileData.match(/^data:([A-Za-z0-9-+\/]+);base64,(.+)$/);
+          if (base64Match) {
+            fileBuffer = Buffer.from(base64Match[2], 'base64');
+          } else {
+            fileBuffer = Buffer.from(fileData, 'base64');
+          }
+        }
+      }
+
+      if (!fileBuffer || fileBuffer.length === 0) {
         return res.status(400).json({ success: false, error: 'No file data provided' });
       }
 
@@ -1401,13 +1451,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       const uniqueFileName = `${Date.now()}_${baseName}${ext}`;
       const filePath = path.join(uploadsDir, uniqueFileName);
 
-      const base64Match = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-      if (base64Match) {
-        const buffer = Buffer.from(base64Match[2], 'base64');
-        fs.writeFileSync(filePath, buffer);
-      } else {
-        fs.writeFileSync(filePath, fileData);
-      }
+      fs.writeFileSync(filePath, fileBuffer);
 
       const publicUrl = `/uploads/${uniqueFileName}`;
       console.log(`[MEDIA UPLOAD] Saved file to ${filePath} -> URL: ${publicUrl}`);
@@ -2186,35 +2230,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     });
   });
 
-  // Admin Media Upload Endpoint
-  app.post('/api/admin/upload-media', (req: Request, res: Response) => {
-    try {
-      const { fileName, fileData } = req.body || {};
-      if (!fileData) {
-        return res.status(400).json({ success: false, error: 'No media file data provided.' });
-      }
 
-      const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-      if (matches && matches.length === 3) {
-        const ext = matches[1].split('/')[1] || 'png';
-        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-        const safeName = (fileName || `media_${Date.now()}`).toLowerCase().replace(/[^a-z0-9_-]/g, '_') + `.${ext}`;
-        const buffer = Buffer.from(matches[2], 'base64');
-        const filePath = path.join(uploadsDir, safeName);
-        fs.writeFileSync(filePath, buffer);
-        const publicUrl = `/uploads/${safeName}`;
-        return res.json({ success: true, url: publicUrl, fileName: safeName });
-      }
-
-      res.json({ success: true, url: fileData });
-    } catch (err: any) {
-      console.error('[MEDIA UPLOAD ERROR]', err);
-      res.status(500).json({ success: false, error: err.message || 'Failed to upload media file' });
-    }
-  });
 
   // Admin Product Status Patch
   app.patch('/api/products/:id/status', (req: Request, res: Response) => {

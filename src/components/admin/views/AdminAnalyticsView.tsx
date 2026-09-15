@@ -20,18 +20,23 @@ export const AdminAnalyticsView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="p-6 rounded-3xl bg-slate-900 text-white shadow-xs flex items-center justify-between">
+      <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-sans">
         <div>
-          <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs font-bold mb-1">
-            <Activity className="w-4 h-4 animate-pulse" />
+          <div className="flex items-center gap-2 text-emerald-700 font-mono text-xs font-semibold mb-1">
+            <Activity className="w-4 h-4 text-emerald-600 animate-pulse" />
             <span>REAL-TIME TRAFFIC ENGINE</span>
           </div>
-          <h2 className="text-xl font-extrabold font-sans">Website Analytics & Active Visitors</h2>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight font-sans">
+            Website Analytics & Active Visitors
+          </h2>
+          <p className="text-xs text-slate-500 mt-1 font-sans">
+            Live visitor telemetry, real-time pageviews, and visitor session tracker.
+          </p>
         </div>
 
         <button
           onClick={reloadData}
-          className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold flex items-center gap-2"
+          className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center gap-2 shadow-2xs transition-colors self-start sm:self-auto cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           <span>Refresh</span>

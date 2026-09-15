@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Product } from '../../../types';
-import { CATEGORIES } from '../../../data/mockData';
-import { ConfirmDeleteModal } from '../modals/ConfirmDeleteModal';
+import { AdminStatusBadge } from '../ui/AdminStatusBadge';
+import { AdminConfirmDialog } from '../ui/AdminConfirmDialog';
 import {
   Plus,
   Search,
@@ -10,14 +10,11 @@ import {
   Edit3,
   Copy,
   Trash2,
-  Eye,
   CheckCircle2,
   Archive,
   ShoppingBag,
   LayoutGrid,
-  List,
-  ChevronRight,
-  Sparkles
+  List
 } from 'lucide-react';
 
 interface AdminStoreProductsViewProps {
@@ -26,8 +23,8 @@ interface AdminStoreProductsViewProps {
   onEditProduct: (prod: Product) => void;
   onDuplicateProduct: (prodId: string) => void;
   onTogglePublishStatus: (prodId: string, status: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED') => void;
-  onDeleteProduct: (prodId: string, permanent: boolean) => Promise<void>;
-  onSelectProductPreview: (prod: Product) => void;
+  onDeleteProduct: (prodId: string, permanent?: boolean) => Promise<void> | void;
+  onSelectProductPreview?: (prod: Product) => void;
 }
 
 export const AdminStoreProductsView: React.FC<AdminStoreProductsViewProps> = ({
@@ -37,15 +34,16 @@ export const AdminStoreProductsView: React.FC<AdminStoreProductsViewProps> = ({
   onDuplicateProduct,
   onTogglePublishStatus,
   onDeleteProduct,
-  onSelectProductPreview = (_prod: Product) => {}
+  onSelectProductPreview = () => {}
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
-  // Delete confirmation modal state
+  // Delete dialog state
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Portal dropdown menu state
   const [menuAnchor, setMenuAnchor] = useState<{ id: string; rect: DOMRect } | null>(null);
@@ -66,6 +64,10 @@ export const AdminStoreProductsView: React.FC<AdminStoreProductsViewProps> = ({
   // Strict Filter: STORE PRODUCTS ONLY
   const storeProductsOnly = (products || []).filter(
     (p) => p && (p.productType === 'STORE' || (!p.productType && p.tags?.includes('Store Card')) || !p.productType)
+  );
+
+  const categoriesList = Array.from(
+    new Set(storeProductsOnly.map((p) => p.category).filter(Boolean))
   );
 
   const filtered = storeProductsOnly.filter((p) => {
@@ -89,33 +91,45 @@ export const AdminStoreProductsView: React.FC<AdminStoreProductsViewProps> = ({
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deletingProduct) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteProduct(deletingProduct.id, false);
+      setDeletingProduct(null);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 font-sans">
-      {/* Header Area */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
-        <div className="space-y-1">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400">
-            <span>Admin</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-emerald-700 font-bold">Commerce</span>
+      {/* Header Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/90">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-sans">
+              Store Products Catalog
+            </h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+              {filtered.length} products
+            </span>
           </div>
-
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Store Products Catalog
-          </h2>
-          <p className="text-xs text-slate-500 font-sans">
-            Manage your products, pricing, and customer inquiries.
+          <p className="text-xs text-slate-500 mt-1 font-sans">
+            Manage software catalog cards, physical keys, pricing, and Cloudflare D1 records.
           </p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
           {/* View Mode Toggle */}
-          <div className="p-1 rounded-xl bg-slate-100 border border-slate-200 flex items-center gap-1 font-mono text-xs">
+          <div className="p-1 rounded-xl bg-white border border-slate-200 flex items-center gap-1 text-xs shadow-2xs font-sans">
             <button
+              type="button"
               onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
-                viewMode === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all ${
+                viewMode === 'table' ? 'bg-slate-100 text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
               }`}
               title="Table View"
             >
@@ -124,9 +138,10 @@ export const AdminStoreProductsView: React.FC<AdminStoreProductsViewProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setViewMode('grid')}
-              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
-                viewMode === 'grid' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all ${
+                viewMode === 'grid' ? 'bg-slate-100 text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
               }`}
               title="Cards View"
             >
@@ -136,382 +151,330 @@ export const AdminStoreProductsView: React.FC<AdminStoreProductsViewProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={onOpenAddModal}
-            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-2 transition-all hover:scale-105"
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Add Store Product</span>
+            <span>Add Store Product</span>
           </button>
         </div>
       </div>
 
-      {/* Search and Filters Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
+      {/* Filter & Search Bar */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs font-sans">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search products by name, description, or ID..."
+            placeholder="Search store products by name, tag, or SKU..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 font-sans shadow-2xs transition-colors"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-sans"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Category Dropdown */}
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-600 shadow-2xs font-sans text-xs"
+            className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:border-emerald-500 text-xs font-medium font-sans"
           >
             <option value="All">All Categories</option>
-            {CATEGORIES.map((c) => (
-              <option key={c.name} value={c.name}>
-                {c.name}
+            {categoriesList.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
               </option>
             ))}
           </select>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-600 shadow-2xs font-sans text-xs"
-          >
-            <option value="All">All Statuses</option>
-            <option value="PUBLISHED">Published</option>
-            <option value="DRAFT">Draft</option>
-            <option value="ARCHIVED">Archived</option>
-          </select>
-
-          <span className="px-3.5 py-2.5 rounded-2xl bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
-            {filtered.length} {filtered.length === 1 ? 'Product' : 'Products'}
-          </span>
+          {/* Status Tabs */}
+          <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200/80">
+            {['All', 'PUBLISHED', 'DRAFT', 'ARCHIVED'].map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setStatusFilter(st)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  statusFilter === st
+                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                {st === 'All' ? 'All' : st.charAt(0) + st.slice(1).toLowerCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Catalog List / Cards or Empty State */}
+      {/* Main Content Area: Table vs Grid */}
       {filtered.length === 0 ? (
-        <div className="py-16 px-4 text-center bg-white rounded-3xl border border-dashed border-slate-300 shadow-xs space-y-4 max-w-xl mx-auto">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-2xs">
-            <ShoppingBag className="w-7 h-7" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-lg font-extrabold text-slate-900 font-sans tracking-tight">
-              No store products yet
-            </h3>
-            <p className="text-xs text-slate-500 font-sans max-w-sm mx-auto">
-              Add your first product to start receiving customer inquiries.
-            </p>
-          </div>
+        <div className="py-16 text-center rounded-2xl bg-white border border-dashed border-slate-200 space-y-3 shadow-xs">
+          <ShoppingBag className="w-10 h-10 mx-auto text-slate-400" />
+          <h3 className="text-sm font-semibold text-slate-700">No Store Products Found</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto font-sans">
+            Try adjusting your search query or filters, or add a new store product to the catalog.
+          </p>
           <button
+            type="button"
             onClick={onOpenAddModal}
-            className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs shadow-md shadow-emerald-600/20 inline-flex items-center gap-2 transition-all hover:scale-105"
+            className="mt-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold text-xs shadow-xs inline-flex items-center gap-1.5"
           >
-            <Plus className="w-4 h-4" />
-            <span>+ Add Store Product</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Create Store Product</span>
           </button>
         </div>
       ) : viewMode === 'table' ? (
-        /* TABLE VIEW */
-        <div className="w-full overflow-x-auto bg-white border border-slate-200 rounded-3xl shadow-xs">
-          <table className="w-full text-left text-xs font-sans border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-500 uppercase tracking-wider font-mono text-[11px] bg-slate-50/80">
-                <th className="py-4 px-5 font-bold">Product</th>
-                <th className="py-4 px-5 font-bold">Category</th>
-                <th className="py-4 px-5 font-bold">Price</th>
-                <th className="py-4 px-5 font-bold">Status</th>
-                <th className="py-4 px-5 font-bold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map((prod) => {
-                const isFree = prod.price === 0 && (prod.originalPrice === 0 || !prod.originalPrice);
-                const hasDiscount = prod.originalPrice && prod.originalPrice > prod.price;
-                const discountPct = hasDiscount
-                  ? Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100)
-                  : 0;
-
-                return (
-                  <tr key={prod.id} className="hover:bg-slate-50/80 transition-colors">
-                    {/* Product Image & Name */}
-                    <td className="py-4 px-5">
-                      <div className="flex items-center gap-3.5">
+        /* Data Table View */
+        <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-sans">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400 uppercase text-[11px] font-semibold bg-slate-50/75">
+                  <th className="py-3.5 px-4 font-semibold">Product</th>
+                  <th className="py-3.5 px-4 font-semibold">Category</th>
+                  <th className="py-3.5 px-4 font-semibold">Price</th>
+                  <th className="py-3.5 px-4 font-semibold">Status</th>
+                  <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map((prod) => (
+                  <tr key={prod.id} className="hover:bg-slate-50/60 transition-colors group">
+                    {/* Product Cell */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-3">
                         <img
-                          src={prod.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80'}
+                          src={prod.image || '/logo.png'}
                           alt={prod.name}
-                          className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shrink-0 bg-slate-100"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
+                          className="w-10 h-10 rounded-xl object-cover shrink-0 bg-slate-50 border border-slate-200"
                         />
-                        <div className="max-w-xs">
-                          <strong className="text-slate-900 text-xs font-bold block line-clamp-1">
+                        <div className="min-w-0 max-w-xs">
+                          <strong className="block text-slate-900 font-sans text-xs truncate font-semibold group-hover:text-emerald-700 transition-colors">
                             {prod.name}
                           </strong>
-                          <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
-                            {prod.shortDescription || 'No description'}
-                          </p>
+                          <span className="text-[11px] text-slate-400 block truncate mt-0.5">
+                            ID: {prod.id}
+                          </span>
                         </div>
                       </div>
                     </td>
 
-                    {/* Category */}
-                    <td className="py-4 px-5">
-                      <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-[11px] font-mono font-bold border border-slate-200">
-                        {prod.category || 'Software'}
+                    {/* Category Cell */}
+                    <td className="py-3.5 px-4 text-slate-600 font-sans">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700">
+                        {prod.category || 'General'}
                       </span>
                     </td>
 
-                    {/* Price */}
-                    <td className="py-4 px-5">
-                      {isFree ? (
-                        <span className="font-mono font-black text-emerald-600 text-sm">FREE</span>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-slate-900 text-sm">
-                            ₹{prod.price}
-                          </span>
-                          {hasDiscount && (
-                            <>
-                              <span className="font-mono text-xs text-slate-400 line-through">
-                                ₹{prod.originalPrice}
-                              </span>
-                              <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 font-mono font-black text-[10px] border border-rose-200">
-                                {discountPct}% OFF
-                              </span>
-                            </>
-                          )}
+                    {/* Price Cell */}
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-900 text-xs">₹{prod.price}</div>
+                      {prod.originalPrice && prod.originalPrice > prod.price && (
+                        <div className="text-[10px] text-slate-400 line-through">
+                          ₹{prod.originalPrice}
                         </div>
                       )}
                     </td>
 
-                    {/* Status */}
-                    <td className="py-4 px-5">
-                      <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-mono font-bold ${
-                          (prod.status || 'PUBLISHED') === 'PUBLISHED'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : prod.status === 'DRAFT'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-slate-100 text-slate-600 border border-slate-200'
-                        }`}
-                      >
-                        {prod.status || 'PUBLISHED'}
-                      </span>
+                    {/* Status Cell */}
+                    <td className="py-3.5 px-4">
+                      <AdminStatusBadge status={prod.status || 'PUBLISHED'} type="product" />
                     </td>
 
-                    {/* Actions */}
-                    <td className="py-4 px-5 text-right">
-                      <div className="flex items-center justify-end gap-1.5 font-mono">
-                        <button
-                          onClick={() => onSelectProductPreview(prod)}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                          title="Preview Product"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => onEditProduct(prod)}
-                          className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors"
-                          title="Edit Product"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => onDuplicateProduct(prod.id)}
-                          className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors"
-                          title="Duplicate Product"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={(e) => handleOpenMenu(e, prod.id)}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
-                          title="More Options"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </div>
+                    {/* Actions Cell */}
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenMenu(e, prod.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        aria-label="Actions menu"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
-        /* CARDS GRID VIEW */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((prod) => {
-            const isFree = prod.price === 0 && (prod.originalPrice === 0 || !prod.originalPrice);
-            const hasDiscount = prod.originalPrice && prod.originalPrice > prod.price;
-            const discountPct = hasDiscount
-              ? Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100)
-              : 0;
-
-            return (
-              <div
-                key={prod.id}
-                className="p-5 rounded-3xl bg-white border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
-              >
-                <div className="space-y-3">
-                  {/* Image & Price Overlay */}
-                  <div className="relative rounded-2xl overflow-hidden aspect-video bg-slate-900 border border-slate-100">
-                    <img
-                      src={prod.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80'}
-                      alt={prod.name}
-                      className="w-full h-full object-cover"
-                    />
-
-                    <div className="absolute top-2.5 left-2.5">
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-950/80 text-emerald-400 font-mono font-bold text-[10px] uppercase border border-emerald-500/30 backdrop-blur-xs">
-                        {prod.category || 'Software'}
-                      </span>
-                    </div>
-
-                    <div className="absolute bottom-2.5 right-2.5">
-                      {isFree ? (
-                        <span className="bg-emerald-600 text-white px-2.5 py-1 rounded-xl font-mono font-black text-xs shadow-md">
-                          FREE
-                        </span>
-                      ) : (
-                        <div className="bg-slate-950/90 text-white px-2.5 py-1 rounded-xl font-mono font-bold text-xs shadow-md backdrop-blur-xs flex items-center gap-1.5">
-                          <span className="text-emerald-400 font-black">₹{prod.price}</span>
-                          {hasDiscount && (
-                            <span className="text-[10px] text-slate-400 line-through">₹{prod.originalPrice}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Title & Short Description */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-slate-400 font-mono font-bold uppercase">
-                        {prod.category || 'Software'}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold ${
-                          (prod.status || 'PUBLISHED') === 'PUBLISHED'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-amber-50 text-amber-700'
-                        }`}
-                      >
-                        {prod.status || 'PUBLISHED'}
-                      </span>
-                    </div>
-
-                    <strong className="text-slate-900 font-sans font-bold text-sm line-clamp-1 block mt-1">
-                      {prod.name}
-                    </strong>
-                    <p className="text-slate-500 text-xs line-clamp-2 mt-1 leading-relaxed">
-                      {prod.shortDescription || 'No description available.'}
-                    </p>
+        /* Grid Card View */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((prod) => (
+            <div
+              key={prod.id}
+              className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between space-y-3 group font-sans"
+            >
+              <div className="space-y-3">
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-50 border border-slate-200">
+                  <img
+                    src={prod.image || '/logo.png'}
+                    alt={prod.name}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute top-2 right-2">
+                    <AdminStatusBadge status={prod.status || 'PUBLISHED'} type="product" />
                   </div>
                 </div>
 
-                {/* Card Action Buttons */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs font-mono">
-                  <button
-                    onClick={() => onSelectProductPreview(prod)}
-                    className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors"
-                    title="Preview"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
+                <div>
+                  <h4 className="font-semibold text-slate-900 text-sm truncate font-sans group-hover:text-emerald-700 transition-colors">
+                    {prod.name}
+                  </h4>
+                  <p className="text-xs text-slate-500 line-clamp-2 mt-1 font-sans leading-relaxed">
+                    {prod.shortDescription || prod.description || 'Software package.'}
+                  </p>
+                </div>
+              </div>
 
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-sans">
+                <div>
+                  <strong className="text-slate-900 text-sm">₹{prod.price}</strong>
+                  {prod.originalPrice && prod.originalPrice > prod.price && (
+                    <span className="text-[11px] text-slate-400 line-through ml-1.5">
+                      ₹{prod.originalPrice}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1">
                   <button
+                    type="button"
                     onClick={() => onEditProduct(prod)}
-                    className="flex-1 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center gap-1.5 transition-colors"
+                    className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
+                    title="Edit Product"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
-                    <span>Edit</span>
                   </button>
-
                   <button
+                    type="button"
+                    onClick={() => onDuplicateProduct(prod.id)}
+                    className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
+                    title="Duplicate"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setDeletingProduct(prod)}
-                    className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold transition-colors"
+                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors"
                     title="Delete"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Portal Dropdown Menu */}
-      {menuAnchor && (() => {
-        const prod = filtered.find((p) => p.id === menuAnchor.id);
-        if (!prod) return null;
-        const { rect } = menuAnchor;
-        const top = rect.bottom + 6;
-        const right = Math.max(12, window.innerWidth - rect.right);
+      {/* Floating Action Portal Menu */}
+      {menuAnchor &&
+        createPortal(
+          (() => {
+            const activeProduct = storeProductsOnly.find((p) => p.id === menuAnchor.id);
+            if (!activeProduct) return null;
 
-        return createPortal(
-          <div
-            style={{ top: `${top}px`, right: `${right}px` }}
-            className="fixed w-52 rounded-2xl bg-white border border-slate-200 shadow-2xl py-2 z-[9999] text-left font-sans text-xs text-slate-800 animate-fade-in"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => {
-                onDuplicateProduct(prod.id);
-                setMenuAnchor(null);
-              }}
-              className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700 transition-colors"
-            >
-              <Copy className="w-4 h-4 text-indigo-600" />
-              <span>Duplicate Product</span>
-            </button>
+            return (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: `${menuAnchor.rect.bottom + 4}px`,
+                  left: `${Math.min(menuAnchor.rect.right - 180, window.innerWidth - 190)}px`,
+                  zIndex: 9999
+                }}
+                className="w-44 bg-white border border-slate-200 rounded-2xl shadow-xl p-1.5 text-xs font-sans text-slate-700 animate-fadeIn"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    onEditProduct(activeProduct);
+                    setMenuAnchor(null);
+                  }}
+                  className="w-full px-2.5 py-2 rounded-xl text-left hover:bg-slate-50 flex items-center gap-2 text-slate-700 hover:text-slate-900 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Edit Product</span>
+                </button>
 
-            <button
-              onClick={() => {
-                onTogglePublishStatus(
-                  prod.id,
-                  (prod.status || 'PUBLISHED') === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED'
-                );
-                setMenuAnchor(null);
-              }}
-              className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700 transition-colors"
-            >
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>
-                {(prod.status || 'PUBLISHED') === 'PUBLISHED'
-                  ? 'Unpublish (Draft)'
-                  : 'Publish Product'}
-              </span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDuplicateProduct(activeProduct.id);
+                    setMenuAnchor(null);
+                  }}
+                  className="w-full px-2.5 py-2 rounded-xl text-left hover:bg-slate-50 flex items-center gap-2 text-slate-700 hover:text-slate-900 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Duplicate</span>
+                </button>
 
-            <button
-              onClick={() => {
-                setDeletingProduct(prod);
-                setMenuAnchor(null);
-              }}
-              className="w-full px-4 py-2 hover:bg-rose-50 flex items-center gap-2.5 text-rose-600 font-bold border-t border-slate-100 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete Permanently</span>
-            </button>
-          </div>,
+                <div className="my-1 border-t border-slate-100" />
+
+                {activeProduct.status !== 'PUBLISHED' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onTogglePublishStatus(activeProduct.id, 'PUBLISHED');
+                      setMenuAnchor(null);
+                    }}
+                    className="w-full px-2.5 py-2 rounded-xl text-left hover:bg-slate-50 flex items-center gap-2 text-emerald-700 transition-colors font-semibold"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Publish Live</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onTogglePublishStatus(activeProduct.id, 'DRAFT');
+                      setMenuAnchor(null);
+                    }}
+                    className="w-full px-2.5 py-2 rounded-xl text-left hover:bg-slate-50 flex items-center gap-2 text-amber-700 transition-colors font-semibold"
+                  >
+                    <Archive className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Revert to Draft</span>
+                  </button>
+                )}
+
+                <div className="my-1 border-t border-slate-100" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeletingProduct(activeProduct);
+                    setMenuAnchor(null);
+                  }}
+                  className="w-full px-2.5 py-2 rounded-xl text-left hover:bg-rose-50 text-rose-600 flex items-center gap-2 transition-colors font-semibold"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Product</span>
+                </button>
+              </div>
+            );
+          })(),
           document.body
-        );
-      })()}
+        )}
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmDeleteModal
+      {/* Standardized Delete Confirmation Dialog */}
+      <AdminConfirmDialog
         isOpen={Boolean(deletingProduct)}
-        product={deletingProduct}
-        onClose={() => setDeletingProduct(null)}
-        onConfirm={async (permanent) => {
-          if (deletingProduct) {
-            await onDeleteProduct(deletingProduct.id, permanent);
-          }
-        }}
+        title="Delete Store Product?"
+        description={`Are you sure you want to delete "${deletingProduct?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete Product"
+        cancelLabel="Keep Product"
+        isDestructive={true}
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeletingProduct(null)}
       />
     </div>
   );

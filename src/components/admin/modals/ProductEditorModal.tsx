@@ -37,7 +37,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
   );
 
   const [image, setImage] = useState(
-    product?.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80'
+    product?.image || '/logo.png'
   );
 
   // Media Upload States
@@ -59,44 +59,43 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 12 * 1024 * 1024) {
-      setUploadNotice('File size is larger than 12MB limit. Please choose a smaller image.');
+    if (file.size > 15 * 1024 * 1024) {
+      setUploadNotice('File size exceeds 15MB limit. Please choose a smaller image.');
       return;
     }
 
     setIsUploadingMedia(true);
-    setUploadNotice('Reading & uploading media file...');
+    setUploadNotice('Uploading media to R2...');
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64Data = reader.result as string;
-      try {
-        const res = await fetch('/api/admin/upload-media', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: file.name, fileData: base64Data })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.url) {
-            setImage(data.url);
-            setUploadNotice('Media uploaded successfully!');
-            setIsUploadingMedia(false);
-            setTimeout(() => setUploadNotice(''), 3000);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('Server upload notice, fallback to data URI:', err);
+    try {
+      const activeType = product?.productType || targetProductType || 'STORE';
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('productId', product?.id || `${activeType === 'DIGITAL' ? 'dig' : 'prod'}-${Date.now()}`);
+      formData.append('folder', activeType === 'DIGITAL' ? 'digital-products' : 'products');
+      formData.append('targetType', 'image');
+
+      const res = await fetch('/api/admin/upload-media', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        setImage(data.url);
+        setUploadNotice('Media uploaded successfully to R2!');
+        setIsUploadingMedia(false);
+        setTimeout(() => setUploadNotice(''), 3000);
+        return;
+      } else {
+        throw new Error(data?.message || 'Upload failed');
       }
-
-      // Fallback to Data URI directly
-      setImage(base64Data);
-      setUploadNotice('Image attached successfully!');
+    } catch (err: any) {
+      console.error('[PRODUCT MEDIA UPLOAD ERROR]', err);
+      setUploadNotice(`Upload failed: ${err?.message || 'Network error'}. Previous image preserved.`);
       setIsUploadingMedia(false);
-      setTimeout(() => setUploadNotice(''), 3000);
-    };
-    reader.readAsDataURL(file);
+      setTimeout(() => setUploadNotice(''), 4000);
+    }
   };
 
   const [price, setPrice] = useState<number>(product?.price || 499);
@@ -137,7 +136,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
         (product?.tags || (targetProductType === 'DIGITAL' ? ['Digital Key', 'Instant Download'] : ['Software', 'Store Card'])).join(', ')
       );
       setImage(
-        product?.image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=80'
+        product?.image || '/logo.png'
       );
       setPrice(product?.price || 499);
       setOriginalPrice(product?.originalPrice || 999);
@@ -202,7 +201,8 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
       tags: tags.length > 0 ? tags : (activeType === 'DIGITAL' ? ['Digital Key'] : ['Store Card']),
       shortDescription: shortDescription || 'High performance software solution.',
       fullDescription: fullDescription || shortDescription || 'Full digital product package.',
-      image,
+      image: image.trim() || (product?.image && !product.image.startsWith('data:') ? product.image : '/logo.png'),
+      previewImage: (product?.previewImage && !product.previewImage.startsWith('data:') ? product.previewImage : (image.trim() || '/logo.png')),
       price: Number(price) || 499,
       originalPrice: Number(originalPrice) || 999,
       discountPercent: Number(discountPercent) || 50,

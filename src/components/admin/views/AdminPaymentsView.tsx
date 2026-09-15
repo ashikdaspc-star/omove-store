@@ -13,7 +13,6 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ orders = [
 
   const paidOrders = orders.filter((o) => o && (o.paymentStatus === 'SUCCESS' || (o as any).status === 'completed'));
 
-  // Calculate totals
   const razorpayOrders = paidOrders.filter((o) => (o as any).paymentProvider !== 'paypal' && !o.paymentMethod?.toLowerCase().includes('paypal'));
   const paypalOrders = paidOrders.filter((o) => (o as any).paymentProvider === 'paypal' || o.paymentMethod?.toLowerCase().includes('paypal'));
 
@@ -38,99 +37,102 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ orders = [
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       {/* 3 Metric Cards for Payments Received in INR & USD */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Card 1: PayPal Received (USD) */}
-        <div className="p-5 rounded-3xl bg-gradient-to-br from-blue-900/90 via-blue-950 to-slate-900 text-white border border-blue-500/30 shadow-sm space-y-2">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-blue-300 uppercase tracking-wider">PAYPAL RECEIVED ($)</span>
-            <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center border border-blue-500/30">
+            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider font-mono">PAYPAL RECEIVED ($)</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200">
               <PaypalIcon className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-white">
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900">
               ${totalUsdRevenue.toFixed(2)}
             </span>
-            <span className="text-xs font-mono text-blue-300">USD</span>
+            <span className="text-xs font-mono font-semibold text-blue-600">USD</span>
           </div>
-          <span className="text-[11px] font-mono text-blue-200/80 block">
+          <span className="text-[11px] text-slate-500 font-sans block">
             {paypalOrders.length} International PayPal Transactions
           </span>
         </div>
 
         {/* Card 2: Razorpay Received (INR) */}
-        <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-900/90 via-emerald-950 to-slate-900 text-white border border-emerald-500/30 shadow-sm space-y-2">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-emerald-300 uppercase tracking-wider">RAZORPAY RECEIVED (₹)</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-500/30">
+            <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider font-mono">RAZORPAY RECEIVED (₹)</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
               <RazorpayIcon className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-white">
-              ₹{totalInrRevenue.toFixed(2)}
+            <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900">
+              ₹{totalInrRevenue.toLocaleString()}
             </span>
-            <span className="text-xs font-mono text-emerald-300">INR</span>
+            <span className="text-xs font-mono font-semibold text-emerald-700">INR</span>
           </div>
-          <span className="text-[11px] font-mono text-emerald-200/80 block">
+          <span className="text-[11px] text-slate-500 font-sans block">
             {razorpayOrders.length} Domestic UPI / Card Orders
           </span>
         </div>
 
         {/* Card 3: Total Verified Transactions */}
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-2">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">VERIFIED SETTLEMENTS</span>
-            <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center border border-slate-200">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider font-mono">VERIFIED SETTLEMENTS</span>
+            <div className="w-8 h-8 rounded-xl bg-slate-100 text-emerald-600 flex items-center justify-center border border-slate-200">
+              <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900">
+          <div className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900">
             {paidOrders.length}
           </div>
-          <span className="text-[11px] font-mono text-emerald-700 font-bold block">
-            100% Cryptographically Verified
+          <span className="text-[11px] text-emerald-600 font-semibold font-sans block">
+            ✓ 100% Cryptographically Verified
           </span>
         </div>
       </div>
 
       {/* Header & Filter Toolbar */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-extrabold text-slate-900 font-sans tracking-tight">
+            <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight font-sans">
               Payment Gateway Audit Logs & Receipts
             </h2>
-            <p className="text-xs text-slate-500 font-mono mt-0.5">
+            <p className="text-xs text-slate-500 font-sans mt-0.5">
               Live PayPal USD & Razorpay INR transaction records, order IDs, and cryptographic verification logs.
             </p>
           </div>
 
           {/* Gateway Filter Tabs */}
-          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100 border border-slate-200 text-xs font-mono font-bold">
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200/80 text-xs font-sans">
             <button
+              type="button"
               onClick={() => setGatewayFilter('ALL')}
-              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                gatewayFilter === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                gatewayFilter === 'ALL' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               All ({paidOrders.length})
             </button>
             <button
+              type="button"
               onClick={() => setGatewayFilter('PAYPAL')}
-              className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
-                gatewayFilter === 'PAYPAL' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-blue-600'
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                gatewayFilter === 'PAYPAL' ? 'bg-blue-600 text-white shadow-2xs font-semibold' : 'text-slate-500 hover:text-blue-600'
               }`}
             >
               <PaypalIcon className="w-3.5 h-3.5" />
               <span>PayPal USD ({paypalOrders.length})</span>
             </button>
             <button
+              type="button"
               onClick={() => setGatewayFilter('RAZORPAY')}
-              className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
-                gatewayFilter === 'RAZORPAY' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-emerald-600'
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                gatewayFilter === 'RAZORPAY' ? 'bg-emerald-600 text-white shadow-2xs font-semibold' : 'text-slate-500 hover:text-emerald-600'
               }`}
             >
               <RazorpayIcon className="w-3.5 h-3.5" />
@@ -140,7 +142,7 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ orders = [
         </div>
 
         {/* Search Bar */}
-        <div className="pt-2 border-t border-slate-100 flex items-center gap-3">
+        <div className="pt-3 border-t border-slate-100 flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -148,30 +150,30 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ orders = [
               placeholder="Search by Payment ID, PayPal Order ID, Order Number, or Customer Email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 font-sans"
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-sans"
             />
           </div>
         </div>
       </div>
 
       {/* Audit Table */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
+      <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
+          <table className="w-full text-left text-xs font-sans">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-400 uppercase">
-                <th className="pb-3 font-bold">Gateway & Payment ID</th>
-                <th className="pb-3 font-bold">Order #</th>
-                <th className="pb-3 font-bold">Customer</th>
-                <th className="pb-3 font-bold">Amount Received</th>
-                <th className="pb-3 font-bold">Provider / Method</th>
-                <th className="pb-3 font-bold">Verification Status</th>
+              <tr className="border-b border-slate-200 text-slate-400 uppercase text-[11px] font-semibold bg-slate-50/75">
+                <th className="py-3.5 px-4 font-semibold">Gateway & Payment ID</th>
+                <th className="py-3.5 px-4 font-semibold">Order #</th>
+                <th className="py-3.5 px-4 font-semibold">Customer</th>
+                <th className="py-3.5 px-4 font-semibold">Amount Received</th>
+                <th className="py-3.5 px-4 font-semibold">Provider / Method</th>
+                <th className="py-3.5 px-4 font-semibold">Verification Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400 font-mono">
+                  <td colSpan={6} className="py-12 text-center text-slate-400 font-sans">
                     No payment records matching the selected filter.
                   </td>
                 </tr>
@@ -182,61 +184,56 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ orders = [
                   const usdAmount = (ord as any).paymentAmountUsd || ((ord.total || 0) / 95);
 
                   return (
-                    <tr key={ord.id} className="hover:bg-slate-50 transition-colors">
-                      {/* Payment ID & Icon */}
-                      <td className="py-4">
-                        <div className="flex items-center gap-2">
+                    <tr key={ord.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2.5">
                           <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${
                             isPaypal ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-emerald-50 border-emerald-200 text-emerald-600'
                           }`}>
                             {isPaypal ? <PaypalIcon className="w-4 h-4" /> : <RazorpayIcon className="w-4 h-4" />}
                           </div>
                           <div>
-                            <span className="font-bold text-slate-900 block select-all">{paymentId}</span>
-                            <span className="text-[10px] text-slate-400">
+                            <span className="font-bold text-slate-900 block font-mono select-all text-xs">{paymentId}</span>
+                            <span className="text-[10px] text-slate-400 font-sans">
                               {new Date(ord.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </span>
                           </div>
                         </div>
                       </td>
 
-                      {/* Order Number */}
-                      <td className="py-4 font-bold text-emerald-700">
+                      <td className="py-4 px-4 font-bold text-emerald-700 font-mono">
                         {ord.orderNumber || ord.id}
                       </td>
 
-                      {/* Customer */}
-                      <td className="py-4">
-                        <span className="text-slate-900 font-sans font-medium block">{ord.customerName || 'Customer'}</span>
-                        <span className="text-slate-500 text-[11px] font-sans">{ord.customerEmail}</span>
+                      <td className="py-4 px-4">
+                        <span className="text-slate-900 font-sans font-semibold block">{ord.customerName || 'Customer'}</span>
+                        <span className="text-slate-400 text-[11px] font-mono">{ord.customerEmail}</span>
                       </td>
 
-                      {/* Amount Received (USD / INR) */}
-                      <td className="py-4 font-bold">
+                      <td className="py-4 px-4 font-bold">
                         {isPaypal ? (
                           <div>
-                            <span className="text-sm font-black text-blue-700 block">
+                            <span className="text-sm font-extrabold text-blue-600 block font-mono">
                               ${usdAmount.toFixed(2)} USD
                             </span>
-                            <span className="text-[10px] text-slate-400">
+                            <span className="text-[10px] text-slate-400 font-sans">
                               Orig: ₹{ord.total} INR
                             </span>
                           </div>
                         ) : (
                           <div>
-                            <span className="text-sm font-black text-emerald-700 block">
+                            <span className="text-sm font-extrabold text-slate-900 block font-mono">
                               ₹{ord.total} INR
                             </span>
-                            <span className="text-[10px] text-slate-400">
+                            <span className="text-[10px] text-slate-400 font-sans">
                               Domestic INR
                             </span>
                           </div>
                         )}
                       </td>
 
-                      {/* Method */}
-                      <td className="py-4 text-slate-700">
-                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold inline-flex items-center gap-1 ${
+                      <td className="py-4 px-4 text-slate-600">
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold font-mono inline-flex items-center gap-1 ${
                           isPaypal
                             ? 'bg-blue-50 text-blue-700 border border-blue-200'
                             : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -245,12 +242,11 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ orders = [
                         </span>
                       </td>
 
-                      {/* Verification Badge */}
-                      <td className="py-4">
-                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold inline-flex items-center gap-1.5 ${
+                      <td className="py-4 px-4">
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold font-mono inline-flex items-center gap-1.5 ${
                           isPaypal
-                            ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         }`}>
                           <ShieldCheck className="w-3.5 h-3.5" />
                           <span>{isPaypal ? 'PAYPAL CAPTURE VERIFIED' : 'HMAC SHA-256 VERIFIED'}</span>
