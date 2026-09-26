@@ -5783,7 +5783,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       let name = '';
       let picture = '';
 
-      const expectedClientId = env.GOOGLE_CLIENT_ID || '596954865902-rn605o42bjk3a013i345o2k3gn0qfcjt.apps.googleusercontent.com';
+      const expectedClientId = env.GOOGLE_CLIENT_ID || '596954865902-rn605o42bjk3a013i345o2k3gn0qfctj.apps.googleusercontent.com';
 
       if (credential) {
         try {

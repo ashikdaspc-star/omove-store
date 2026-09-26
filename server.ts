@@ -4450,7 +4450,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
       let name = '';
       let picture = '';
 
-      const expectedClientId = process.env.GOOGLE_CLIENT_ID || '596954865902-rn605o42bjk3a013i345o2k3gn0qfcjt.apps.googleusercontent.com';
+      const expectedClientId = process.env.GOOGLE_CLIENT_ID || '596954865902-rn605o42bjk3a013i345o2k3gn0qfctj.apps.googleusercontent.com';
 
       if (credential) {
         // Verify Google ID Token JWT

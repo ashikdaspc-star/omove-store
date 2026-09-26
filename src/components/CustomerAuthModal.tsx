@@ -9,7 +9,7 @@ declare global {
 
 const GOOGLE_CLIENT_ID =
   (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
-  '596954865902-rn605o42bjk3a013i345o2k3gn0qfcjt.apps.googleusercontent.com';
+  '596954865902-rn605o42bjk3a013i345o2k3gn0qfctj.apps.googleusercontent.com';
 
 interface CustomerAuthModalProps {
   isOpen: boolean;
