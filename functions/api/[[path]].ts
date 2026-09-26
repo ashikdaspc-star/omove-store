@@ -5770,8 +5770,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
     }
 
-    if (path === '/api/auth/google' && method === 'POST') {
-      const body: any = await request.json().catch(() => ({}));
+    if (path === '/api/auth/google') {
+      if (method === 'GET') {
+        return jsonResponse({
+          success: true,
+          service: 'Omove Store Google Authentication API',
+          status: 'active',
+          method: 'POST',
+          message: 'This endpoint accepts POST requests containing Google credentials/tokens from the Sign in with Google button on https://www.omovestore.shop'
+        }, 200);
+      }
+
+      if (method === 'POST') {
+        const body: any = await request.json().catch(() => ({}));
       const { credential, accessToken } = body;
 
       if (!credential && !accessToken) {
@@ -5898,6 +5909,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }, 200, {
         'Set-Cookie': `omove_session_token=${sessId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
       });
+      }
     }
 
     return jsonResponse({ success: false, error: `API route not found: ${method} ${path}` }, 404);

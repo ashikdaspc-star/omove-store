@@ -4437,6 +4437,16 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   });
 
   // Google OAuth / GSI Verification Endpoint (Secure Server-Side Token Verification)
+  app.get('/api/auth/google', (_req: Request, res: Response) => {
+    return res.status(200).json({
+      success: true,
+      service: 'Omove Store Google Authentication API',
+      status: 'active',
+      method: 'POST',
+      message: 'This endpoint accepts POST requests containing Google credentials/tokens from the Sign in with Google button on https://www.omovestore.shop'
+    });
+  });
+
   app.post('/api/auth/google', authRateLimiter, async (req: Request, res: Response) => {
     try {
       const { credential, accessToken } = req.body || {};
