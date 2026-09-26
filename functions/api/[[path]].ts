@@ -92,6 +92,8 @@ export interface Env {
   META_PIXEL_ID?: string;
   META_CONVERSIONS_API_TOKEN?: string;
   META_ACCESS_TOKEN?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
 }
 
 // ─── CLOUDFLARE R2 STORAGE HELPERS ───
@@ -511,6 +513,8 @@ async function saveD1User(env: Env, user: any): Promise<boolean> {
         name = excluded.name,
         phone = excluded.phone,
         location = excluded.location,
+        google_sub_id = COALESCE(excluded.google_sub_id, users.google_sub_id),
+        picture = COALESCE(NULLIF(excluded.picture, ''), users.picture),
         last_login_at = excluded.last_login_at,
         updated_at = excluded.updated_at
     `);
@@ -5763,6 +5767,136 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === '/api/auth/logout' && method === 'POST') {
       return jsonResponse({ success: true, message: 'Logged out' }, 200, {
         'Set-Cookie': 'omove_session_token=; Path=/; HttpOnly; Max-Age=0'
+      });
+    }
+
+    if (path === '/api/auth/google' && method === 'POST') {
+      const body: any = await request.json().catch(() => ({}));
+      const { credential, accessToken } = body;
+
+      if (!credential && !accessToken) {
+        return jsonResponse({ success: false, error: 'Google credential or access token required' }, 400);
+      }
+
+      let sub = '';
+      let email = '';
+      let name = '';
+      let picture = '';
+
+      const expectedClientId = env.GOOGLE_CLIENT_ID || '596954865902-rn605o42bjk3a013i345o2k3gn0qfcjt.apps.googleusercontent.com';
+
+      if (credential) {
+        try {
+          const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+          if (!verifyRes.ok) {
+            return jsonResponse({ success: false, error: 'Invalid Google identity token' }, 401);
+          }
+          const tokenInfo: any = await verifyRes.json();
+          if (tokenInfo.aud !== expectedClientId) {
+            return jsonResponse({ success: false, error: 'Google token audience mismatch' }, 401);
+          }
+          if (tokenInfo.iss !== 'accounts.google.com' && tokenInfo.iss !== 'https://accounts.google.com') {
+            return jsonResponse({ success: false, error: 'Invalid Google token issuer' }, 401);
+          }
+          if (tokenInfo.email_verified !== 'true' && tokenInfo.email_verified !== true) {
+            return jsonResponse({ success: false, error: 'Google email address is not verified' }, 401);
+          }
+          sub = tokenInfo.sub;
+          email = tokenInfo.email;
+          name = tokenInfo.name || tokenInfo.email?.split('@')[0] || 'Customer';
+          picture = tokenInfo.picture || '';
+        } catch (err: any) {
+          return jsonResponse({ success: false, error: `Google verification error: ${err.message}` }, 500);
+        }
+      } else if (accessToken) {
+        try {
+          const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
+          if (!userinfoRes.ok) {
+            return jsonResponse({ success: false, error: 'Invalid Google access token' }, 401);
+          }
+          const userInfo: any = await userinfoRes.json();
+          if (userInfo.email_verified !== true && userInfo.email_verified !== 'true') {
+            return jsonResponse({ success: false, error: 'Google email address is not verified' }, 401);
+          }
+          sub = userInfo.sub;
+          email = userInfo.email;
+          name = userInfo.name || userInfo.email?.split('@')[0] || 'Customer';
+          picture = userInfo.picture || '';
+        } catch (err: any) {
+          return jsonResponse({ success: false, error: `Google userinfo error: ${err.message}` }, 500);
+        }
+      }
+
+      if (!email) {
+        return jsonResponse({ success: false, error: 'No email returned by Google identity' }, 400);
+      }
+
+      const normEmail = email.trim().toLowerCase();
+      const freshUsers = await getD1Users(env);
+      if (Array.isArray(freshUsers)) {
+        freshUsers.forEach((u: any) => { if (u.email) usersStore.set(u.email.toLowerCase(), u); });
+      }
+
+      let user = Array.from(usersStore.values()).find(
+        (u: any) => (u.googleSubId && u.googleSubId === sub) || (u.email && u.email.toLowerCase() === normEmail)
+      );
+
+      if (user) {
+        if (!user.googleSubId) user.googleSubId = sub;
+        if (picture && !user.picture) user.picture = picture;
+        user.lastLoginAt = new Date().toISOString();
+        user.updatedAt = new Date().toISOString();
+        await saveD1User(env, user);
+      } else {
+        const randomPass = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36);
+        const { hash, salt } = await hashPasswordWebCrypto(randomPass);
+        user = {
+          id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          name: name || normEmail.split('@')[0],
+          email: normEmail,
+          phone: '',
+          passwordHash: hash,
+          passwordSalt: salt,
+          location: 'Kolkata, West Bengal, India',
+          googleSubId: sub,
+          picture: picture || '',
+          authProvider: 'google',
+          isAdmin: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString()
+        };
+        await saveD1User(env, user);
+      }
+
+      const sessId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const session = {
+        sessionId: sessId,
+        userId: user.id,
+        userEmail: normEmail,
+        isAdmin: Boolean(user.isAdmin),
+        createdAt: new Date().toISOString(),
+        expiresAt: Date.now() + 7 * 86400000
+      };
+      sessionsStore.set(sessId, session);
+
+      return jsonResponse({
+        success: true,
+        token: sessId,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '',
+          location: user.location || '',
+          picture: user.picture || '',
+          authProvider: user.authProvider || 'google',
+          isAdmin: Boolean(user.isAdmin)
+        }
+      }, 200, {
+        'Set-Cookie': `omove_session_token=${sessId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
       });
     }
 

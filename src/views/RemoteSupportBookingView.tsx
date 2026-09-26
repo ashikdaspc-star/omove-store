@@ -20,9 +20,9 @@ import {
   Tag,
   WifiOff,
   AlertTriangle,
-  Clock,
   CheckCircle,
-  HelpCircle
+  ArrowRight,
+  Zap
 } from 'lucide-react';
 
 interface RemoteSupportBookingViewProps {
@@ -68,11 +68,13 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
   const [paypalLoading, setPaypalLoading] = useState(false);
 
   // Coupon state
+  const [showCouponInput, setShowCouponInput] = useState(false);
   const [couponInput, setCouponInput] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
 
   const basePrice = selectedService?.price || 39;
+  const originalPrice = selectedService?.originalPrice || 499;
   const finalPrice = Math.max(0, basePrice - appliedDiscount);
   const previewUsd = finalPrice > 0 ? finalPrice / 95 : 0;
   const previewUsdDisplay = (Math.round(previewUsd * 100) / 100).toFixed(2);
@@ -87,6 +89,13 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
       setAppliedDiscount(0);
       setCouponMessage(res.message);
     }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedDiscount(0);
+    setCouponInput('');
+    setCouponMessage('');
+    setShowCouponInput(false);
   };
 
   // State ref for PayPal callbacks
@@ -146,15 +155,14 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
             const curr = paypalStateRef.current;
             setErrorMessage('');
 
-            // Validation
             if (!curr.customerName.trim()) {
               setErrorMessage('Please enter your full name.');
               throw new Error('Name required');
             }
 
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!curr.email.trim() || !emailRegex.test(curr.email.trim())) {
-              setErrorMessage('Please enter a valid email address.');
+            if (curr.email.trim() && !emailRegex.test(curr.email.trim())) {
+              setErrorMessage('Please enter a valid email address or leave it blank.');
               throw new Error('Valid email required');
             }
 
@@ -162,11 +170,6 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
               setPhoneTouched(true);
               setErrorMessage('Please enter a valid WhatsApp number for the selected country.');
               throw new Error('Valid WhatsApp number required');
-            }
-
-            if (!curr.problemDescription.trim()) {
-              setErrorMessage('Please describe the problem or error messages.');
-              throw new Error('Problem description required');
             }
 
             setIsSubmitting(true);
@@ -179,11 +182,11 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
                 serviceTitle: curr.selectedService?.title || 'Remote PC Support',
                 issueCategory: curr.selectedService?.category || 'Windows Fix',
                 customerName: curr.customerName.trim(),
-                customerEmail: curr.email.trim().toLowerCase(),
+                customerEmail: curr.email.trim() ? curr.email.trim().toLowerCase() : 'customer@example.com',
                 customerPhone: e164Phone,
                 phone: e164Phone,
-                email: curr.email.trim().toLowerCase(),
-                problemDescription: curr.problemDescription.trim(),
+                email: curr.email.trim() ? curr.email.trim().toLowerCase() : 'customer@example.com',
+                problemDescription: curr.problemDescription.trim() || 'General remote PC inspection & support',
                 preferredDate: curr.preferredDate || new Date().toISOString().split('T')[0],
                 preferredTime: curr.preferredTime || '10:00 AM',
                 remoteTool: curr.remoteTool || 'AnyDesk',
@@ -320,18 +323,13 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email.trim() || !emailRegex.test(email.trim())) {
-      setErrorMessage('Please enter a valid email address.');
+    if (email.trim() && !emailRegex.test(email.trim())) {
+      setErrorMessage('Please enter a valid email address or leave it blank.');
       return;
     }
 
     if (!phoneValidation.isValid || !phoneValidation.e164) {
       setErrorMessage('Please enter a valid WhatsApp number for the selected country.');
-      return;
-    }
-
-    if (!problemDescription.trim()) {
-      setErrorMessage('Please describe your problem or error messages.');
       return;
     }
 
@@ -350,7 +348,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
       serviceId: selectedService?.id || 'srv-001',
       serviceTitle: selectedService?.title || 'Remote PC Support',
       issueCategory: selectedService?.category || 'Windows Fix',
-      problemDescription: problemDescription || 'Remote PC inspection & repair requested.',
+      problemDescription: problemDescription.trim() || 'General remote PC inspection & support',
       preferredDate: preferredDate || new Date().toISOString().split('T')[0],
       preferredTime: preferredTime || '10:00 AM',
       remoteTool: remoteTool || 'AnyDesk',
@@ -424,7 +422,7 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
           amount: Math.round(finalPrice * 100),
           currency: 'INR',
           name: 'OMOVE TECH',
-          description: `Remote PC Service: ${bookingObj.serviceTitle}`,
+          description: `Remote Support: ${bookingObj.serviceTitle}`,
           image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200&auto=format&fit=crop&q=80',
           prefill: {
             name: customerName,
@@ -486,511 +484,388 @@ export const RemoteSupportBookingView: React.FC<RemoteSupportBookingViewProps> =
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Top Hero Banner */}
-      <div className="p-8 sm:p-10 rounded-3xl bg-gradient-to-br from-[#064E3B] via-[#04392b] to-[#0f172a] text-white border border-emerald-500/30 shadow-2xl text-center space-y-4 relative overflow-hidden">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-xs font-mono font-bold">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-          <span>LIVE REMOTE COMPUTER DIAGNOSTICS & REPAIR</span>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
+      {/* Sleek Minimal Header */}
+      <div className="text-center space-y-2 max-w-lg mx-auto">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Certified Experts Online • 15 Min Fix</span>
         </div>
-
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-tight">
-          Book Certified Remote PC Support
+        <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
+          Remote PC Support
         </h1>
-
-        <p className="text-sm sm:text-base text-emerald-100/90 max-w-2xl mx-auto leading-relaxed">
-          Fix Blue Screen crashes, corrupted drivers, virus infections, Windows activation, and slow performance remotely while you watch on screen.
+        <p className="text-xs sm:text-sm text-slate-500 font-normal">
+          Fix Windows crashes, viruses, and slow performance live via AnyDesk.
         </p>
-
-        {/* 100% Money-Back Guarantee Pill */}
-        <div className="pt-2">
-          <div className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-emerald-950/80 border border-emerald-400/40 text-emerald-200 text-xs sm:text-sm font-sans max-w-2xl mx-auto shadow-lg">
-            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-            <span className="text-left leading-snug">
-              <strong className="text-white font-mono font-bold">100% Refund Guarantee:</strong> If our certified experts cannot solve your issue, your payment is automatically refunded.
-            </span>
-          </div>
-        </div>
       </div>
 
       {errorMessage && (
-        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono flex items-center gap-3 animate-fadeIn shadow-sm">
-          <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600" />
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 animate-fadeIn">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
           <span>{errorMessage}</span>
         </div>
       )}
 
       {confirmedBooking ? (
-        /* Booking Confirmation Card */
-        <div className="p-8 rounded-3xl bg-white border-2 border-emerald-500/40 shadow-2xl space-y-6 text-slate-900">
-          <div className="text-center space-y-2">
-            <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center border border-emerald-200">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Remote Booking Confirmed!</h2>
-            <p className="text-xs text-slate-500 font-mono">
-              Booking ID: <strong className="font-mono text-emerald-700 text-sm">{confirmedBooking.bookingNumber}</strong>
+        /* Minimal Clean Confirmation Card */
+        <div className="p-6 sm:p-8 rounded-3xl bg-white border border-emerald-200 shadow-xl space-y-6 text-slate-900 text-center max-w-lg mx-auto animate-fadeIn">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center border border-emerald-200">
+            <CheckCircle2 className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-1">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900">Booking Confirmed!</h2>
+            <p className="text-xs text-slate-500">
+              Booking ID: <strong className="font-mono text-emerald-700">{confirmedBooking.bookingNumber}</strong>
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-4 font-mono text-xs text-slate-800">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Service Selected</span>
-                <span className="font-bold text-slate-900 text-sm">{confirmedBooking.serviceTitle}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Assigned Technician</span>
-                <span className="font-bold text-emerald-700 text-sm">{confirmedBooking.technicianName}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Remote Tool</span>
-                <span className="font-bold text-slate-900">AnyDesk Remote Support</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Scheduled Time</span>
-                <span className="font-bold text-slate-900">
-                  {confirmedBooking.preferredDate} at {confirmedBooking.preferredTime}
-                </span>
-              </div>
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2.5 font-sans">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Service:</span>
+              <span className="font-semibold text-slate-900">{confirmedBooking.serviceTitle}</span>
             </div>
-
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 leading-relaxed text-[11px] font-sans">
-              <strong>Instructions:</strong> Please keep your AnyDesk software running on your desktop. Our technician will connect at the scheduled time. You can view all connection logs in your Account Dashboard.
+            <div className="flex justify-between">
+              <span className="text-slate-500">Amount Paid:</span>
+              <span className="font-bold text-emerald-700">₹{confirmedBooking.amount}</span>
             </div>
-
-            {/* Post-Purchase WhatsApp Support Button */}
-            <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3 font-sans">
-              <span className="text-xs text-emerald-800 font-mono font-bold block uppercase tracking-wider">
-                ✅ PAYMENT VERIFIED • TECHNICIAN ONLINE
-              </span>
-              <p className="text-xs text-slate-600">
-                Click below to start your live 1-on-1 remote PC inspection chat directly on WhatsApp!
-              </p>
-              <a
-                href={CONTACT_CONFIG.whatsapp.getLink(
-                  `Hello OMOVE Expert! I completed my booking.\nBooking ID: ${confirmedBooking.bookingNumber}\nName: ${confirmedBooking.customerName}\nService: ${confirmedBooking.serviceTitle}`
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-sm font-extrabold inline-flex items-center gap-2.5 shadow-lg shadow-emerald-600/25 transition-all hover:scale-105"
-              >
-                <MessageSquare className="w-5 h-5" />
-                <span>CONNECT WITH TECHNICIAN ON WHATSAPP NOW</span>
-                <ExternalLink className="w-4 h-4 opacity-80" />
-              </a>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Connection Tool:</span>
+              <span className="font-semibold text-slate-900">AnyDesk</span>
             </div>
           </div>
 
-          <div className="flex justify-center gap-4">
+          <div className="space-y-3 pt-2">
+            <a
+              href={CONTACT_CONFIG.whatsapp.getLink(
+                `Hello OMOVE! I completed booking.\nBooking ID: ${confirmedBooking.bookingNumber}\nName: ${confirmedBooking.customerName}\nService: ${confirmedBooking.serviceTitle}`
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all hover:scale-[1.01]"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>Connect on WhatsApp Now</span>
+              <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+            </a>
+
             <button
               onClick={() => setCurrentView('dashboard')}
-              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-md cursor-pointer"
+              className="w-full py-2.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors cursor-pointer"
             >
-              TRACK IN DASHBOARD
+              View Order in Dashboard
             </button>
           </div>
         </div>
       ) : (
-        /* Redesigned 2-Column Balanced Booking Flow (Crisp Light Cards) */
-        <form onSubmit={handleSubmitBooking} className="grid lg:grid-cols-12 gap-8 items-start">
-          {/* LEFT COLUMN (Main Booking & Payment Flow - 7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            {/* STEP 1: Service Selection */}
-            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2.5">
-                  <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
-                    1
-                  </span>
-                  <span>Select Remote Service</span>
-                </h3>
-                <span className="text-[11px] font-mono text-emerald-700 font-bold flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Avg. Fix: ~20-40 mins</span>
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {services.map((srv) => {
-                  const isSelected = selectedService?.id === srv.id;
-                  return (
-                    <div
-                      key={srv.id}
-                      onClick={() => setSelectedService(srv)}
-                      className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between gap-4 ${
-                        isSelected
-                          ? 'bg-emerald-50/90 border-emerald-600 text-slate-900 shadow-md ring-2 ring-emerald-500/30'
-                          : 'bg-slate-50/80 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-sm text-slate-900">{srv.title}</h4>
-                          {srv.popular && (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-950 font-mono tracking-wider">
-                              POPULAR
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500 line-clamp-1">{srv.description}</p>
-                        <span className="text-[10px] text-emerald-700 font-mono font-bold inline-block">
-                          Est. Time: {srv.estimatedTime}
-                        </span>
-                      </div>
-
-                      <div className="text-right font-mono shrink-0">
-                        <span className={`text-lg font-black ${isSelected ? 'text-emerald-700' : 'text-slate-900'}`}>
-                          ₹{srv.price}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* STEP 2: Issue & Contact Information */}
-            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-4">
-              <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
-                  2
-                </span>
-                <span>Customer & Contact Information</span>
-              </h3>
-
-              <div className="grid sm:grid-cols-2 gap-3 text-xs font-sans">
-                <div>
-                  <label className="text-slate-700 font-bold block mb-1.5 font-mono">
-                    YOUR FULL NAME <span className="text-emerald-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Rahul Sharma"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition-all font-sans text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-700 font-bold block mb-1.5 font-mono">
-                    EMAIL ADDRESS <span className="text-emerald-600">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. rahul@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition-all font-sans text-xs"
-                  />
+        /* Sleek 2-Column Minimalist Booking Grid */
+        <form onSubmit={handleSubmitBooking} className="grid lg:grid-cols-12 gap-6 sm:gap-8 items-start">
+          {/* Main Booking Form (7 Cols) */}
+          <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-7 space-y-5">
+            {/* Multiple Services Selector (if > 1) or Clean Service Bar */}
+            {services.length > 1 ? (
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-slate-600 block">Select Service</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {services.map((srv) => {
+                    const isSelected = selectedService?.id === srv.id;
+                    return (
+                      <button
+                        type="button"
+                        key={srv.id}
+                        onClick={() => setSelectedService(srv)}
+                        className={`p-3 rounded-2xl border text-left flex justify-between items-center transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-50/70 border-emerald-600 text-slate-900 ring-1 ring-emerald-600'
+                            : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="font-semibold text-xs">{srv.title}</span>
+                        <span className="font-bold text-xs text-emerald-700 font-mono">₹{srv.price}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* International WhatsApp Phone Input with Searchable Country Picker */}
-              <div className="space-y-1">
-                <InternationalPhoneInput
-                  value={phone}
-                  onChange={(val, valRes) => {
-                    setPhone(val);
-                    setPhoneValidation(valRes);
-                  }}
-                  touched={phoneTouched}
-                  onBlur={() => setPhoneTouched(true)}
-                  disabled={isSubmitting}
-                />
+            ) : (
+              <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-xs sm:text-sm text-slate-900">{selectedService?.title || 'Remote PC Support'}</h2>
+                    <p className="text-[11px] text-slate-500">Live 1-on-1 inspection & instant fix</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-slate-400 line-through font-mono mr-1.5">₹{originalPrice}</span>
+                  <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">₹{basePrice}</span>
+                </div>
               </div>
+            )}
 
+            {/* Customer Inputs: Name & Email */}
+            <div className="grid sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="text-slate-700 font-bold block mb-1.5 text-xs font-mono">
-                  DESCRIBE PROBLEM / ERROR MESSAGES <span className="text-emerald-600">*</span>
+                <label className="text-slate-600 font-semibold block mb-1">
+                  Full Name <span className="text-emerald-600">*</span>
                 </label>
-                <textarea
-                  rows={3}
+                <input
+                  type="text"
                   required
-                  placeholder="e.g. Blue Screen WHEA_UNCORRECTABLE_ERROR crash during gaming, Windows update error 0x80070002..."
-                  value={problemDescription}
-                  onChange={(e) => setProblemDescription(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition-all text-xs font-sans"
+                  placeholder="Rahul Sharma"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition-all text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-slate-600 font-semibold block mb-1">
+                  Email Address <span className="text-slate-400 font-normal text-[11px]">(Optional)</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="rahul@example.com (optional)"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition-all text-xs"
                 />
               </div>
             </div>
 
-            {/* STEP 3: Payment Method & Complete Checkout (Light Premium Theme) */}
-            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-5">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2.5">
-                  <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
-                    3
-                  </span>
-                  <span>Payment & Confirmation</span>
-                </h3>
-                <span className="text-[10px] text-emerald-700 font-mono font-bold flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>256-Bit SSL Encrypted</span>
-                </span>
-              </div>
+            {/* WhatsApp Phone Input */}
+            <div>
+              <InternationalPhoneInput
+                value={phone}
+                onChange={(val, valRes) => {
+                  setPhone(val);
+                  setPhoneValidation(valRes);
+                }}
+                touched={phoneTouched}
+                onBlur={() => setPhoneTouched(true)}
+                disabled={isSubmitting}
+                hideHelperText={true}
+              />
+            </div>
 
-              {/* Promo Coupon Box */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                <label className="text-slate-700 font-bold flex items-center justify-between text-xs font-mono">
-                  <span className="flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Have a Discount Coupon?</span>
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-normal">Try: OMOVE15</span>
-                </label>
+            {/* Issue Description */}
+            <div>
+              <label className="text-slate-600 font-semibold block mb-1 text-xs">
+                Describe Problem <span className="text-slate-400 font-normal text-[11px]">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Blue Screen crash, slow PC, virus infection... (optional)"
+                value={problemDescription}
+                onChange={(e) => setProblemDescription(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition-all text-xs"
+              />
+            </div>
 
+            {/* Collapsible Coupon Code */}
+            <div className="pt-1">
+              {!showCouponInput && appliedDiscount === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCouponInput(true)}
+                  className="text-xs text-emerald-700 hover:text-emerald-800 font-medium inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                  <span>Have a discount coupon?</span>
+                </button>
+              ) : appliedDiscount > 0 ? (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
+                  <span className="font-medium">Coupon applied: -₹{appliedDiscount}</span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="text-[11px] text-rose-600 hover:underline cursor-pointer font-semibold"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="ENTER COUPON CODE"
+                    placeholder="Coupon Code (e.g. OMOVE15)"
                     value={couponInput}
                     onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs font-mono font-bold text-slate-900 uppercase placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                    className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-bold uppercase placeholder-slate-400 focus:outline-none focus:border-emerald-600"
                   />
                   <button
                     type="button"
                     onClick={handleApplyBookingCoupon}
-                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold transition-all cursor-pointer shadow-sm"
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer"
                   >
-                    APPLY
+                    Apply
                   </button>
                 </div>
+              )}
+              {couponMessage && appliedDiscount === 0 && (
+                <p className="text-[11px] text-rose-600 font-medium mt-1">{couponMessage}</p>
+              )}
+            </div>
 
-                {couponMessage && (
-                  <p className={`text-[11px] font-mono font-bold ${appliedDiscount > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                    {couponMessage}
-                  </p>
+            {/* Payment Method Cards (Only if enabled or needed) */}
+            {finalPrice > 0 && (
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <PaymentMethodCards
+                  paymentMethod={paymentMethod}
+                  onSelectMethod={(m) => {
+                    setPaymentMethod(m);
+                    setPaypalReady(false);
+                  }}
+                  inrAmount={finalPrice}
+                  usdAmountDisplay={previewUsdDisplay}
+                  razorpayTitle="RAZORPAY"
+                  razorpaySubtitle="UPI • Google Pay • Cards • NetBanking"
+                  razorpayTagline="Instant Secure Payment"
+                  themeAccent="emerald"
+                  variant="light"
+                  layout="stack"
+                />
+
+                {/* PayPal Container if Enabled & Selected */}
+                {PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal' && (
+                  <div className="p-3 rounded-xl bg-slate-50 border border-blue-200 space-y-2 animate-fadeIn">
+                    <div className="text-center">
+                      <span className="text-xs text-blue-800 font-mono font-bold">
+                        {paypalLoading ? 'Loading PayPal Gateway...' : `Complete with PayPal • $${previewUsdDisplay} USD`}
+                      </span>
+                    </div>
+                    <div id="paypal-booking-button-container" className="min-h-[44px] w-full" />
+                  </div>
                 )}
               </div>
+            )}
 
-              {/* Payment Method Cards */}
-              {finalPrice > 0 ? (
-                <div className="space-y-3.5">
-                  <PaymentMethodCards
-                    paymentMethod={paymentMethod}
-                    onSelectMethod={(m) => {
-                      setPaymentMethod(m);
-                      setPaypalReady(false);
-                    }}
-                    inrAmount={finalPrice}
-                    usdAmountDisplay={previewUsdDisplay}
-                    razorpayTitle="RAZORPAY"
-                    razorpaySubtitle="UPI / Card / NetBanking"
-                    razorpayTagline="Pay securely in INR"
-                    paypalTitle="PAYPAL"
-                    paypalSubtitle="International Checkout"
-                    paypalTagline="Pay securely in USD"
-                    themeAccent="emerald"
-                    variant="light"
-                  />
+            {/* Primary Action Button */}
+            {(!PAYPAL_CHECKOUT_ENABLED || paymentMethod === 'razorpay') && (
+              <button
+                type="submit"
+                disabled={isSubmitting || !isOnline || (phoneTouched && !phoneValidation.isValid)}
+                className={`w-full py-3.5 rounded-2xl font-bold text-sm tracking-wide shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  !isOnline || (phoneTouched && !phoneValidation.isValid)
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/25 hover:scale-[1.01]'
+                }`}
+              >
+                {!isOnline ? (
+                  <>
+                    <WifiOff className="w-4 h-4 text-rose-500" />
+                    <span>Offline — Checkout Unavailable</span>
+                  </>
+                ) : isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Securing Booking...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>{finalPrice > 0 ? `Pay ₹${finalPrice} & Start WhatsApp Fix` : 'Confirm Free Booking (₹0)'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            )}
 
-                  {/* PayPal Conversion Info Card */}
-                  {PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal' && (
-                    <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs font-mono space-y-2 animate-fadeIn text-slate-800">
-                      <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-slate-600">Service Fee:</span>
-                        <span className="text-slate-900 font-bold">₹{finalPrice} INR</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-slate-600">Conversion Rate:</span>
-                        <span className="text-slate-700">₹95 = $1.00 USD</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-slate-600">Minimum PayPal Amount:</span>
-                        <span className="text-slate-700">$3.00 USD</span>
-                      </div>
-                      <div className="pt-2 border-t border-blue-200 flex justify-between items-center font-bold">
-                        <span className="text-blue-900">PayPal Total (USD):</span>
-                        <span className="text-base text-blue-700 font-black">${previewUsdDisplay} USD</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PayPal Button Container */}
-                  {PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal' && (
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-blue-200 shadow-sm space-y-2 animate-fadeIn">
-                      <div className="text-center mb-1">
-                        <span className="text-[11px] text-blue-800 font-mono font-bold">
-                          {paypalLoading ? 'Loading PayPal Gateway...' : `Complete Payment • $${previewUsdDisplay} USD`}
-                        </span>
-                      </div>
-                      <div id="paypal-booking-button-container" className="min-h-[44px] w-full" />
-                    </div>
-                  )}
-
-                  {/* Razorpay Submit CTA Button */}
-                  {(!PAYPAL_CHECKOUT_ENABLED || paymentMethod === 'razorpay') && (
-                    <button
-                      type="submit"
-                      disabled={isSubmitting || !isOnline || (phoneTouched && !phoneValidation.isValid)}
-                      className={`w-full py-4 rounded-2xl font-black text-sm font-mono tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                        !isOnline || (phoneTouched && !phoneValidation.isValid)
-                          ? 'bg-slate-300 text-slate-500 border border-slate-300 cursor-not-allowed shadow-none'
-                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/25 hover:scale-[1.01]'
-                      }`}
-                    >
-                      {!isOnline ? (
-                        <>
-                          <WifiOff className="w-4 h-4 text-rose-500" />
-                          <span>OFFLINE — CHECKOUT UNAVAILABLE</span>
-                        </>
-                      ) : isSubmitting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>CONFIRMING BOOKING...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="w-4 h-4" />
-                          <span>SECURE CONFIRM & PAY ₹{finalPrice}</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                /* Free / 100% Coupon CTA */
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !isOnline}
-                  className="w-full py-4 rounded-2xl font-black text-sm font-mono tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.01]"
-                >
-                  <Lock className="w-4 h-4" />
-                  <span>CONFIRM FREE BOOKING (₹0)</span>
-                </button>
-              )}
-
-              <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 font-mono">
+            {/* Trust line under button */}
+            <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500 pt-1">
+              <span className="flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>
-                  {PAYPAL_CHECKOUT_ENABLED && paymentMethod === 'paypal'
-                    ? 'PayPal Buyer Protection • 256-Bit SSL Encrypted Connection'
-                    : 'Razorpay 256-Bit SSL Encrypted Connection • 100% Satisfaction Guarantee'}
-                </span>
-              </div>
+                <span>100% Money-Back Guarantee</span>
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                <span>256-Bit SSL</span>
+              </span>
             </div>
           </div>
 
-          {/* RIGHT COLUMN (Sticky Sidebar: Order Summary, AnyDesk Guide & Trust Guarantee - 5 cols) */}
-          <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
-            {/* Live Booking Summary Card */}
-            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-4 text-slate-900">
-              <h3 className="font-bold text-base text-slate-900 font-mono flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Booking Summary</span>
-              </h3>
-
-              <div className="space-y-3 text-xs font-mono">
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex justify-between items-center">
-                  <div>
-                    <span className="text-slate-500 text-[11px] block">Service:</span>
-                    <span className="font-bold text-slate-900 text-sm">{selectedService?.title || 'Remote PC Support'}</span>
-                  </div>
-                  <span className="text-emerald-700 font-black text-sm">₹{basePrice}</span>
+          {/* Clean Unified Sidebar: Summary & 3-Step Process (5 Cols) */}
+          <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-24">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-6 space-y-5">
+              {/* Order Summary Line */}
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Order Summary</span>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-700 font-medium">{selectedService?.title || 'Remote PC Support'}</span>
+                  <span className="font-bold text-slate-900 font-mono">₹{basePrice}</span>
                 </div>
-
                 {appliedDiscount > 0 && (
-                  <div className="flex justify-between items-center px-1 text-emerald-700 font-bold">
-                    <span>Coupon Discount:</span>
+                  <div className="flex justify-between items-center text-xs text-emerald-700 font-semibold">
+                    <span>Discount:</span>
                     <span>- ₹{appliedDiscount}</span>
                   </div>
                 )}
+                <div className="pt-2 border-t border-slate-100 flex justify-between items-baseline">
+                  <span className="font-bold text-slate-900 text-sm">Total:</span>
+                  <span className="text-xl font-black text-emerald-700 font-mono">₹{finalPrice}</span>
+                </div>
+              </div>
 
-                <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline">
-                  <span className="text-slate-600 text-xs font-bold">Total Payable:</span>
-                  <div className="text-right">
-                    <span className="text-2xl font-black text-emerald-700 font-mono">
-                      ₹{finalPrice}
+              <div className="border-t border-slate-100 pt-4 space-y-3">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">How it works</span>
+
+                <div className="space-y-3 text-xs">
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      1
                     </span>
-                    {PAYPAL_CHECKOUT_ENABLED && finalPrice > 0 && (
-                      <span className="text-[11px] text-blue-700 font-mono font-bold block">
-                        ≈ ${previewUsdDisplay} USD
-                      </span>
-                    )}
+                    <div>
+                      <span className="font-bold text-slate-800 block">Complete Booking</span>
+                      <span className="text-slate-500 text-[11px]">Pay securely via UPI or Card.</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      2
+                    </span>
+                    <div>
+                      <span className="font-bold text-slate-800 block">WhatsApp Connect</span>
+                      <span className="text-slate-500 text-[11px]">Share your 9-digit AnyDesk code on chat.</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      3
+                    </span>
+                    <div>
+                      <span className="font-bold text-slate-800 block">Issue Resolved Live</span>
+                      <span className="text-slate-500 text-[11px]">Technician fixes your PC while you watch.</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] flex items-center gap-2 font-mono font-semibold">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Certified PC Expert Ready Online</span>
+              {/* Minimal AnyDesk Link */}
+              <div className="border-t border-slate-100 pt-3 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">Need AnyDesk software?</span>
+                <a
+                  href="https://anydesk.com/en/downloads"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-700 hover:text-emerald-800 font-semibold inline-flex items-center gap-1"
+                >
+                  <DownloadCloud className="w-3.5 h-3.5" />
+                  <span>Free Download</span>
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
               </div>
-            </div>
 
-            {/* What is AnyDesk & How It Works Card */}
-            <div className="p-6 rounded-3xl bg-white border-2 border-emerald-500/30 shadow-xl space-y-4 text-slate-900">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm text-slate-900 font-mono flex items-center gap-2">
-                  <HelpCircle className="w-4 h-4 text-emerald-600" />
-                  <span>How Remote Support Works</span>
-                </h3>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-bold">
-                  SECURE & SAFE
+              {/* Refund guarantee pill */}
+              <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 text-[11px] text-emerald-900 flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Zero-Risk Guarantee:</strong> If we are unable to resolve your problem, your payment is 100% refunded.
                 </span>
               </div>
-
-              <p className="text-xs text-slate-600 leading-relaxed">
-                We use <strong className="text-emerald-700 font-mono">AnyDesk</strong>, the lightweight remote software allowing certified experts to fix your PC while you watch live.
-              </p>
-
-              {/* 3 Step Visual Flow */}
-              <div className="space-y-2.5 text-xs font-sans">
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-800 font-mono font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 border border-emerald-200">
-                    1
-                  </span>
-                  <div>
-                    <h5 className="font-bold text-slate-900 text-[11px]">Download & Open AnyDesk</h5>
-                    <p className="text-[10px] text-slate-500 mt-0.5">No complex setup needed. Open and run.</p>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-800 font-mono font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 border border-emerald-200">
-                    2
-                  </span>
-                  <div>
-                    <h5 className="font-bold text-slate-900 text-[11px]">Share 9-Digit Code on WhatsApp</h5>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Give your AnyDesk address code to our technician.</p>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-800 font-mono font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 border border-emerald-200">
-                    3
-                  </span>
-                  <div>
-                    <h5 className="font-bold text-slate-900 text-[11px]">Accept Connection & Sit Back</h5>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Click "Accept". You retain full session control.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* AnyDesk Download CTA Link */}
-              <a
-                href="https://anydesk.com/en/downloads"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-mono text-[11px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
-              >
-                <DownloadCloud className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Download AnyDesk (Official Site)</span>
-                <ExternalLink className="w-3 h-3 opacity-60" />
-              </a>
-            </div>
-
-            {/* Satisfaction Guarantee Card */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 text-emerald-950 space-y-2 font-sans text-xs shadow-md">
-              <div className="flex items-center gap-2 font-mono font-bold text-emerald-900">
-                <ShieldCheck className="w-4.5 h-4.5 text-emerald-600" />
-                <span>Zero-Risk Repair Guarantee</span>
-              </div>
-              <p className="text-[11px] text-emerald-800 leading-relaxed font-medium">
-                If our technician cannot resolve your issue, your booking fee will be automatically refunded back to your account.
-              </p>
             </div>
           </div>
         </form>

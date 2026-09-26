@@ -4436,59 +4436,127 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
     });
   });
 
-  // Google OAuth / GSI Verification Endpoint
-  app.post('/api/auth/google', authRateLimiter, (req: Request, res: Response) => {
-    const { email, name, googleSubId, picture } = req.body || {};
-    const userEmail = (email || 'customer@omove.tech').trim().toLowerCase();
-    const userName = name || (userEmail.split('@')[0] ? userEmail.split('@')[0].charAt(0).toUpperCase() + userEmail.split('@')[0].slice(1) : 'Google Customer');
-    const subId = googleSubId || `goog_${Math.random().toString(36).substring(2, 14)}`;
+  // Google OAuth / GSI Verification Endpoint (Secure Server-Side Token Verification)
+  app.post('/api/auth/google', authRateLimiter, async (req: Request, res: Response) => {
+    try {
+      const { credential, accessToken } = req.body || {};
 
-    let existingUser = Array.from(usersStore.values()).find(
-      u => (u.googleSubId && u.googleSubId === subId) || u.email === userEmail
-    );
-
-    if (existingUser) {
-      if (!existingUser.googleSubId) existingUser.googleSubId = subId;
-      if (picture && !existingUser.picture) existingUser.picture = picture;
-      existingUser.lastLoginAt = new Date().toISOString();
-    } else {
-      const { hash, salt } = hashPassword(`google_auth_${subId}`);
-      existingUser = {
-        id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        name: userName,
-        email: userEmail,
-        phone: '+91 9242899827',
-        passwordHash: hash,
-        passwordSalt: salt,
-        location: 'Kolkata, West Bengal, India',
-        googleSubId: subId,
-        picture: picture || '',
-        authProvider: 'google',
-        isAdmin: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
-      };
-      usersStore.set(userEmail, existingUser);
-    }
-
-    saveUsersToDisk(usersStore);
-    const session = createSessionAndSetCookie(res, existingUser);
-
-    res.json({
-      success: true,
-      token: session.sessionId,
-      user: {
-        id: existingUser.id,
-        name: existingUser.name,
-        email: existingUser.email,
-        phone: existingUser.phone,
-        location: existingUser.location,
-        picture: existingUser.picture || '',
-        authProvider: existingUser.authProvider,
-        isAdmin: false
+      if (!credential && !accessToken) {
+        return res.status(400).json({ error: 'Google credential or access token is required.' });
       }
-    });
+
+      let sub = '';
+      let email = '';
+      let name = '';
+      let picture = '';
+
+      const expectedClientId = process.env.GOOGLE_CLIENT_ID || '596954865902-rn605o42bjk3a013i345o2k3gn0qfcjt.apps.googleusercontent.com';
+
+      if (credential) {
+        // Verify Google ID Token JWT
+        const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+        if (!verifyRes.ok) {
+          return res.status(401).json({ error: 'Invalid or expired Google identity token.' });
+        }
+        const tokenInfo: any = await verifyRes.json();
+
+        if (tokenInfo.aud !== expectedClientId) {
+          return res.status(401).json({ error: 'Google token audience mismatch.' });
+        }
+        if (tokenInfo.iss !== 'accounts.google.com' && tokenInfo.iss !== 'https://accounts.google.com') {
+          return res.status(401).json({ error: 'Invalid Google token issuer.' });
+        }
+        if (tokenInfo.email_verified !== 'true' && tokenInfo.email_verified !== true) {
+          return res.status(401).json({ error: 'Google email address is not verified.' });
+        }
+
+        sub = tokenInfo.sub;
+        email = tokenInfo.email;
+        name = tokenInfo.name || tokenInfo.email?.split('@')[0] || 'Customer';
+        picture = tokenInfo.picture || '';
+      } else if (accessToken) {
+        // Verify Google OAuth 2.0 Access Token
+        const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!userinfoRes.ok) {
+          return res.status(401).json({ error: 'Invalid or expired Google access token.' });
+        }
+        const userInfo: any = await userinfoRes.json();
+
+        if (userInfo.email_verified !== true && userInfo.email_verified !== 'true') {
+          return res.status(401).json({ error: 'Google email address is not verified.' });
+        }
+
+        sub = userInfo.sub;
+        email = userInfo.email;
+        name = userInfo.name || userInfo.email?.split('@')[0] || 'Customer';
+        picture = userInfo.picture || '';
+      }
+
+      if (!email) {
+        return res.status(400).json({ error: 'No email address returned by Google identity.' });
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+
+      // Find existing user by Google sub identifier or registered email
+      let existingUser = Array.from(usersStore.values()).find(
+        u => (u.googleSubId && u.googleSubId === sub) || (u.email && u.email.toLowerCase() === normalizedEmail)
+      );
+
+      if (existingUser) {
+        // Existing user found: link Google account and update login timestamp
+        if (!existingUser.googleSubId) existingUser.googleSubId = sub;
+        if (picture && !existingUser.picture) existingUser.picture = picture;
+        existingUser.lastLoginAt = new Date().toISOString();
+        existingUser.updatedAt = new Date().toISOString();
+        saveUsersToDisk(usersStore);
+      } else {
+        // Create new customer account using existing schema
+        const randomSalt = crypto.randomBytes(16).toString('hex');
+        const randomHash = crypto.randomBytes(32).toString('hex');
+
+        existingUser = {
+          id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          name: name,
+          email: normalizedEmail,
+          phone: '',
+          passwordHash: randomHash,
+          passwordSalt: randomSalt,
+          location: 'Kolkata, West Bengal, India',
+          googleSubId: sub,
+          picture: picture,
+          authProvider: 'google',
+          isAdmin: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString()
+        };
+        usersStore.set(normalizedEmail, existingUser);
+        saveUsersToDisk(usersStore);
+      }
+
+      const session = createSessionAndSetCookie(res, existingUser);
+
+      return res.json({
+        success: true,
+        token: session.sessionId,
+        user: {
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          phone: existingUser.phone,
+          location: existingUser.location,
+          picture: existingUser.picture || '',
+          authProvider: existingUser.authProvider,
+          isAdmin: Boolean(existingUser.isAdmin)
+        }
+      });
+    } catch (err: any) {
+      console.error('[GOOGLE AUTH ERROR]:', err);
+      return res.status(500).json({ error: 'Failed to verify Google sign-in. Please try again.' });
+    }
   });
 
   // Admin Analytics & Key Generator

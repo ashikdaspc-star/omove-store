@@ -10,6 +10,8 @@ interface InternationalPhoneInputProps {
   errorMessage?: string;
   disabled?: boolean;
   variant?: 'light' | 'dark';
+  hideHelperText?: boolean;
+  hideLabel?: boolean;
 }
 
 export const InternationalPhoneInput: React.FC<InternationalPhoneInputProps> = ({
@@ -19,7 +21,9 @@ export const InternationalPhoneInput: React.FC<InternationalPhoneInputProps> = (
   onBlur,
   errorMessage,
   disabled = false,
-  variant = 'light'
+  variant = 'light',
+  hideHelperText = false,
+  hideLabel = false
 }) => {
   const isDark = variant === 'dark';
   const [selectedCountry, setSelectedCountry] = useState<Country>(() => getDefaultCountry());
@@ -102,10 +106,12 @@ export const InternationalPhoneInput: React.FC<InternationalPhoneInputProps> = (
 
   return (
     <div className="space-y-1.5 font-sans relative" ref={dropdownRef}>
-      <label className={`text-xs font-bold font-mono flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-        <MessageSquare className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-        <span>WhatsApp Number <span className={isDark ? 'text-emerald-400' : 'text-emerald-600'}>*</span></span>
-      </label>
+      {!hideLabel && (
+        <label className={`text-xs font-bold font-mono flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+          <MessageSquare className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+          <span>WhatsApp Number <span className={isDark ? 'text-emerald-400' : 'text-emerald-600'}>*</span></span>
+        </label>
+      )}
 
       {/* Main Composite Input Box */}
       <div
@@ -271,7 +277,7 @@ export const InternationalPhoneInput: React.FC<InternationalPhoneInputProps> = (
           {errorMessage || 'Please enter a valid WhatsApp number for the selected country.'}
         </p>
       )}
-      {(!touched || validation.isValid) && (
+      {!hideHelperText && (!touched || validation.isValid) && (
         <p className={`text-[10px] font-mono leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500 font-medium'}`}>
           Your order details and instant delivery information will be sent to this WhatsApp number.
         </p>
