@@ -8,7 +8,6 @@ import { ProductDetailModal } from './components/ProductDetailModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { FloatingWhatsAppButton } from './components/FloatingWhatsAppButton';
-import { OfficialNumberNoticeModal } from './components/OfficialNumberNoticeModal';
 import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 
@@ -25,6 +24,7 @@ import { OfflineBanner } from './components/OfflineBanner';
 import { recordPageViewHit, sendVisitorHeartbeat } from './utils/trafficTracker';
 import { useGlobalScrollReveal } from './utils/useGlobalScrollReveal';
 import { trackPageView } from './utils/metaPixel';
+import { isStoreProduct } from './utils/productClassifier';
 
 // Lazy-loaded Views & Modals (Code Splitting for Optimal Performance)
 const DashboardView = React.lazy(() => import('./views/DashboardView').then((m) => ({ default: m.DashboardView })));
@@ -619,7 +619,11 @@ export default function App() {
   const handleProductSelect = (product: Product) => {
     if (!product) return;
     const targetSlug = product.slug || product.id;
-    navigate(`/digital-products/${targetSlug}`);
+    if (isStoreProduct(product)) {
+      navigate(`/store/${targetSlug}`);
+    } else {
+      navigate(`/digital-products/${targetSlug}`);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1233,6 +1237,37 @@ export default function App() {
               }
             />
 
+            <Route
+              path="/store/:categorySlug"
+              element={
+                <DigitalProductsRouteHandler
+                  products={products}
+                  categories={digitalCategories}
+                  onSelectProduct={handleProductSelect}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                />
+              }
+            />
+            <Route
+              path="/store/:categorySlug/:subcategorySlug"
+              element={
+                <DigitalProductsRouteHandler
+                  products={products}
+                  categories={digitalCategories}
+                  onSelectProduct={handleProductSelect}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  wishlist={wishlist}
+                  onToggleWishlist={handleToggleWishlist}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                />
+              }
+            />
+
             <Route path="/services" element={<Navigate to="/remote-support" replace />} />
 
             <Route
@@ -1334,7 +1369,6 @@ export default function App() {
 
       {/* Floating Widgets & Modals */}
       <FloatingWhatsAppButton />
-      <OfficialNumberNoticeModal />
 
       <CartDrawer
         isOpen={isCartOpen}

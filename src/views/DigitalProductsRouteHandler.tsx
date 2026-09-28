@@ -29,7 +29,7 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
   const params = useParams<{ categorySlug?: string; subcategorySlug?: string }>();
   const routeSlug = params.subcategorySlug || params.categorySlug;
 
-  const [fetchedDigitalProds, setFetchedDigitalProds] = useState<DigitalProduct[]>([]);
+  const [fetchedCatalogProds, setFetchedCatalogProds] = useState<any[]>([]);
   const [digitalCats, setDigitalCats] = useState<DigitalCategory[]>(categories);
 
   useEffect(() => {
@@ -43,21 +43,21 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
         .catch(() => {});
     }
 
-    // Only fetch digital products if not already available in parent products
+    // Always fetch unified products (both Store and Digital) if not already available in parent products
     if (!products || products.length === 0) {
-      fetch('/api/digital-products?v=' + Date.now(), { cache: 'no-store' })
+      fetch('/api/products?v=' + Date.now(), { cache: 'no-store' })
         .then((res) => (res.ok ? res.json() : []))
         .then((data) => {
-          if (Array.isArray(data) && data.length > 0) setFetchedDigitalProds(data);
+          if (Array.isArray(data) && data.length > 0) setFetchedCatalogProds(data);
         })
         .catch(() => {});
     }
   }, [categories, products]);
 
-  // Merge products from props and fetched digital products
+  // Merge products from props and fetched catalog products
   const productMap = new Map<string, any>();
-  if (Array.isArray(fetchedDigitalProds)) {
-    fetchedDigitalProds.forEach((p) => { if (p && p.id) productMap.set(p.id, p); });
+  if (Array.isArray(fetchedCatalogProds)) {
+    fetchedCatalogProds.forEach((p) => { if (p && p.id) productMap.set(p.id, p); });
   }
   if (Array.isArray(products)) {
     products.forEach((p) => { if (p && p.id) productMap.set(p.id, p); });

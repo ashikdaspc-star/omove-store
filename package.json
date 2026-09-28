@@ -25,8 +25,7 @@
     "razorpay": "^2.9.8",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "react-router-dom": "^7.18.2",
-    "vite": "^6.2.3"
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",

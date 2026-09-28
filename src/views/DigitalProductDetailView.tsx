@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DigitalProduct, DigitalCategory, CartItem, ReviewSummary } from '../types';
 import { matchProductBySlugOrId } from '../utils/productMatcher';
 import { isEbookProduct } from '../utils/categoryMatcher';
+import { isStoreProduct } from '../utils/productClassifier';
 import { ProductReviewsSection } from '../components/reviews/ProductReviewsSection';
 import { ProductImageGallery } from '../components/ProductImageGallery';
 import { trackViewContent } from '../utils/metaPixel';
@@ -83,9 +84,22 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
       fetch(`/api/digital-products/${encodeURIComponent(routeSlug)}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (data && data.success && data.product) {
-            setFetchedProduct(data.product);
+          if (data) {
+            const prod = data.product || (data.id ? data : null);
+            if (prod) {
+              setFetchedProduct(prod);
+              return;
+            }
           }
+          // Fallback to /api/products/:id for store products
+          return fetch(`/api/products/${encodeURIComponent(routeSlug)}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((pData) => {
+              if (pData) {
+                const p = pData.product || (pData.id ? pData : null);
+                if (p) setFetchedProduct(p);
+              }
+            });
         })
         .catch(() => {})
         .finally(() => setIsLoading(false));
@@ -107,17 +121,25 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
         <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
           <Sparkles className="w-6 h-6 text-slate-400" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-900">Digital Product Not Found</h2>
+        <h2 className="text-2xl font-bold text-slate-900">Product Not Found</h2>
         <p className="text-slate-500 text-sm max-w-md mx-auto">
-          The requested digital file may have been moved or updated in our catalog.
+          The requested product may have been moved or updated in our catalog.
         </p>
-        <button
-          onClick={() => navigate('/digital-products')}
-          className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs inline-flex items-center gap-2 cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>BACK TO DIGITAL MARKETPLACE</span>
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            onClick={() => navigate('/store')}
+            className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs inline-flex items-center gap-2 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>GO TO STORE</span>
+          </button>
+          <button
+            onClick={() => navigate('/digital-products')}
+            className="px-6 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold shadow-xs inline-flex items-center gap-2 cursor-pointer"
+          >
+            <span>DIGITAL MARKETPLACE</span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -141,6 +163,7 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
   };
 
   const isEbook = isEbookProduct(product, categories);
+  const isStore = isStoreProduct(product);
 
   // Meta Pixel ViewContent Event Tracking
   useEffect(() => {
@@ -149,11 +172,11 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
         id: product.id,
         name: product.name,
         price: product.price,
-        category: category?.name || 'Digital Products',
+        category: category?.name || (isStore ? 'Software' : 'Digital Products'),
         currency: 'INR'
       });
     }
-  }, [product?.id, category?.name]);
+  }, [product?.id, category?.name, isStore]);
 
   // Compute all available preview images for gallery
   const productGalleryImages = React.useMemo(() => {
@@ -177,34 +200,34 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
     return list;
   }, [product, isEbook]);
 
-  // Convert DigitalProduct to standard product wrapper for cart compatibility
+  // Convert Product to standard product wrapper for cart compatibility
   const cartProductPayload = {
     id: product.id,
     name: product.name,
     slug: product.slug,
-    productType: 'DIGITAL' as const,
-    category: (category?.name || 'Digital Product') as any,
+    productType: (isStore ? 'STORE' : 'DIGITAL') as any,
+    category: (isStore ? (product.category || 'Software') : (category?.name || 'Digital Product')) as any,
     shortDescription: product.shortDescription,
     fullDescription: product.description,
     price: product.price,
     originalPrice: product.originalPrice,
     discountPercent: discountPercent,
-    downloadSize: product.fileSize,
+    downloadSize: product.downloadSize || product.fileSize || 'Instant Delivery',
     version: product.version || 'v1.0',
-    licenseType: 'Digital File Download' as any,
-    rating: 4.9,
-    reviewCount: 125,
+    licenseType: (isStore ? (product.licenseType || 'Lifetime License') : 'Digital File Download') as any,
+    rating: product.rating || 5.0,
+    reviewCount: product.reviewCount || 1,
     image: productGalleryImages[0],
     previewImage: product.previewImage || product.image,
     screenshots: product.screenshots && product.screenshots.length > 0 ? product.screenshots : [productGalleryImages[0]],
     features: product.features,
-    requirements: product.compatibility || [],
+    requirements: product.compatibility || product.requirements || [],
     versionHistory: [],
     fileUrl: '/api/downloads/digital',
     googleDriveUrl: '',
     instantKeyAvailable: true,
-    status: product.status,
-    tags: ['Digital File', product.fileType || 'Download']
+    status: product.status || 'PUBLISHED',
+    tags: isStore ? (product.tags || ['Software']) : ['Digital File', product.fileType || 'Download']
   };
 
   return (
@@ -215,23 +238,35 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
         <nav className="w-full flex items-center gap-1 sm:gap-1.5 text-[10.5px] sm:text-xs text-slate-500 overflow-x-auto py-1 sm:pb-1 scrollbar-none min-w-0 min-h-[32px]">
           <Link to="/" className="hover:text-emerald-700 transition-colors shrink-0">Home</Link>
           <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
-          <Link to="/digital-products" className="hover:text-emerald-700 transition-colors shrink-0">Digital Products</Link>
-
-          {category && (
+          {isStore ? (
             <>
-              <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
-              <Link to={`/digital-products/${category.slug}`} className="hover:text-emerald-700 transition-colors shrink-0">
-                {category.name}
-              </Link>
+              <Link to="/store" className="hover:text-emerald-700 transition-colors shrink-0">Software Store</Link>
+              {product.category && (
+                <>
+                  <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+                  <span className="text-slate-600 shrink-0">{product.category}</span>
+                </>
+              )}
             </>
-          )}
-
-          {subcategory && category && (
+          ) : (
             <>
-              <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
-              <Link to={`/digital-products/${category.slug}/${subcategory.slug}`} className="hover:text-emerald-700 transition-colors shrink-0">
-                {subcategory.name}
-              </Link>
+              <Link to="/digital-products" className="hover:text-emerald-700 transition-colors shrink-0">Digital Products</Link>
+              {category && (
+                <>
+                  <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+                  <Link to={`/digital-products/${category.slug}`} className="hover:text-emerald-700 transition-colors shrink-0">
+                    {category.name}
+                  </Link>
+                </>
+              )}
+              {subcategory && category && (
+                <>
+                  <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+                  <Link to={`/digital-products/${category.slug}/${subcategory.slug}`} className="hover:text-emerald-700 transition-colors shrink-0">
+                    {subcategory.name}
+                  </Link>
+                </>
+              )}
             </>
           )}
 
@@ -332,23 +367,51 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
               </h1>
 
               <p className="text-xs text-slate-600 pt-0.5 break-words">
-                by <span className="text-emerald-700 font-semibold">{product.author || 'Omove Store'}</span>
+                {isStore ? (
+                  <span>Official Software Package • <span className="text-emerald-700 font-semibold">{product.licenseType || 'Genuine License'}</span></span>
+                ) : (
+                  <span>by <span className="text-emerald-700 font-semibold">{product.author || 'Omove Store'}</span></span>
+                )}
               </p>
 
               {/* Metadata row */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px] sm:text-xs text-slate-500">
-                <span className="font-semibold text-slate-700">{category?.name || 'Digital Product'}</span>
-                <span>•</span>
-                <span>{product.fileType || 'PDF / EPUB'}</span>
-                {product.ebookSpecs?.pages && (
-                  <>
-                    <span>•</span>
-                    <span>{product.ebookSpecs.pages}</span>
-                  </>
-                )}
-                <span>•</span>
-                <span>{product.ebookSpecs?.language || product.language || 'English'}</span>
-              </div>
+              {isStore ? (
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px] sm:text-xs text-slate-500">
+                  <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    {product.category || 'Software'}
+                  </span>
+                  <span>•</span>
+                  <span className="font-semibold text-slate-700">{product.licenseType || 'Lifetime License'}</span>
+                  {product.version && (
+                    <>
+                      <span>•</span>
+                      <span className="font-medium text-slate-600">{product.version}</span>
+                    </>
+                  )}
+                  {product.compatibility && (
+                    <>
+                      <span>•</span>
+                      <span className="text-slate-600">
+                        {Array.isArray(product.compatibility) ? product.compatibility.join(', ') : product.compatibility}
+                      </span>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px] sm:text-xs text-slate-500">
+                  <span className="font-semibold text-slate-700">{category?.name || 'Digital Product'}</span>
+                  <span>•</span>
+                  <span>{product.fileType || 'PDF / EPUB'}</span>
+                  {product.ebookSpecs?.pages && (
+                    <>
+                      <span>•</span>
+                      <span>{product.ebookSpecs.pages}</span>
+                    </>
+                  )}
+                  <span>•</span>
+                  <span>{product.ebookSpecs?.language || product.language || 'English'}</span>
+                </div>
+              )}
             </div>
 
             {/* Mobile-Only Immediate Purchase Action Card (Main conversion area) */}
@@ -528,9 +591,56 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
 
             {/* File Specifications Section */}
             <div className="space-y-2.5 sm:space-y-3 w-full max-w-full min-w-0">
-              <h2 className="text-base sm:text-lg font-bold text-slate-900">File Specifications</h2>
+              <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                {isStore ? 'Software & License Specifications' : 'File Specifications'}
+              </h2>
 
-              {isEbook ? (
+              {isStore ? (
+                <div className="divide-y divide-slate-100 text-xs w-full max-w-full min-w-0">
+                  <div className="flex justify-between items-center py-2 gap-2">
+                    <span className="text-slate-500 shrink-0">Product Type</span>
+                    <span className="font-semibold text-slate-900 text-right truncate max-w-[180px] sm:max-w-none">{product.category || 'Software'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 gap-2">
+                    <span className="text-slate-500 shrink-0">License Type</span>
+                    <span className="font-semibold text-emerald-700 text-right truncate max-w-[180px] sm:max-w-none">{product.licenseType || 'Lifetime License'}</span>
+                  </div>
+                  {product.version && (
+                    <div className="flex justify-between items-center py-2 gap-2">
+                      <span className="text-slate-500 shrink-0">Version</span>
+                      <span className="font-semibold text-slate-900 text-right truncate max-w-[180px] sm:max-w-none">{product.version}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center py-2 gap-2">
+                    <span className="text-slate-500 shrink-0">Delivery Method</span>
+                    <span className="font-semibold text-slate-900 text-right truncate max-w-[180px] sm:max-w-none">{product.downloadSize || 'Instant Digital Delivery'}</span>
+                  </div>
+                  {product.compatibility && (
+                    <div className="py-2 space-y-1 w-full">
+                      <span className="text-slate-500 block">Compatibility</span>
+                      <div className="flex flex-wrap gap-1">
+                        {(Array.isArray(product.compatibility) ? product.compatibility : [product.compatibility]).map((c: string, i: number) => (
+                          <span key={i} className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold">
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {product.requirements && (
+                    <div className="py-2 space-y-1 w-full">
+                      <span className="text-slate-500 block">System Requirements</span>
+                      <div className="flex flex-wrap gap-1">
+                        {(Array.isArray(product.requirements) ? product.requirements : [product.requirements]).map((r: string, i: number) => (
+                          <span key={i} className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[10px] font-medium">
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : isEbook ? (
                 <div className="divide-y divide-slate-100 text-xs w-full max-w-full min-w-0">
                   <div className="flex justify-between items-center py-2 gap-2">
                     <span className="text-slate-500 shrink-0">File Type</span>
