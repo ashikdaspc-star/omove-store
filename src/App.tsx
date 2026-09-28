@@ -68,13 +68,21 @@ export default function App() {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed)) {
-          const valid = parsed.filter((p: any) => p && p.id && (p.status || 'PUBLISHED') === 'PUBLISHED');
-          console.log('[OMOVE SYNC] Initialized state from local cache:', valid.length, 'products');
-          return valid;
+          const hasStaleMock = parsed.some((p: any) => p && (p.id === 'prod-autocad' || (p.price === 39 && p.category === 'Software')));
+          if (!hasStaleMock) {
+            const valid = parsed.filter((p: any) => p && p.id && (p.status || 'PUBLISHED') === 'PUBLISHED');
+            if (valid.length > 0) {
+              console.log('[OMOVE SYNC] Initialized state from local cache:', valid.length, 'products');
+              return valid;
+            }
+          } else {
+            console.log('[OMOVE SYNC] Stale mock products detected in localStorage, purging...');
+            localStorage.removeItem('omove_products');
+          }
         }
       }
     } catch (e) {}
-    console.log('[OMOVE SYNC] Initialized state from default MOCK_PRODUCTS');
+    console.log('[OMOVE SYNC] Initialized state from authoritative default MOCK_PRODUCTS');
     return MOCK_PRODUCTS.filter((p: any) => p && p.id && (p.status || 'PUBLISHED') === 'PUBLISHED');
   });
 
