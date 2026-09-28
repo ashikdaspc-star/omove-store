@@ -18,6 +18,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const url = new URL(request.url);
   const response = await context.next();
 
+  // API endpoints should never be treated as HTML pages
+  if (url.pathname.startsWith('/api/')) {
+    return response;
+  }
+
   // If request is for HTML page (index.html or client-side routes), enforce strict anti-caching
   const contentType = response.headers.get('Content-Type') || '';
   const isHtmlPage = contentType.includes('text/html') || url.pathname === '/' || url.pathname === '/index.html' || !url.pathname.includes('.');
