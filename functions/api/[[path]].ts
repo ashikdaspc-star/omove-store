@@ -1728,6 +1728,7 @@ export type PagesFunction<Env = any> = (context: {
 }) => Promise<Response> | Response;
 
 // In-Memory Fallback Global Stores
+let currentCatalogVersion = 1727500000000;
 let dynamicProductsStore: any[] = Array.isArray(MOCK_PRODUCTS) ? [...MOCK_PRODUCTS] : [];
 let dynamicCouponsStore: any[] = Array.isArray(couponsData) && couponsData.length > 0 ? [...couponsData] : [...MOCK_COUPONS];
 let dynamicServicesStore: any[] = Array.isArray(servicesData) && servicesData.length > 0 ? [...servicesData] : [...MOCK_SERVICES];
@@ -2898,12 +2899,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   try {
     // 1. Health
     if (path === '/api/health') {
-      return jsonResponse({ status: 'ok', service: 'OMOVE TECH Engine (Cloudflare Edge)', time: new Date().toISOString() });
+      return cachedJsonResponse({ status: 'ok', service: 'OMOVE TECH Engine (Cloudflare Edge)', time: new Date().toISOString() }, 200, 10, 30);
     }
 
     // 2. Catalog Version
     if (path === '/api/catalog-version') {
-      return jsonResponse({ catalogVersion: Date.now(), timestamp: new Date().toISOString() });
+      return cachedJsonResponse({
+        version: currentCatalogVersion,
+        catalogVersion: currentCatalogVersion,
+        count: dynamicProductsStore.length,
+        timestamp: new Date(currentCatalogVersion).toISOString()
+      }, 200, 30, 60);
     }
 
     // 2.5 Admin Dashboard Stats API Endpoint
@@ -3304,6 +3310,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const newProd = buildProductObject(body, true);
 
         await saveD1DigitalProduct(env, newProd);
+        currentCatalogVersion = Date.now();
 
         return jsonResponse({ success: true, product: newProd, isLive: true, message: 'Saved and live in D1 database.' });
       }
@@ -3349,6 +3356,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         } else {
           await saveD1Product(env, newProd);
         }
+        currentCatalogVersion = Date.now();
 
         return jsonResponse({ success: true, product: newProd, isLive: true, message: 'Saved and live in D1 database.' });
       }
@@ -3606,6 +3614,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       await clearDraftStore(env);
+      currentCatalogVersion = Date.now();
 
       return jsonResponse({
         success: true,
@@ -3619,7 +3628,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (method === 'GET') {
         const list = await getD1Coupons(env);
         dynamicCouponsStore = list;
-        return jsonResponse(dynamicCouponsStore);
+        return cachedJsonResponse(dynamicCouponsStore, 200, 60, 300);
       }
 
       if (method === 'POST') {
@@ -4090,7 +4099,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!clientId) {
         return jsonResponse({ success: false, error: 'PayPal is not configured.' }, 503);
       }
-      return jsonResponse({ success: true, clientId, currency: 'USD', mode });
+      return cachedJsonResponse({ success: true, clientId, currency: 'USD', mode }, 200, 300, 3600);
     }
 
     if (path === '/api/paypal/create-order' && method === 'POST') {
@@ -4796,7 +4805,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const targetEmail = sessionEmail ? sessionEmail.toLowerCase() : queryEmail;
 
       if (!targetEmail && !queryPhone) {
-        return jsonResponse(allOrders.filter((o: any) => o.paymentStatus === 'SUCCESS' || o.status === 'completed'));
+        return jsonResponse([]);
       }
 
       const verifiedOrders = allOrders.filter((o: any) => {
@@ -4897,7 +4906,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return jsonResponse({ success: false, error: 'Product ID required' }, 400);
       }
       const summary = await getD1ReviewStats(env, productId);
-      return jsonResponse({ success: true, summary });
+      return cachedJsonResponse({ success: true, summary }, 200, 60, 300);
     }
 
     // 2. GET /api/reviews/eligibility?productId=...
@@ -5508,7 +5517,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
           const summary = await getD1ReviewStats(env, productId);
 
-          return jsonResponse({
+          const responseData = {
             success: true,
             reviews: sanitizedReviews,
             userReview: userOwnReview,
@@ -5519,7 +5528,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               total,
               totalPages
             }
-          });
+          };
+
+          return currentUserId
+            ? jsonResponse(responseData)
+            : cachedJsonResponse(responseData, 200, 60, 300);
         }
 
         // POST /api/reviews (Create new review - Guest & Authenticated)

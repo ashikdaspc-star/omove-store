@@ -5,6 +5,7 @@ import { DigitalProductCard } from '../components/DigitalProductCard';
 import { Search, Sparkles, FolderTree, ChevronRight, Layers, ArrowLeft, Filter, CheckCircle2, Zap, LayoutGrid } from 'lucide-react';
 
 import { isDigitalProduct } from '../utils/productClassifier';
+import { apiClient } from '../utils/apiClient';
 
 interface DigitalProductsViewProps {
   products: any[];
@@ -36,8 +37,10 @@ export const DigitalProductsView: React.FC<DigitalProductsViewProps> = ({
     if (categories && categories.length > 0) {
       setDigitalCats(categories);
     } else {
-      fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
-        .then((res) => (res.ok ? res.json() : []))
+      apiClient.get<DigitalCategory[]>('/api/digital-categories', {
+        caller: 'DigitalProductsView',
+        ttlMs: 300000
+      })
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) setDigitalCats(data);
         })

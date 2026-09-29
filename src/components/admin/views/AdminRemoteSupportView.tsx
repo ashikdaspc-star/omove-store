@@ -19,7 +19,8 @@ export const AdminRemoteSupportView: React.FC<AdminRemoteSupportViewProps> = ({
   const [bookingToDelete, setBookingToDelete] = useState<RemoteBooking | null>(null);
 
   const fetchBookings = () => {
-    fetch('/api/bookings?v=' + Date.now(), { cache: 'no-store' })
+    if (typeof document !== 'undefined' && document.hidden) return;
+    fetch('/api/bookings')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) setServerBookings(data);
@@ -29,8 +30,17 @@ export const AdminRemoteSupportView: React.FC<AdminRemoteSupportViewProps> = ({
 
   useEffect(() => {
     fetchBookings();
-    const interval = setInterval(fetchBookings, 10000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchBookings, 60000); // 60s interval instead of 10s
+
+    const handleVisibility = () => {
+      if (!document.hidden) fetchBookings();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const displayBookings = serverBookings.length > 0 ? serverBookings : bookings;

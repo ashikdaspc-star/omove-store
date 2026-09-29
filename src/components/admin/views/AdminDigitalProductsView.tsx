@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { DigitalCategory, Product } from '../../../types';
 import { AdminStatusBadge } from '../ui/AdminStatusBadge';
 import { AdminConfirmDialog } from '../ui/AdminConfirmDialog';
+import { apiClient } from '../../../utils/apiClient';
 import {
   Sparkles,
   Search,
@@ -56,15 +57,17 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
   const [menuAnchor, setMenuAnchor] = useState<{ id: string; rect: DOMRect } | null>(null);
 
   const fetchDigitalData = () => {
-    fetch('/api/admin/digital-products?v=' + Date.now(), { cache: 'no-store' })
+    fetch('/api/admin/digital-products')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) setDigitalProds(data);
       })
       .catch(() => {});
 
-    fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : []))
+    apiClient.get<DigitalCategory[]>('/api/digital-categories', {
+      caller: 'AdminDigitalProductsView',
+      ttlMs: 300000
+    })
       .then((data) => {
         if (Array.isArray(data)) setDigitalCats(data);
       })
@@ -73,7 +76,7 @@ export const AdminDigitalProductsView: React.FC<AdminDigitalProductsViewProps> =
 
   useEffect(() => {
     fetchDigitalData();
-  }, [products]);
+  }, []);
 
   const displayList = useMemo(() => {
     const map = new Map<string, any>();

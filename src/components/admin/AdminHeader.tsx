@@ -52,10 +52,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Poll draft status
+  // Poll draft status (only when tab is active and visible)
   useEffect(() => {
     let isMounted = true;
     const checkDraftStatus = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const res = await fetch('/api/admin/draft-status');
         if (res.ok) {
@@ -67,11 +68,19 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         }
       } catch (e) {}
     };
+
     checkDraftStatus();
-    const interval = setInterval(checkDraftStatus, 15000);
+    const interval = setInterval(checkDraftStatus, 60000); // 60s interval instead of 15s
+
+    const handleVisibility = () => {
+      if (!document.hidden) checkDraftStatus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       isMounted = false;
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [publishStatus]);
 

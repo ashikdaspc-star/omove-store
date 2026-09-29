@@ -7,6 +7,15 @@ export interface Env {
   DB?: any;
 }
 
+export type PagesFunction<Env = any> = (context: {
+  request: Request;
+  env: Env;
+  params: Record<string, string | string[]>;
+  waitUntil: (promise: Promise<any>) => void;
+  next: (input?: RequestInfo, init?: RequestInit) => Promise<Response>;
+  data: Record<string, any>;
+}) => Promise<Response> | Response;
+
 function parseJsonField(val: any, fallback: any = []): any {
   if (val === null || val === undefined) return fallback;
   if (typeof val === 'object') return val;

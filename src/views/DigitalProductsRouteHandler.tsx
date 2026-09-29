@@ -4,6 +4,7 @@ import { DigitalProduct, DigitalCategory } from '../types';
 import { DigitalProductsView } from './DigitalProductsView';
 import { DigitalProductDetailView } from './DigitalProductDetailView';
 import { matchProductBySlugOrId } from '../utils/productMatcher';
+import { apiClient } from '../utils/apiClient';
 
 interface DigitalProductsRouteHandlerProps {
   products: any[];
@@ -35,18 +36,22 @@ export const DigitalProductsRouteHandler: React.FC<DigitalProductsRouteHandlerPr
   useEffect(() => {
     // Only fetch categories if not supplied via props
     if (!categories || categories.length === 0) {
-      fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
-        .then((res) => (res.ok ? res.json() : []))
+      apiClient.get<DigitalCategory[]>('/api/digital-categories', {
+        caller: 'DigitalProductsRouteHandler/Categories',
+        ttlMs: 300000
+      })
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) setDigitalCats(data);
         })
         .catch(() => {});
     }
 
-    // Always fetch unified products (both Store and Digital) if not already available in parent products
+    // Only fetch products if not already available in parent products
     if (!products || products.length === 0) {
-      fetch('/api/products?v=' + Date.now(), { cache: 'no-store' })
-        .then((res) => (res.ok ? res.json() : []))
+      apiClient.get<any[]>('/api/products', {
+        caller: 'DigitalProductsRouteHandler/Products',
+        ttlMs: 120000
+      })
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) setFetchedCatalogProds(data);
         })

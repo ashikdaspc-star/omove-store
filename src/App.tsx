@@ -13,6 +13,7 @@ import { AdminAuthModal } from './components/AdminAuthModal';
 
 import { ShieldCheck, Lock } from 'lucide-react';
 import { fetchAndCacheCoupons } from './utils/couponManager';
+import { apiClient } from './utils/apiClient';
 import { HomeView } from './views/HomeView';
 import { StoreView } from './views/StoreView';
 import { ServicesView } from './views/ServicesView';
@@ -90,91 +91,45 @@ export default function App() {
   const lastLocalEditRef = React.useRef<number>(0);
   const SYNC_COOLDOWN_MS = 30000; // Skip background polling for 30s after local admin edits
 
-  // Helper to fetch latest products directly from server API without GitHub CDN cache delay
-  const loadLatestProductsFromServer = React.useCallback(async () => {
+  // Helper to fetch latest products directly from server API without delay
+  const loadLatestProductsFromServer = React.useCallback(async (forceFresh = false) => {
     // Respect edit cooldown — don't overwrite fresh local edits with stale remote data
     if (lastLocalEditRef.current > 0 && Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) {
       console.log('[OMOVE SYNC] loadLatestProductsFromServer skipped — sync cooldown active after admin edit');
       return;
     }
 
-    console.log('[OMOVE SYNC] Store fetch started...');
-    let fetchedData: Product[] | null = null;
-    let source = '';
-
-    // Authoritative Dual-Resilient Fetch: Ensure both Store and Digital products are queried
     try {
-      const [resProd, resDig] = await Promise.all([
-        fetch(`/api/products?v=${Date.now()}`, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
+      const data = await apiClient.get<Product[]>('/api/products', {
+        caller: 'App/CatalogSync',
+        ttlMs: 120000,
+        forceFresh
+      });
+
+      if (Array.isArray(data) && data.length > 0) {
+        const publishedOnly = data.filter((p: any) => p && p.id && (p.status || 'PUBLISHED') === 'PUBLISHED');
+        if (publishedOnly.length > 0) {
+          setProducts(publishedOnly);
+          try {
+            localStorage.setItem('omove_products', JSON.stringify(publishedOnly));
+            localStorage.setItem('omove_catalog_version', String(catalogVersionRef.current || Date.now()));
+          } catch (e) {
+            console.error(e);
           }
-        }).catch(() => null),
-        fetch(`/api/digital-products?v=${Date.now()}`, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
-          }
-        }).catch(() => null)
-      ]);
-
-      const map = new Map<string, Product>();
-
-      if (resDig && resDig.ok) {
-        const digList = await resDig.json().catch(() => []);
-        if (Array.isArray(digList)) {
-          digList.forEach((p: any) => {
-            if (p && p.id) map.set(p.id, { ...p, productType: 'DIGITAL' });
-          });
         }
-      }
-
-      if (resProd && resProd.ok) {
-        const prodList = await resProd.json().catch(() => []);
-        if (Array.isArray(prodList)) {
-          prodList.forEach((p: any) => {
-            if (p && p.id) map.set(p.id, p);
-          });
-        }
-      }
-
-      const combined = Array.from(map.values());
-      if (combined.length > 0) {
-        fetchedData = combined;
-        source = 'Backend APIs (/api/products + /api/digital-products)';
       }
     } catch (e) {
-      console.log('[OMOVE SYNC] Backend API fetch skipped:', e);
-    }
-
-    // Authoritative Catalog Update: NEVER overwrite with empty array if API fails or returned empty
-    if (Array.isArray(fetchedData) && fetchedData.length > 0) {
-      const publishedOnly = fetchedData.filter((p: any) => p && p.id && (p.status || 'PUBLISHED') === 'PUBLISHED');
-      if (publishedOnly.length > 0) {
-        console.log(`[OMOVE SYNC] Store fetch result received from ${source}:`, publishedOnly.length, 'published items');
-        setProducts(publishedOnly);
-        try {
-          localStorage.setItem('omove_products', JSON.stringify(publishedOnly));
-          localStorage.setItem('omove_catalog_version', String(catalogVersionRef.current || Date.now()));
-        } catch (e) {
-          console.error(e);
-        }
-        console.log('[OMOVE SYNC] UI re-rendered with latest catalog');
-      }
+      console.log('[OMOVE SYNC] Products API fetch fallback notice:', e);
     }
   }, []);
 
   const hasInitializedStoreRef = React.useRef(false);
 
-  // 1. Initial Load + Real-Time Sync (Polling + BroadcastChannel + Storage Event + SW Purge)
+  // 1. Initial Load + Real-Time Sync (Event-Driven: BroadcastChannel + Storage Event + Tab Focus)
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const reg of registrations) {
-          console.log('[OMOVE SYNC] Unregistering legacy Service Worker:', reg);
           reg.unregister();
         }
       });
@@ -204,7 +159,8 @@ export default function App() {
       bc.onmessage = (event) => {
         if (event.data && event.data.type === 'CATALOG_UPDATED') {
           console.log('[OMOVE SYNC] BroadcastChannel message received, re-fetching catalog...');
-          loadLatestProductsFromServer();
+          apiClient.invalidateCache('/api/products');
+          loadLatestProductsFromServer(true);
         }
       };
     } catch (e) {}
@@ -212,61 +168,42 @@ export default function App() {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'omove_catalog_version' || e.key === 'omove_products') {
         console.log('[OMOVE SYNC] Storage event detected across windows, re-fetching catalog...');
-        loadLatestProductsFromServer();
+        apiClient.invalidateCache('/api/products');
+        loadLatestProductsFromServer(true);
       }
     };
     window.addEventListener('storage', handleStorageChange);
 
-    const pollInterval = setInterval(async () => {
-      // Skip background polling if tab is minimized or hidden in background
-      if (typeof document !== 'undefined' && document.hidden) {
-        return;
-      }
+    // Event-driven visibility check with 5-minute cooldown (NO aggressive 30s polling intervals)
+    let lastVisibilityCheck = Date.now();
+    const handleVisibilityChange = async () => {
+      if (document.hidden) return;
+      if (location.pathname === '/support') return;
+      if (Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) return;
 
-      // Skip polling on support page
-      if (location.pathname === '/support') {
-        return;
-      }
-
-      // Skip polling if admin just made a local edit (sync cooldown)
-      if (Date.now() - lastLocalEditRef.current < SYNC_COOLDOWN_MS) {
-        return;
-      }
+      // Only check version if user has been away for at least 5 minutes
+      if (Date.now() - lastVisibilityCheck < 300000) return;
+      lastVisibilityCheck = Date.now();
 
       try {
-        const res = await fetch(`/api/catalog-version?t=${Date.now()}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+        const info = await apiClient.get<{ version?: number; catalogVersion?: number }>('/api/catalog-version', {
+          caller: 'App/VisibilitySync',
+          ttlMs: 60000
         });
-        if (res.ok) {
-          const info = await res.json();
-          if (info.version && info.version > catalogVersionRef.current) {
-            console.log('[OMOVE SYNC] Server catalog version updated:', info.version, 'vs current:', catalogVersionRef.current);
-            catalogVersionRef.current = info.version;
-            loadLatestProductsFromServer();
-          }
+        const serverVer = info?.version || info?.catalogVersion;
+        if (serverVer && serverVer > catalogVersionRef.current) {
+          catalogVersionRef.current = serverVer;
+          apiClient.invalidateCache('/api/products');
+          loadLatestProductsFromServer(true);
         }
       } catch (e) {}
+    };
 
-      // Poll Remote Support Bookings queue ONLY when admin is active
-      const isAdminActive = sessionStorage.getItem('omove_admin_session') === 'true' || localStorage.getItem('omove_admin_session') === 'true';
-      if (isAdminActive) {
-        try {
-          const bRes = await fetch(`/api/bookings?t=${Date.now()}`, { cache: 'no-store' });
-          if (bRes.ok) {
-            const bData = await bRes.json();
-            if (Array.isArray(bData)) {
-              setBookings(bData);
-              try { localStorage.setItem('omove_bookings', JSON.stringify(bData)); } catch (e) {}
-            }
-          }
-        } catch (e) {}
-      }
-    }, 30000); // 30-second poll interval to check catalog version
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (bc) bc.close();
     };
   }, [location.pathname, loadLatestProductsFromServer]);
@@ -438,7 +375,7 @@ export default function App() {
 
   const hasInitializedSecondaryDataRef = React.useRef(false);
 
-  // Verify session and fetch fresh production data from Cloudflare edge on mount
+  // Verify session and fetch fresh production data on mount
   useEffect(() => {
     if (location.pathname === '/support') {
       return;
@@ -447,8 +384,8 @@ export default function App() {
     if (!hasInitializedSecondaryDataRef.current) {
       hasInitializedSecondaryDataRef.current = true;
 
-      fetch('/api/services?v=' + Date.now(), { cache: 'no-store' })
-        .then((res) => res.json())
+      // Public data fetched via deduplicated apiClient with memory cache
+      apiClient.get<RemoteService[]>('/api/services', { caller: 'App/Services', ttlMs: 300000 })
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) {
             setServices(data);
@@ -457,8 +394,7 @@ export default function App() {
         })
         .catch(() => {});
 
-      fetch('/api/blogs?v=' + Date.now(), { cache: 'no-store' })
-        .then((res) => res.json())
+      apiClient.get<BlogPost[]>('/api/blogs', { caller: 'App/Blogs', ttlMs: 300000 })
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) {
             setBlogs(data);
@@ -467,30 +403,7 @@ export default function App() {
         })
         .catch(() => {});
 
-      fetch('/api/account/orders?v=' + Date.now(), { cache: 'no-store' })
-        .then((res) => res.json())
-        .then((data) => {
-          if (Array.isArray(data) && data.length > 0) {
-            setOrders(data);
-            try { localStorage.setItem('omove_orders', JSON.stringify(data)); } catch (e) {}
-          }
-        })
-        .catch(() => {});
-
-      // Fetch Live Remote Support Queue Bookings from server
-      fetch('/api/bookings?v=' + Date.now(), { cache: 'no-store' })
-        .then((res) => res.json())
-        .then((data) => {
-          if (Array.isArray(data) && data.length > 0) {
-            setBookings(data);
-            try { localStorage.setItem('omove_bookings', JSON.stringify(data)); } catch (e) {}
-          }
-        })
-        .catch(() => {});
-
-      // Fetch Digital Categories from server
-      fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
-        .then((res) => res.json())
+      apiClient.get<DigitalCategory[]>('/api/digital-categories', { caller: 'App/DigitalCategories', ttlMs: 300000 })
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) {
             setDigitalCategories(data);
@@ -507,18 +420,32 @@ export default function App() {
       localSession = localStorage.getItem('omove_active_session');
     } catch (e) {}
 
-    const headers: Record<string, string> = {
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache'
-    };
+    // If user has never logged in (no token and no localSession), skip auth verification network hit
+    if (!token && !localSession) {
+      return;
+    }
+
+    // Only fetch authenticated orders if user has an active session token
+    if (token) {
+      fetch('/api/account/orders', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then((res) => res.ok ? res.json() : [])
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setOrders(data);
+            try { localStorage.setItem('omove_orders', JSON.stringify(data)); } catch (e) {}
+          }
+        })
+        .catch(() => {});
+    }
+
+    const headers: Record<string, string> = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    fetch('/api/auth/me', {
-      cache: 'no-store',
-      headers
-    })
+    fetch('/api/auth/me', { headers })
       .then((res) => res.json())
       .then((data) => {
         if (data && data.authenticated && data.user) {
@@ -855,6 +782,7 @@ export default function App() {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
+        apiClient.invalidateCache();
         console.log('[OMOVE SYNC] Server-side publish response:', data);
         const commitShaStr = data.sync?.commitSha && data.sync.commitSha !== 'up-to-date'
           ? ` (Commit: ${String(data.sync.commitSha).substring(0, 7)})`

@@ -161,19 +161,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   useEffect(() => {
     const token = localStorage.getItem('omove_session_token');
+    if (!token) return;
+
     const headers: Record<string, string> = {
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache'
+      'Authorization': `Bearer ${token}`
     };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
 
     // Fetch server-authoritative orders for authenticated session
-    fetch('/api/account/orders', {
-      cache: 'no-store',
-      headers
-    })
+    fetch('/api/account/orders', { headers })
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) setServerOrders(data);
@@ -181,10 +176,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       .catch((err) => console.warn('Account orders fetch note:', err));
 
     // Fetch server-authoritative bookings for authenticated session
-    fetch('/api/account/bookings', {
-      cache: 'no-store',
-      headers
-    })
+    fetch('/api/account/bookings', { headers })
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) setServerBookings(data);

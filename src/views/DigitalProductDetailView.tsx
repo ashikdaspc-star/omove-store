@@ -7,6 +7,7 @@ import { isStoreProduct } from '../utils/productClassifier';
 import { ProductReviewsSection } from '../components/reviews/ProductReviewsSection';
 import { ProductImageGallery } from '../components/ProductImageGallery';
 import { trackViewContent } from '../utils/metaPixel';
+import { apiClient } from '../utils/apiClient';
 import {
   Sparkles,
   DownloadCloud,
@@ -67,8 +68,10 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
 
   useEffect(() => {
     if (product && product.id) {
-      fetch(`/api/reviews/summary?productId=${encodeURIComponent(product.id)}`)
-        .then((res) => (res.ok ? res.json() : null))
+      apiClient.get(`/api/reviews/summary?productId=${encodeURIComponent(product.id)}`, {
+        caller: 'DigitalProductDetailView/ReviewSummary',
+        ttlMs: 60000
+      })
         .then((data) => {
           if (data && data.success && data.summary) {
             setReviewSummary(data.summary);
@@ -81,8 +84,10 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
   useEffect(() => {
     if (!initialProduct && !matchProductBySlugOrId(products, routeSlug) && routeSlug) {
       setIsLoading(true);
-      fetch(`/api/digital-products/${encodeURIComponent(routeSlug)}`)
-        .then((res) => (res.ok ? res.json() : null))
+      apiClient.get(`/api/digital-products/${encodeURIComponent(routeSlug)}`, {
+        caller: 'DigitalProductDetailView/SlugLookup',
+        ttlMs: 120000
+      })
         .then((data) => {
           if (data) {
             const prod = data.product || (data.id ? data : null);
@@ -92,8 +97,10 @@ export const DigitalProductDetailView: React.FC<DigitalProductDetailViewProps> =
             }
           }
           // Fallback to /api/products/:id for store products
-          return fetch(`/api/products/${encodeURIComponent(routeSlug)}`)
-            .then((res) => (res.ok ? res.json() : null))
+          return apiClient.get(`/api/products/${encodeURIComponent(routeSlug)}`, {
+            caller: 'DigitalProductDetailView/FallbackLookup',
+            ttlMs: 120000
+          })
             .then((pData) => {
               if (pData) {
                 const p = pData.product || (pData.id ? pData : null);

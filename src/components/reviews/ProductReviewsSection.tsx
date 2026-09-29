@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ProductReview, ReviewSummary, ReviewEligibility } from '../../types';
 import { WriteReviewModal } from './WriteReviewModal';
 import { ReportReviewModal } from './ReportReviewModal';
+import { apiClient } from '../../utils/apiClient';
 import {
   Star,
   CheckCircle2,
@@ -54,8 +55,23 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
     setTimeout(() => setToastMessage(null), 4500);
   };
 
-  // Fetch Eligibility Check
+  // Fetch Eligibility Check (skip network call for guests)
   const fetchEligibility = useCallback(async () => {
+    const hasSession = Boolean(
+      localStorage.getItem('omove_session_token') || localStorage.getItem('omove_active_session')
+    );
+
+    if (!hasSession) {
+      setEligibility({
+        eligible: true,
+        isGuest: true,
+        verifiedPurchase: false,
+        existingReview: false,
+        reason: null
+      });
+      return;
+    }
+
     try {
       const res = await fetch(`/api/reviews/eligibility?productId=${encodeURIComponent(productId)}&productName=${encodeURIComponent(productName)}`);
       if (res.ok) {
@@ -72,34 +88,32 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
     }
   }, [productId, productName]);
 
-  // Fetch Reviews List
+  // Fetch Reviews List via deduplicated apiClient
   const fetchReviews = useCallback(async (pageNum = 1, currentSort = sort, currentRating = ratingFilter) => {
     setLoading(true);
     try {
       const ratingParam = currentRating !== 'all' ? `&rating=${currentRating}` : '';
-      const res = await fetch(
-        `/api/reviews?productId=${encodeURIComponent(productId)}&page=${pageNum}&limit=10&sort=${currentSort}${ratingParam}`
+      const data = await apiClient.get(
+        `/api/reviews?productId=${encodeURIComponent(productId)}&page=${pageNum}&limit=10&sort=${currentSort}${ratingParam}`,
+        { caller: 'ProductReviewsSection/List', ttlMs: 60000 }
       );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setReviews(data.reviews || []);
-          if (data.userReview) {
-            setUserReview(data.userReview);
-          }
-          if (data.summary) {
-            setSummary(data.summary);
-            if (onSummaryLoaded) onSummaryLoaded(data.summary);
-          }
-          setTotalPages(data.pagination?.totalPages || 1);
+      if (data && data.success) {
+        setReviews(data.reviews || []);
+        if (data.userReview) {
+          setUserReview(data.userReview);
         }
+        if (data.summary) {
+          setSummary(data.summary);
+          if (onSummaryLoaded) onSummaryLoaded(data.summary);
+        }
+        setTotalPages(data.pagination?.totalPages || 1);
       }
     } catch (e) {
       console.warn('[Reviews Fetch Error]', e);
     } finally {
       setLoading(false);
     }
-  }, [productId, sort, ratingFilter]);
+  }, [productId, sort, ratingFilter, onSummaryLoaded]);
 
   // Initial Load
   useEffect(() => {

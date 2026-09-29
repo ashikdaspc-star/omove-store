@@ -6,6 +6,7 @@ import { AdminCommandPalette } from './AdminCommandPalette';
 import { StoreProductEditorModal } from './modals/StoreProductEditorModal';
 import { DigitalProductEditorModal } from './modals/DigitalProductEditorModal';
 import { AdminToastProvider } from './ui/AdminToast';
+import { apiClient } from '../../utils/apiClient';
 
 // Admin Views
 import { AdminDashboardView } from './views/AdminDashboardView';
@@ -83,8 +84,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const [digitalCategories, setDigitalCategories] = useState<DigitalCategory[]>([]);
 
   useEffect(() => {
-    fetch('/api/digital-categories?v=' + Date.now(), { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : []))
+    apiClient.get<DigitalCategory[]>('/api/digital-categories', {
+      caller: 'AdminLayout',
+      ttlMs: 300000
+    })
       .then((data) => {
         if (Array.isArray(data)) setDigitalCategories(data);
       })
@@ -101,6 +104,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       const data = await res.json();
       if (data.category) {
         setDigitalCategories((prev) => [data.category, ...prev]);
+        apiClient.invalidateCache('/api/digital-categories');
       }
     } catch (e) {
       console.error(e);
@@ -115,6 +119,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedCat)
       });
+      apiClient.invalidateCache('/api/digital-categories');
     } catch (e) {
       console.error(e);
     }
@@ -124,6 +129,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     try {
       setDigitalCategories((prev) => prev.filter((c) => c.id !== catId && c.parentId !== catId));
       await fetch(`/api/digital-categories/${encodeURIComponent(catId)}`, { method: 'DELETE' });
+      apiClient.invalidateCache('/api/digital-categories');
     } catch (e) {
       console.error(e);
     }

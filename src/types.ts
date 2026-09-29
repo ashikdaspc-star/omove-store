@@ -5,7 +5,7 @@ export type ProductCategory =
   | 'Operating Systems'
   | 'Utilities';
 
-export type LicenseType = 'Lifetime License' | '1 Year License' | 'Perpetual' | 'Multi-PC License' | 'Instant Digital Key' | 'Digital License';
+export type LicenseType = 'Lifetime License' | '1 Year License' | 'Perpetual' | 'Multi-PC License' | 'Instant Digital Key' | 'Digital License' | 'Lifetime Support';
 export type ProductType = 'STORE' | 'DIGITAL';
 
 export interface DigitalCategory {

@@ -40,20 +40,12 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const [directStoreProducts, setDirectStoreProducts] = useState<any[]>([]);
 
   const fetchLiveStats = useCallback(async () => {
+    if (typeof document !== 'undefined' && document.hidden) return;
     try {
       const [resStats, resDig, resStore] = await Promise.all([
-        fetch(`/api/admin/dashboard-stats?t=${Date.now()}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
-        }).catch(() => null),
-        fetch(`/api/admin/digital-products?t=${Date.now()}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
-        }).catch(() => null),
-        fetch(`/api/admin/store-products?t=${Date.now()}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
-        }).catch(() => null)
+        fetch('/api/admin/dashboard-stats').catch(() => null),
+        fetch('/api/admin/digital-products').catch(() => null),
+        fetch('/api/admin/store-products').catch(() => null)
       ]);
 
       if (resStats && resStats.ok) {
@@ -81,8 +73,17 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
 
   useEffect(() => {
     fetchLiveStats();
-    const interval = setInterval(fetchLiveStats, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchLiveStats, 60000); // 60s interval instead of 30s
+
+    const handleVisibility = () => {
+      if (!document.hidden) fetchLiveStats();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [fetchLiveStats]);
 
   const paidOrders = (orders || []).filter((o) => o && (o.paymentStatus === 'SUCCESS' || o.status === 'completed'));

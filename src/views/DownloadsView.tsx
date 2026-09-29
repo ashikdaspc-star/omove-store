@@ -43,17 +43,10 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
 
   React.useEffect(() => {
     const token = localStorage.getItem('omove_session_token');
-    const headers: Record<string, string> = {
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache'
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    if (!token) return;
 
     fetch('/api/account/orders', {
-      cache: 'no-store',
-      headers
+      headers: { 'Authorization': `Bearer ${token}` }
     })
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {

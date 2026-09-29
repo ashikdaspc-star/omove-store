@@ -1,5 +1,6 @@
 import { Coupon } from '../types';
 import { MOCK_COUPONS } from '../data/mockData';
+import { apiClient } from './apiClient';
 
 export const getStoredCoupons = (): Coupon[] => {
   try {
@@ -16,15 +17,15 @@ export const getStoredCoupons = (): Coupon[] => {
 
 export const fetchAndCacheCoupons = async (): Promise<Coupon[]> => {
   try {
-    const res = await fetch('/api/coupons');
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        try {
-          localStorage.setItem('omove_coupons', JSON.stringify(data));
-        } catch (e) {}
-        return data;
-      }
+    const data = await apiClient.get<Coupon[]>('/api/coupons', {
+      caller: 'couponManager',
+      ttlMs: 120000
+    });
+    if (Array.isArray(data) && data.length > 0) {
+      try {
+        localStorage.setItem('omove_coupons', JSON.stringify(data));
+      } catch (e) {}
+      return data;
     }
   } catch (err) {
     console.warn('Coupons fetch note:', err);
